@@ -19,6 +19,7 @@ node scripts/py.mjs -m pip install -e "apps/api[dev]"
 cp apps/api/.env.example apps/api/.env
 pnpm db:migrate
 pnpm db:seed
+pnpm db:compute
 pnpm dev
 ```
 

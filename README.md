@@ -76,7 +76,10 @@ cp apps/api/.env.example apps/api/.env
 pnpm db:migrate
 pnpm db:seed
 
-# 5) 启动前后端（api:8000 / web:5173）
+# 5) 按标准配方计算营养结果（营养引擎第一层）
+pnpm db:compute
+
+# 6) 启动前后端（api:8000 / web:5173）
 pnpm dev
 ```
 
@@ -90,6 +93,7 @@ pnpm dev
 | `pnpm db:up` / `pnpm db:down` | 启停开发数据库 |
 | `pnpm db:migrate` / `pnpm db:downgrade` | 应用 / 回滚迁移 |
 | `pnpm db:seed` | 灌入种子数据（幂等，可重复执行） |
+| `pnpm db:compute` | 按标准配方计算最近两周的营养结果（幂等） |
 | `pnpm gen:api` | 导出后端 OpenAPI 并重新生成前端类型 |
 | `pnpm lint` | ruff + eslint |
 | `pnpm typecheck` | mypy + tsc |
@@ -105,7 +109,7 @@ pnpm dev
 | 3 | 完整数据模型 + 迁移 | ✅ 已完成 |
 | 4 | 种子数据 | ✅ 已完成 |
 | 5 | 认证与 RBAC | ✅ 已完成 |
-| 6 | 营养引擎第一层 | ⏳ 待开始 |
+| 6 | 营养引擎第一层 | ✅ 已完成 |
 | 7 | 食材库端到端切片 | ⏳ 待开始 |
 | 8 | 公开大屏 | ⏳ 待开始 |
 | 9 | 管理端看板 | ⏳ 待开始 |
