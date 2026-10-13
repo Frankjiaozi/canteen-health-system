@@ -17,7 +17,12 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 from uuid import UUID
 
-from app.shared.enums import CookingMethod, NutrientCode
+from app.shared.enums import CookingMethod
+from app.shared.nutrients import (
+    FIELD_TO_NUTRIENT_CODE,
+    NUTRIENT_FIELDS,
+    NUTRIENT_SCALES,
+)
 
 ENGINE_NAME = "nutrition.theoretical"
 ENGINE_VERSION = "1.0.0"
@@ -25,33 +30,6 @@ FORMULA = (
     "单份营养 = Σ(食材市品用量 × 可食部比例 ÷ 100 × 每100克成分)"
     " + Σ(调味料用量 ÷ 100 × 每100克成分)"
 )
-
-#: 五项核心营养指标，顺序与展示顺序一致
-NUTRIENT_FIELDS: tuple[str, ...] = (
-    "energy_kcal",
-    "protein_g",
-    "fat_g",
-    "carb_g",
-    "sodium_mg",
-)
-
-#: 落库时的小数位，与数据模型的 Numeric 精度一致
-NUTRIENT_SCALES: dict[str, int] = {
-    "energy_kcal": 2,
-    "protein_g": 3,
-    "fat_g": 3,
-    "carb_g": 3,
-    "sodium_mg": 2,
-}
-
-#: 列名 → 营养素代码。缺失项对外一律用稳定代码表达，中文文案由前端映射。
-FIELD_TO_NUTRIENT_CODE: dict[str, NutrientCode] = {
-    "energy_kcal": NutrientCode.ENERGY,
-    "protein_g": NutrientCode.PROTEIN,
-    "fat_g": NutrientCode.FAT,
-    "carb_g": NutrientCode.CARBOHYDRATE,
-    "sodium_mg": NutrientCode.SODIUM,
-}
 
 #: 第一层的基准误差。验收标准要求「计算值与称重实测值偏差不超过 15%」，
 #: 这里直接把它作为理论值的默认区间半径，而不是给出一个看似精确的点值。

@@ -2,6 +2,7 @@ import { Skeleton } from 'antd';
 import { Suspense, lazy, type ReactNode } from 'react';
 import { Navigate, RouterProvider, createBrowserRouter } from 'react-router-dom';
 import { RequireAuth } from '@/features/auth/components/RequireAuth';
+import { DisplayPage } from '@/features/display/routes';
 import { IngredientListPage } from '@/features/ingredient/routes';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { SYSTEM_MODULES } from '@/shared/config/modules';
@@ -44,7 +45,7 @@ const router = createBrowserRouter([
   {
     // 公开大屏：全系统唯一的免登录页面
     path: '/display',
-    element: placeholderElement('/display'),
+    element: lazyElement(<DisplayPage />),
   },
   {
     path: '/admin',

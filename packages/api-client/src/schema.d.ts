@@ -149,6 +149,23 @@ export interface paths {
         patch: operations["update_ingredient_api_v1_ingredients__ingredient_id__patch"];
         trace?: never;
     };
+    "/api/v1/public/board/today": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 今日菜单与营养（免登录） */
+        get: operations["read_board_api_v1_public_board_today_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -472,6 +489,155 @@ export interface components {
             password: string;
         };
         /**
+         * NutrientValue
+         * @description 一项营养指标：数值 + 单位 + 上下界。
+         */
+        NutrientValue: {
+            /**
+             * Code
+             * @description 营养素代码，例如 ENERGY
+             */
+            code: string;
+            /**
+             * Label
+             * @description 中文名
+             */
+            label: string;
+            /**
+             * Unit
+             * @description 单位
+             */
+            unit: string;
+            /**
+             * Digits
+             * @description 展示小数位
+             */
+            digits: number;
+            /**
+             * Value
+             * @description 单份数值
+             */
+            value: string;
+            /**
+             * Lower
+             * @description 误差下界
+             */
+            lower: string;
+            /**
+             * Upper
+             * @description 误差上界
+             */
+            upper: string;
+        };
+        /**
+         * PublicBoard
+         * @description 公开大屏的全部内容。
+         */
+        PublicBoard: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Meal Label
+             * @description 餐次中文名
+             */
+            meal_label: string;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /**
+             * Diner Count
+             * @description 就餐人次
+             */
+            diner_count?: number | null;
+            /** Dishes */
+            dishes: components["schemas"]["PublicDishCard"][];
+            /** Standards */
+            standards: components["schemas"]["StandardComparison"][];
+            /**
+             * Disclaimer
+             * @description 合规说明
+             */
+            disclaimer: string;
+        };
+        /**
+         * PublicDishCard
+         * @description 一道菜的营养卡。口径固定为「单份」。
+         */
+        PublicDishCard: {
+            /**
+             * Dish Id
+             * Format: uuid
+             */
+            dish_id: string;
+            /** Name */
+            name: string;
+            /** Category Label */
+            category_label: string;
+            /** Cooking Method Label */
+            cooking_method_label: string;
+            /**
+             * Standard Serving G
+             * @description 标准份量（克）
+             */
+            standard_serving_g: string;
+            /**
+             * Allergens
+             * @description 过敏原标记，无则为空数组
+             */
+            allergens: string[];
+            /** Nutrients */
+            nutrients: components["schemas"]["NutrientValue"][];
+            /** Recipe Version */
+            recipe_version: number;
+            /**
+             * Source Note
+             * @description 数值来源说明
+             */
+            source_note?: string | null;
+            /**
+             * Missing Nutrients
+             * @description 成分数据缺失项，无则为空数组
+             */
+            missing_nutrients: string[];
+        };
+        /**
+         * StandardComparison
+         * @description 与膳食指南量化基准的对照。
+         *
+         *     基准确为「每日」口径，因此这里的实际值也是当日累计，而不是某一餐。
+         */
+        StandardComparison: {
+            /** Code */
+            code: string;
+            /** Label */
+            label: string;
+            /** Unit */
+            unit: string;
+            /** Target Min */
+            target_min?: string | null;
+            /** Target Max */
+            target_max?: string | null;
+            /**
+             * Actual
+             * @description 当日实际值（人均或种类数）
+             */
+            actual?: string | null;
+            /**
+             * Status
+             * @description ok / over / under / unknown
+             */
+            status: string;
+            /** Source */
+            source: string;
+            /** Source Quote */
+            source_quote?: string | null;
+        };
+        /**
          * UserRole
          * @description 登录角色。
          *
@@ -511,6 +677,10 @@ export type SchemaIngredientPage = components['schemas']['IngredientPage'];
 export type SchemaIngredientRead = components['schemas']['IngredientRead'];
 export type SchemaIngredientUpdate = components['schemas']['IngredientUpdate'];
 export type SchemaLoginRequest = components['schemas']['LoginRequest'];
+export type SchemaNutrientValue = components['schemas']['NutrientValue'];
+export type SchemaPublicBoard = components['schemas']['PublicBoard'];
+export type SchemaPublicDishCard = components['schemas']['PublicDishCard'];
+export type SchemaStandardComparison = components['schemas']['StandardComparison'];
 export type SchemaUserRole = components['schemas']['UserRole'];
 export type SchemaValidationError = components['schemas']['ValidationError'];
 export type $defs = Record<string, never>;
@@ -810,6 +980,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["IngredientRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_board_api_v1_public_board_today_get: {
+        parameters: {
+            query?: {
+                /** @description 指定日期，默认取业务时区的今天；便于回看与演示 */
+                on_date?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicBoard"];
                 };
             };
             /** @description Validation Error */

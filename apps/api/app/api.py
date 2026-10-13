@@ -10,6 +10,7 @@ from fastapi import APIRouter
 
 from app.modules.auth.router import router as auth_routes
 from app.modules.ingredient.router import router as ingredient_routes
+from app.modules.public.router import router as public_routes
 from app.modules.system.meta import router as meta_routes
 from app.modules.system.router import router as system_routes
 
@@ -22,3 +23,4 @@ api_router = APIRouter()
 api_router.include_router(auth_routes)
 api_router.include_router(meta_routes)
 api_router.include_router(ingredient_routes)
+api_router.include_router(public_routes)

@@ -68,6 +68,6 @@ export const SYSTEM_MODULES: SystemModule[] = [
     title: '公开大屏',
     description: '今日菜单与每道菜营养指标，免登录展示',
     requiresAuth: false,
-    status: 'planned',
+    status: 'ready',
   },
 ];
