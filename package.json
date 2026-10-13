@@ -1,0 +1,46 @@
+{
+  "name": "canteen-health-system",
+  "version": "0.1.0",
+  "private": true,
+  "description": "食堂健康管理系统 —— 面向食堂端的营养核算与采购预测，面向学校的决策支持",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "concurrently -n api,web -c cyan,green \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "cd apps/api && node ../../scripts/py.mjs -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000",
+    "dev:web": "pnpm --filter @canteen/web dev",
+    "build": "pnpm --filter @canteen/web build",
+    "db:up": "docker compose -f infra/docker-compose.dev.yml up -d",
+    "db:down": "docker compose -f infra/docker-compose.dev.yml down",
+    "db:reset": "docker compose -f infra/docker-compose.dev.yml down -v && docker compose -f infra/docker-compose.dev.yml up -d",
+    "db:migrate": "cd apps/api && node ../../scripts/py.mjs -m alembic upgrade head",
+    "db:downgrade": "cd apps/api && node ../../scripts/py.mjs -m alembic downgrade base",
+    "db:revision": "cd apps/api && node ../../scripts/py.mjs -m alembic revision --autogenerate",
+    "db:seed": "cd apps/api && node ../../scripts/py.mjs -m app.db.seed",
+    "gen:api": "node scripts/gen-api-client.mjs",
+    "lint": "pnpm lint:py && pnpm lint:web",
+    "lint:py": "cd apps/api && node ../../scripts/py.mjs -m ruff check . && node ../../scripts/py.mjs -m ruff format --check .",
+    "lint:web": "pnpm --filter @canteen/web lint",
+    "format": "cd apps/api && node ../../scripts/py.mjs -m ruff format . && cd ../.. && pnpm --filter @canteen/web format",
+    "typecheck": "pnpm typecheck:py && pnpm typecheck:web",
+    "typecheck:py": "cd apps/api && node ../../scripts/py.mjs -m mypy app",
+    "typecheck:web": "pnpm --filter @canteen/web typecheck",
+    "test": "pnpm test:py && pnpm test:web",
+    "test:py": "cd apps/api && node ../../scripts/py.mjs -m pytest",
+    "test:web": "pnpm --filter @canteen/web test",
+    "e2e": "pnpm --filter @canteen/web e2e",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
+    "prettier": "^3.9.10"
+  },
+  "lint-staged": {
+    "apps/web/**/*.{ts,tsx,css,json,html}": "prettier --write",
+    "packages/api-client/src/*.ts": "prettier --write"
+  }
+}

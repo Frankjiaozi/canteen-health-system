@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 后端：代码风格 + 类型检查 + 单元/接口测试（带真实 PostgreSQL）
+  # ---------------------------------------------------------------------------
+  backend:
+    name: 后端 · ruff + mypy + pytest
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: canteen
+          POSTGRES_PASSWORD: canteen
+          POSTGRES_DB: canteen
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U canteen -d canteen"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql+psycopg://canteen:canteen@127.0.0.1:5432/canteen
+      JWT_SECRET: ci-only-secret
+      APP_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+      - name: 安装依赖
+        working-directory: apps/api
+        run: python -m pip install -e ".[dev]"
+      - name: 代码风格检查
+        working-directory: apps/api
+        run: python -m ruff check . && python -m ruff format --check .
+      - name: 类型检查
+        working-directory: apps/api
+        run: python -m mypy app
+      - name: 测试
+        working-directory: apps/api
+        run: python -m pytest
+
+  # ---------------------------------------------------------------------------
+  # 前端：eslint + tsc + vitest + 生产构建
+  # ---------------------------------------------------------------------------
+  frontend:
+    name: 前端 · eslint + tsc + vitest + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+      - name: 代码风格检查
+        run: pnpm --filter @canteen/web lint
+      - name: 类型检查
+        run: pnpm --filter @canteen/web typecheck
+      - name: 单元测试
+        run: pnpm --filter @canteen/web test
+      - name: 生产构建
+        run: pnpm --filter @canteen/web build

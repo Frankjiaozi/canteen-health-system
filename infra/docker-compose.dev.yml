@@ -1,0 +1,26 @@
+# 本地开发只起数据库；前后端直接用 pnpm / uvicorn 跑在宿主机上，改代码即时生效。
+name: canteen-dev
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: canteen-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: canteen
+      POSTGRES_PASSWORD: canteen
+      POSTGRES_DB: canteen
+      TZ: Asia/Shanghai
+      PGTZ: Asia/Shanghai
+    ports:
+      - '5432:5432'
+    volumes:
+      - canteen-pg-dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U canteen -d canteen']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  canteen-pg-dev:

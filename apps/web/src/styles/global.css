@@ -1,0 +1,24 @@
+:root {
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', sans-serif;
+  background-color: #f5f7fa;
+  color: rgba(0, 0, 0, 0.88);
+}
+
+/* 公开大屏是免登录的纯展示页，禁止误滚动与文本选中 */
+body.is-display-mode {
+  overflow: hidden;
+  user-select: none;
+}

@@ -1,0 +1,107 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "canteen-api"
+version = "0.1.0"
+description = "食堂健康管理系统 —— 后端服务（营养核算、采购预测、决策支持）"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.143.0",
+    "uvicorn[standard]>=0.54.0",
+    "sqlalchemy>=2.1.4",
+    "alembic>=1.20.0",
+    "psycopg[binary]>=3.3.6",
+    "pydantic>=2.14.1",
+    "pydantic-settings>=2.15.0",
+    "pyjwt>=2.15.1",
+    "pwdlib[bcrypt]>=0.3.1",
+    "python-multipart>=0.0.32",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.1.1",
+    "httpx>=0.28.1",
+    "ruff>=0.17.0",
+    "mypy>=2.4.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+# ---------------------------------------------------------------------------
+# Ruff：风格与静态检查
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["app", "tests"]
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+    "RUF", # ruff 自有规则
+    "N",   # pep8-naming
+    "DTZ", # 时区相关（本项目要求显式时区）
+    "T20", # 禁止 print（日志统一走 logger）
+]
+ignore = [
+    "E501", # 行长由 ruff format 处理
+    "B008", # FastAPI 的 Depends() 必须写在默认值里
+    "RUF001",
+    "RUF002",
+    "RUF003", # 中文全角标点属正常书写
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["T20"]
+"app/db/seed.py" = ["T20"]
+"app/openapi_export.py" = ["T20"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# ---------------------------------------------------------------------------
+# mypy：静态类型检查
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.13"
+files = ["app"]
+plugins = ["pydantic.mypy"]
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+strict_equality = true
+show_error_codes = true
+exclude = ["^alembic/"]
+
+[[tool.mypy.overrides]]
+module = ["alembic.*"]
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------------------
+# pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q --strict-markers"
+markers = [
+    "integration: 需要真实 PostgreSQL 的集成测试",
+]

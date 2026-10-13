@@ -1,0 +1,9 @@
+node_modules
+dist
+coverage
+playwright-report
+test-results
+pnpm-lock.yaml
+*.md
+apps/api
+packages/api-client/src/schema.d.ts

@@ -1,0 +1,53 @@
+# ---------- Node / 前端 ----------
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.tsbuildinfo
+.eslintcache
+coverage/
+
+# Playwright
+playwright-report/
+blob-report/
+test-results/
+.playwright/
+
+# ---------- Python / 后端 ----------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+develop-eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.venv/
+venv/
+*.sqlite3
+*.db
+
+# ---------- 环境变量 ----------
+.env
+.env.*
+!.env.example
+
+# ---------- 生成物 ----------
+# OpenAPI 导出物（由 scripts/gen-api-client.mjs 生成，不入库）
+openapi.json
+
+# ---------- 编辑器 / 系统 ----------
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+
+# ---------- 其他 ----------
+*.log
+tmp/
+.cache/
