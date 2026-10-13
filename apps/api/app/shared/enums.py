@@ -137,6 +137,7 @@ class StandardCode(LabelledStrEnum):
     FAT = "FAT"
     CARBOHYDRATE = "CARBOHYDRATE"
     SODIUM = "SODIUM"
+    SALT = "SALT"
     EDIBLE_OIL = "EDIBLE_OIL"
     ADDED_SUGAR = "ADDED_SUGAR"
     FOOD_VARIETY = "FOOD_VARIETY"
@@ -230,6 +231,7 @@ ENUM_LABELS: dict[LabelledStrEnum, str] = {
     StandardCode.FAT: "脂肪",
     StandardCode.CARBOHYDRATE: "碳水化合物",
     StandardCode.SODIUM: "钠",
+    StandardCode.SALT: "食盐",
     StandardCode.EDIBLE_OIL: "食用油",
     StandardCode.ADDED_SUGAR: "添加糖",
     StandardCode.FOOD_VARIETY: "食物种类数",

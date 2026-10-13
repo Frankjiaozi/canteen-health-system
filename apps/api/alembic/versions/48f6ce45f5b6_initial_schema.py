@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: 51214675660e
+Revision ID: 48f6ce45f5b6
 Revises: 
-Create Date: 2026-10-14 00:25:48.145841+08:00
+Create Date: 2026-10-14 00:30:00.211284+08:00
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = '51214675660e'
+revision: str = '48f6ce45f5b6'
 down_revision: str | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -63,7 +63,7 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_ingredients_category'), 'ingredients', ['category'], unique=False)
     op.create_table('nutrition_standards',
-    sa.Column('code', sa.Enum('ENERGY', 'PROTEIN', 'FAT', 'CARBOHYDRATE', 'SODIUM', 'EDIBLE_OIL', 'ADDED_SUGAR', 'FOOD_VARIETY', name='standard_code', native_enum=False, length=32), nullable=False),
+    sa.Column('code', sa.Enum('ENERGY', 'PROTEIN', 'FAT', 'CARBOHYDRATE', 'SODIUM', 'SALT', 'EDIBLE_OIL', 'ADDED_SUGAR', 'FOOD_VARIETY', name='standard_code', native_enum=False, length=32), nullable=False),
     sa.Column('name', sa.String(length=64), nullable=False),
     sa.Column('unit', sa.String(length=16), nullable=False),
     sa.Column('nutrient', sa.Enum('ENERGY', 'PROTEIN', 'FAT', 'CARBOHYDRATE', 'SODIUM', name='nutrient_code', native_enum=False, length=32), nullable=True),
@@ -78,7 +78,7 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('is_active', sa.Boolean(), server_default=sa.text('true'), nullable=False),
-    sa.CheckConstraint("code IN ('ENERGY', 'PROTEIN', 'FAT', 'CARBOHYDRATE', 'SODIUM', 'EDIBLE_OIL', 'ADDED_SUGAR', 'FOOD_VARIETY')", name=op.f('ck_nutrition_standards_code_valid')),
+    sa.CheckConstraint("code IN ('ENERGY', 'PROTEIN', 'FAT', 'CARBOHYDRATE', 'SODIUM', 'SALT', 'EDIBLE_OIL', 'ADDED_SUGAR', 'FOOD_VARIETY')", name=op.f('ck_nutrition_standards_code_valid')),
     sa.CheckConstraint("nutrient IN ('ENERGY', 'PROTEIN', 'FAT', 'CARBOHYDRATE', 'SODIUM')", name=op.f('ck_nutrition_standards_nutrient_valid')),
     sa.CheckConstraint("period IN ('DAILY', 'WEEKLY')", name=op.f('ck_nutrition_standards_period_valid')),
     sa.CheckConstraint('target_min IS NOT NULL OR target_max IS NOT NULL', name=op.f('ck_nutrition_standards_target_range_present')),
