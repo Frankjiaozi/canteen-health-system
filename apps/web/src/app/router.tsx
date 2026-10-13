@@ -1,25 +1,70 @@
-import { RouterProvider, createBrowserRouter } from 'react-router-dom';
 import { Skeleton } from 'antd';
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, type ReactNode } from 'react';
+import { Navigate, RouterProvider, createBrowserRouter } from 'react-router-dom';
+import { RequireAuth } from '@/features/auth/components/RequireAuth';
+import { AdminLayout } from '@/layouts/AdminLayout';
+import { SYSTEM_MODULES } from '@/shared/config/modules';
 
 const NotFoundPage = lazy(() =>
   import('@/shared/pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })),
 );
+const AdminHomePage = lazy(() =>
+  import('@/shared/pages/AdminHomePage').then((m) => ({ default: m.AdminHomePage })),
+);
+const PlaceholderPage = lazy(() =>
+  import('@/shared/pages/PlaceholderPage').then((m) => ({ default: m.PlaceholderPage })),
+);
+const LoginPage = lazy(() =>
+  import('@/features/auth/pages/LoginPage').then((m) => ({ default: m.LoginPage })),
+);
 
-/**
- * 路由表。
- *
- * 约定：各业务域在 `src/features/<域>/routes.tsx` 中导出自己的路由片段，
- * 由本文件汇总挂载；路由级懒加载，避免首屏加载全部业务代码。
- */
+// 路由级懒加载的兜底：业务代码按页面分包，首屏不加载全部模块
+function lazyElement(node: ReactNode) {
+  return <Suspense fallback={<Skeleton active style={{ padding: 48 }} />}>{node}</Suspense>;
+}
+
+// 尚未实现的模块统一渲染占位页，文案取自模块清单，保持单一来源
+function placeholderElement(path: string) {
+  const module = SYSTEM_MODULES.find((item) => item.path === path);
+  return lazyElement(
+    <PlaceholderPage title={module?.title ?? '建设中'} description={module?.description} />,
+  );
+}
+
 const router = createBrowserRouter([
   {
-    path: '*',
+    path: '/',
+    element: <Navigate to="/admin" replace />,
+  },
+  {
+    path: '/login',
+    element: lazyElement(<LoginPage />),
+  },
+  {
+    // 公开大屏：全系统唯一的免登录页面
+    path: '/display',
+    element: placeholderElement('/display'),
+  },
+  {
+    path: '/admin',
     element: (
-      <Suspense fallback={<Skeleton active style={{ padding: 48 }} />}>
-        <NotFoundPage />
-      </Suspense>
+      <RequireAuth>
+        <AdminLayout />
+      </RequireAuth>
     ),
+    children: [
+      { index: true, element: lazyElement(<AdminHomePage />) },
+      { path: 'ingredients', element: placeholderElement('/admin/ingredients') },
+      { path: 'dishes', element: placeholderElement('/admin/dishes') },
+      { path: 'collection', element: placeholderElement('/admin/collection') },
+      { path: 'dashboard', element: placeholderElement('/admin/dashboard') },
+      { path: 'forecast', element: placeholderElement('/admin/forecast') },
+      { path: 'recommendation', element: placeholderElement('/admin/recommendation') },
+    ],
+  },
+  {
+    path: '*',
+    element: lazyElement(<NotFoundPage />),
   },
 ]);
 

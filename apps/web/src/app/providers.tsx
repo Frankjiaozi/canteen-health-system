@@ -31,6 +31,9 @@ export function AppProviders({ children }: { children: ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <ConfigProvider
         locale={zhCN}
+        // 关掉「两个汉字的按钮自动插入空格」：界面文案与源码保持一致，
+        // 截图、端到端断言、复制出去的文案都不会莫名其妙多一个空格
+        button={{ autoInsertSpace: false }}
         theme={{
           token: {
             colorPrimary: '#1677ff',

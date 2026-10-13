@@ -10,6 +10,8 @@ export default defineConfig({
     },
   },
   server: {
+    // 显式绑定 IPv4：Windows 上默认只监听 ::1，会让 127.0.0.1 的访问与 CI 探活失败
+    host: '127.0.0.1',
     port: 5173,
     proxy: {
       // 开发期把 /api 反代到后端，使 httpOnly Cookie 保持同源，避免跨域凭证配置

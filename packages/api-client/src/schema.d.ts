@@ -44,10 +44,82 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 登录 */
+        post: operations["login_api_v1_auth_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 退出登录 */
+        post: operations["logout_api_v1_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 当前登录用户 */
+        get: operations["me_api_v1_auth_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AuthUser
+         * @description 对外暴露的当前用户。
+         *
+         *     刻意不直接返回 ORM 模型：其它业务域拿到的是这个值对象，
+         *     因此不会（也不该）去引用 `auth` 域的模型定义。
+         */
+        AuthUser: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Username */
+            username: string;
+            /** Display Name */
+            display_name: string;
+            role: components["schemas"]["UserRole"];
+            /** Role Label */
+            role_label: string;
+        };
         /**
          * DatabaseHealthResponse
          * @description 数据库连通性检查响应。
@@ -75,6 +147,11 @@ export interface components {
              * @description 一次往返查询耗时（毫秒）
              */
             latency_ms: number;
+        };
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
         };
         /**
          * HealthResponse
@@ -114,6 +191,40 @@ export interface components {
              */
             server_time: string;
         };
+        /** LoginRequest */
+        LoginRequest: {
+            /**
+             * Username
+             * @description 登录名
+             */
+            username: string;
+            /**
+             * Password
+             * @description 口令
+             */
+            password: string;
+        };
+        /**
+         * UserRole
+         * @description 登录角色。
+         *
+         *     系统中没有学生账号——需求文档里的「学生端」对应的是免登录的公开大屏。
+         * @enum {string}
+         */
+        UserRole: "RECORDER" | "CANTEEN_ADMIN" | "SCHOOL_ADMIN";
+        /** ValidationError */
+        ValidationError: {
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
+        };
     };
     responses: never;
     parameters: never;
@@ -121,8 +232,13 @@ export interface components {
     headers: never;
     pathItems: never;
 }
+export type SchemaAuthUser = components['schemas']['AuthUser'];
 export type SchemaDatabaseHealthResponse = components['schemas']['DatabaseHealthResponse'];
+export type SchemaHttpValidationError = components['schemas']['HTTPValidationError'];
 export type SchemaHealthResponse = components['schemas']['HealthResponse'];
+export type SchemaLoginRequest = components['schemas']['LoginRequest'];
+export type SchemaUserRole = components['schemas']['UserRole'];
+export type SchemaValidationError = components['schemas']['ValidationError'];
 export type $defs = Record<string, never>;
 export interface operations {
     health_health_get: {
@@ -169,6 +285,77 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    login_api_v1_auth_login_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthUser"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    logout_api_v1_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    me_api_v1_auth_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthUser"];
+                };
             };
         };
     };

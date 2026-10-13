@@ -1,8 +1,14 @@
 import createClient from 'openapi-fetch';
 import type { paths } from './schema';
 
-/** 生产与开发统一走同源路径，由 nginx（生产）或 Vite 代理（开发）转发到后端。 */
-export const DEFAULT_API_BASE_URL = '/api/v1';
+/**
+ * 默认同源（空字符串）。
+ *
+ * 后端 OpenAPI 里的路径本身已带 `/api/v1` 前缀（例如 `/api/v1/auth/login`），
+ * 因此这里不能再拼 `/api/v1`，否则会变成 `/api/v1/api/v1/...`。
+ * 开发期由 Vite 代理、生产由 nginx 把 `/api` 转发到后端。
+ */
+export const DEFAULT_API_BASE_URL = '';
 
 /**
  * 创建带类型的 API 客户端。
