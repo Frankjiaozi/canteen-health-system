@@ -14,12 +14,17 @@
 ```bash
 pnpm db:up
 pnpm install
-cd apps/api && python -m pip install -e ".[dev]" && cd ../..
+python -m venv apps/api/.venv
+node scripts/py.mjs -m pip install -e "apps/api[dev]"
 cp apps/api/.env.example apps/api/.env
 pnpm db:migrate
 pnpm db:seed
 pnpm dev
 ```
+
+后端依赖统一装在 `apps/api/.venv`。`scripts/py.mjs` 会自动优先使用该虚拟环境里的解释器，
+因此所有 `pnpm` 脚本无需事先激活虚拟环境即可运行；在 IDE 里请把解释器指向
+`apps/api/.venv`。
 
 ## 日常命令
 

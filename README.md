@@ -63,7 +63,10 @@ pnpm db:up
 
 # 2) 安装前后端依赖
 pnpm install
-cd apps/api && python -m pip install -e ".[dev]" && cd ../..
+
+# 后端依赖装在 apps/api/.venv 里；pnpm 脚本会自动使用该虚拟环境，无需手动激活
+python -m venv apps/api/.venv
+node scripts/py.mjs -m pip install -e "apps/api[dev]"
 
 # 3) 准备后端环境变量
 cp apps/api/.env.example apps/api/.env

@@ -8,9 +8,9 @@
 # 1) 起数据库（仓库根目录）
 pnpm db:up
 
-# 2) 安装依赖
-cd apps/api
-python -m pip install -e ".[dev]"
+# 2) 安装依赖（在仓库根目录执行；pnpm 脚本会自动使用该虚拟环境）
+python -m venv apps/api/.venv
+node scripts/py.mjs -m pip install -e "apps/api[dev]"
 
 # 3) 准备环境变量
 cp .env.example .env
