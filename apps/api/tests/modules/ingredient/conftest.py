@@ -1,38 +1,16 @@
-"""食材库测试的共用夹具。"""
+"""食材库测试的共用数据构造。
+
+登录相关的夹具（as_recorder / as_school_admin 等）统一放在 tests/conftest.py，
+各业务域测试共用。
+"""
 
 from __future__ import annotations
 
-from collections.abc import Iterator
 from uuid import uuid4
 
-import pytest
-from app.db.seed import DEFAULT_DEMO_PASSWORD
 from app.shared.enums import IngredientCategory
-from fastapi.testclient import TestClient
 
 BASE = "/api/v1/ingredients"
-
-
-def login(client: TestClient, username: str) -> None:
-    response = client.post(
-        "/api/v1/auth/login",
-        json={"username": username, "password": DEFAULT_DEMO_PASSWORD},
-    )
-    assert response.status_code == 200, response.text
-
-
-@pytest.fixture
-def as_recorder(client: TestClient) -> Iterator[TestClient]:
-    login(client, "recorder")
-    yield client
-    client.cookies.clear()
-
-
-@pytest.fixture
-def as_school_admin(client: TestClient) -> Iterator[TestClient]:
-    login(client, "school")
-    yield client
-    client.cookies.clear()
 
 
 def new_ingredient_payload(name: str | None = None) -> dict[str, object]:

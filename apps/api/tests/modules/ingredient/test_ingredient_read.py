@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+from app.db.seed import DEMO_DATA_SOURCE
 from app.shared.enums import IngredientCategory
 from fastapi.testclient import TestClient
 
 from .conftest import BASE
 
-#: 种子脚本内置的 22 种演示食材。断言用「这些必须都在」而不是「总数恰好 22」，
-#: 因为写入用例会在同一个开发库里留下自己的测试数据。
+#: 种子脚本内置的 22 种演示食材
 SEEDED_NAMES = {
     "大米",
     "小麦粉",
@@ -40,14 +40,15 @@ def test_list_requires_login(client: TestClient) -> None:
 
 
 def test_list_returns_seeded_ingredients(as_recorder: TestClient) -> None:
-    response = as_recorder.get(BASE, params={"page_size": 100, "include_inactive": True})
+    # 按数据来源过滤，精确取到种子脚本写入的那 22 条。
+    # 反复跑用例会在同一个开发库里留下测试数据，用总记录数断言会依赖执行顺序。
+    response = as_recorder.get(BASE, params={"keyword": DEMO_DATA_SOURCE, "page_size": 100})
 
     assert response.status_code == 200
     body = response.json()
     assert body["page"] == 1
-    assert body["page_size"] == 100
-    assert body["total"] >= len(SEEDED_NAMES)
-    assert {item["name"] for item in body["items"]} >= SEEDED_NAMES
+    assert body["total"] == len(SEEDED_NAMES)
+    assert {item["name"] for item in body["items"]} == SEEDED_NAMES
     # 中文类别随响应下发，前端不用自己维护一份文案映射
     labels = {item["category_label"] for item in body["items"]}
     assert {"蔬菜类", "蛋类", "畜禽肉类"} <= labels

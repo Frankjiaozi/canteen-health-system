@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from app.modules.analytics.router import router as analytics_routes
 from app.modules.auth.router import router as auth_routes
 from app.modules.ingredient.router import router as ingredient_routes
 from app.modules.public.router import router as public_routes
@@ -24,3 +25,4 @@ api_router.include_router(auth_routes)
 api_router.include_router(meta_routes)
 api_router.include_router(ingredient_routes)
 api_router.include_router(public_routes)
+api_router.include_router(analytics_routes)

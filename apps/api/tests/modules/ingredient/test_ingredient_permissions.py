@@ -33,14 +33,8 @@ def test_anonymous_cannot_write(client: TestClient) -> None:
     assert client.post(BASE, json=new_ingredient_payload()).status_code == 401
 
 
-def test_canteen_admin_can_write(client: TestClient) -> None:
-    from .conftest import login
-
-    login(client, "canteen")
-    try:
-        assert client.post(BASE, json=new_ingredient_payload()).status_code == 201
-    finally:
-        client.cookies.clear()
+def test_canteen_admin_can_write(as_canteen_admin: TestClient) -> None:
+    assert as_canteen_admin.post(BASE, json=new_ingredient_payload()).status_code == 201
 
 
 def test_create_update_and_deactivate_are_audited(

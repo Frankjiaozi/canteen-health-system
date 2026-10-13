@@ -20,6 +20,19 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+#: 种子脚本内置的演示账号口令
+DEMO_PASSWORD = "canteen@2026"
+
+
+def login_as(api_client: TestClient, username: str) -> TestClient:
+    """以指定演示账号登录，失败直接让用例报错。"""
+    response = api_client.post(
+        "/api/v1/auth/login",
+        json={"username": username, "password": DEMO_PASSWORD},
+    )
+    assert response.status_code == 200, response.text
+    return api_client
+
 
 @pytest.fixture(scope="session")
 def api_app() -> FastAPI:
@@ -48,3 +61,27 @@ def db_session() -> Iterator[Session]:
     finally:
         session.rollback()
         session.close()
+
+
+@pytest.fixture
+def as_recorder(client: TestClient) -> Iterator[TestClient]:
+    """以食堂录入员身份登录。"""
+    login_as(client, "recorder")
+    yield client
+    client.cookies.clear()
+
+
+@pytest.fixture
+def as_canteen_admin(client: TestClient) -> Iterator[TestClient]:
+    """以食堂管理员身份登录。"""
+    login_as(client, "canteen")
+    yield client
+    client.cookies.clear()
+
+
+@pytest.fixture
+def as_school_admin(client: TestClient) -> Iterator[TestClient]:
+    """以学校管理方身份登录。"""
+    login_as(client, "school")
+    yield client
+    client.cookies.clear()

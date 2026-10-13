@@ -21,7 +21,6 @@
     "antd": "^6.6.6",
     "dayjs": "^1.11.23",
     "echarts": "^6.1.0",
-    "echarts-for-react": "^3.0.6",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-router-dom": "^7.18.4",

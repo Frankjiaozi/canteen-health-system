@@ -10,6 +10,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.modules.nutrition.schemas import StandardComparison
+
 
 class NutrientValue(BaseModel):
     """一项营养指标：数值 + 单位 + 上下界。"""
@@ -38,23 +40,6 @@ class PublicDishCard(BaseModel):
     recipe_version: int
     source_note: str | None = Field(default=None, description="数值来源说明")
     missing_nutrients: list[str] = Field(description="成分数据缺失项，无则为空数组")
-
-
-class StandardComparison(BaseModel):
-    """与膳食指南量化基准的对照。
-
-    基准确为「每日」口径，因此这里的实际值也是当日累计，而不是某一餐。
-    """
-
-    code: str
-    label: str
-    unit: str
-    target_min: str | None = None
-    target_max: str | None = None
-    actual: str | None = Field(default=None, description="当日实际值（人均或种类数）")
-    status: str = Field(description="ok / over / under / unknown")
-    source: str
-    source_quote: str | None = None
 
 
 class PublicBoard(BaseModel):

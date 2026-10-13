@@ -3,6 +3,7 @@ import { Suspense, lazy, type ReactNode } from 'react';
 import { Navigate, RouterProvider, createBrowserRouter } from 'react-router-dom';
 import { RequireAuth } from '@/features/auth/components/RequireAuth';
 import { DisplayPage } from '@/features/display/routes';
+import { DashboardPage } from '@/features/dashboard/routes';
 import { IngredientListPage } from '@/features/ingredient/routes';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { SYSTEM_MODULES } from '@/shared/config/modules';
@@ -59,7 +60,7 @@ const router = createBrowserRouter([
       { path: 'ingredients', element: lazyElement(<IngredientListPage />) },
       { path: 'dishes', element: placeholderElement('/admin/dishes') },
       { path: 'collection', element: placeholderElement('/admin/collection') },
-      { path: 'dashboard', element: placeholderElement('/admin/dashboard') },
+      { path: 'dashboard', element: lazyElement(<DashboardPage />) },
       { path: 'forecast', element: placeholderElement('/admin/forecast') },
       { path: 'recommendation', element: placeholderElement('/admin/recommendation') },
     ],

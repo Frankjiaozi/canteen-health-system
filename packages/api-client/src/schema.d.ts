@@ -166,6 +166,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/dashboard/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 关键指标汇总 */
+        get: operations["read_summary_api_v1_dashboard_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dashboard/trends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 油盐糖用量趋势 */
+        get: operations["read_trends_api_v1_dashboard_trends_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dashboard/per-capita": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 人均摄入与推荐值 */
+        get: operations["read_per_capita_api_v1_dashboard_per_capita_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dashboard/compliance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 营养达标率 */
+        get: operations["read_compliance_api_v1_dashboard_compliance_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dashboard/waste": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 剩餐量与浪费率 */
+        get: operations["read_waste_api_v1_dashboard_waste_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -190,6 +275,72 @@ export interface components {
             role: components["schemas"]["UserRole"];
             /** Role Label */
             role_label: string;
+        };
+        /** CompliancePoint */
+        CompliancePoint: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Compliant */
+            compliant: number;
+            /** Total */
+            total: number;
+            /** Rate */
+            rate: string;
+            /** Items */
+            items: components["schemas"]["StandardComparison"][];
+        };
+        /** ComplianceResponse */
+        ComplianceResponse: {
+            /** Days */
+            days: number;
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /** Points */
+            points: components["schemas"]["CompliancePoint"][];
+            /** Overall Rate */
+            overall_rate?: string | null;
+        };
+        /** DashboardSummary */
+        DashboardSummary: {
+            /** Days */
+            days: number;
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /** Days With Records */
+            days_with_records: number;
+            /** Avg Diner Count */
+            avg_diner_count: number;
+            /** Avg Salt Per Capita G */
+            avg_salt_per_capita_g?: string | null;
+            /** Avg Oil Per Capita G */
+            avg_oil_per_capita_g?: string | null;
+            /** Avg Added Sugar Per Capita G */
+            avg_added_sugar_per_capita_g?: string | null;
+            /** Avg Waste Ratio */
+            avg_waste_ratio?: string | null;
+            /** Avg Dish Variety */
+            avg_dish_variety?: string | null;
+            /** Latest Compliance Rate */
+            latest_compliance_rate?: string | null;
         };
         /**
          * DatabaseHealthResponse
@@ -488,6 +639,19 @@ export interface components {
              */
             password: string;
         };
+        /** NutrientAmount */
+        NutrientAmount: {
+            /** Code */
+            code: string;
+            /** Label */
+            label: string;
+            /** Unit */
+            unit: string;
+            /** Digits */
+            digits: number;
+            /** Value */
+            value?: string | null;
+        };
         /**
          * NutrientValue
          * @description 一项营养指标：数值 + 单位 + 上下界。
@@ -528,6 +692,36 @@ export interface components {
              * @description 误差上界
              */
             upper: string;
+        };
+        /** PerCapitaResponse */
+        PerCapitaResponse: {
+            /** Days */
+            days: number;
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /** Latest Date */
+            latest_date?: string | null;
+            /** Latest Diner Count */
+            latest_diner_count?: number | null;
+            /** Latest */
+            latest: components["schemas"]["NutrientAmount"][];
+            /** Average */
+            average: components["schemas"]["NutrientAmount"][];
+            /** Comparisons */
+            comparisons: components["schemas"]["StandardComparison"][];
+            /**
+             * Basis Note
+             * @description 数值口径说明，避免把不同来源的数字混着解读
+             */
+            basis_note: string;
         };
         /**
          * PublicBoard
@@ -607,9 +801,7 @@ export interface components {
         };
         /**
          * StandardComparison
-         * @description 与膳食指南量化基准的对照。
-         *
-         *     基准确为「每日」口径，因此这里的实际值也是当日累计，而不是某一餐。
+         * @description 实际值与膳食指南量化基准的对照。
          */
         StandardComparison: {
             /** Code */
@@ -624,7 +816,7 @@ export interface components {
             target_max?: string | null;
             /**
              * Actual
-             * @description 当日实际值（人均或种类数）
+             * @description 实际值；人均口径或种类数
              */
             actual?: string | null;
             /**
@@ -636,6 +828,66 @@ export interface components {
             source: string;
             /** Source Quote */
             source_quote?: string | null;
+        };
+        /**
+         * StandardTarget
+         * @description 图表画目标线用的基准。
+         */
+        StandardTarget: {
+            /** Code */
+            code: string;
+            /** Label */
+            label: string;
+            /** Unit */
+            unit: string;
+            /** Target Min */
+            target_min?: string | null;
+            /** Target Max */
+            target_max?: string | null;
+        };
+        /**
+         * TrendPoint
+         * @description 某一天的油盐糖用量。
+         */
+        TrendPoint: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Diner Count */
+            diner_count: number;
+            /** Oil Total G */
+            oil_total_g: string;
+            /** Salt Total G */
+            salt_total_g: string;
+            /** Sugar Total G */
+            sugar_total_g: string;
+            /** Oil Per Capita G */
+            oil_per_capita_g: string;
+            /** Salt Per Capita G */
+            salt_per_capita_g: string;
+            /** Sugar Per Capita G */
+            sugar_per_capita_g: string;
+        };
+        /** TrendsResponse */
+        TrendsResponse: {
+            /** Days */
+            days: number;
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /** Points */
+            points: components["schemas"]["TrendPoint"][];
+            /** Targets */
+            targets: components["schemas"]["StandardTarget"][];
         };
         /**
          * UserRole
@@ -658,6 +910,39 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
+        /** WastePoint */
+        WastePoint: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Produced Weight G */
+            produced_weight_g: string;
+            /** Leftover Weight G */
+            leftover_weight_g: string;
+            /** Waste Ratio */
+            waste_ratio: string;
+        };
+        /** WasteResponse */
+        WasteResponse: {
+            /** Days */
+            days: number;
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /** Points */
+            points: components["schemas"]["WastePoint"][];
+            /** Average Ratio */
+            average_ratio?: string | null;
+        };
     };
     responses: never;
     parameters: never;
@@ -666,6 +951,9 @@ export interface components {
     pathItems: never;
 }
 export type SchemaAuthUser = components['schemas']['AuthUser'];
+export type SchemaCompliancePoint = components['schemas']['CompliancePoint'];
+export type SchemaComplianceResponse = components['schemas']['ComplianceResponse'];
+export type SchemaDashboardSummary = components['schemas']['DashboardSummary'];
 export type SchemaDatabaseHealthResponse = components['schemas']['DatabaseHealthResponse'];
 export type SchemaEnumOption = components['schemas']['EnumOption'];
 export type SchemaEnumOptions = components['schemas']['EnumOptions'];
@@ -677,12 +965,19 @@ export type SchemaIngredientPage = components['schemas']['IngredientPage'];
 export type SchemaIngredientRead = components['schemas']['IngredientRead'];
 export type SchemaIngredientUpdate = components['schemas']['IngredientUpdate'];
 export type SchemaLoginRequest = components['schemas']['LoginRequest'];
+export type SchemaNutrientAmount = components['schemas']['NutrientAmount'];
 export type SchemaNutrientValue = components['schemas']['NutrientValue'];
+export type SchemaPerCapitaResponse = components['schemas']['PerCapitaResponse'];
 export type SchemaPublicBoard = components['schemas']['PublicBoard'];
 export type SchemaPublicDishCard = components['schemas']['PublicDishCard'];
 export type SchemaStandardComparison = components['schemas']['StandardComparison'];
+export type SchemaStandardTarget = components['schemas']['StandardTarget'];
+export type SchemaTrendPoint = components['schemas']['TrendPoint'];
+export type SchemaTrendsResponse = components['schemas']['TrendsResponse'];
 export type SchemaUserRole = components['schemas']['UserRole'];
 export type SchemaValidationError = components['schemas']['ValidationError'];
+export type SchemaWastePoint = components['schemas']['WastePoint'];
+export type SchemaWasteResponse = components['schemas']['WasteResponse'];
 export type $defs = Record<string, never>;
 export interface operations {
     health_health_get: {
@@ -1012,6 +1307,166 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicBoard"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_summary_api_v1_dashboard_summary_get: {
+        parameters: {
+            query?: {
+                /** @description 统计最近多少天（含今天） */
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_trends_api_v1_dashboard_trends_get: {
+        parameters: {
+            query?: {
+                /** @description 统计最近多少天（含今天） */
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrendsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_per_capita_api_v1_dashboard_per_capita_get: {
+        parameters: {
+            query?: {
+                /** @description 统计最近多少天（含今天） */
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerCapitaResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_compliance_api_v1_dashboard_compliance_get: {
+        parameters: {
+            query?: {
+                /** @description 统计最近多少天（含今天） */
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplianceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_waste_api_v1_dashboard_waste_get: {
+        parameters: {
+            query?: {
+                /** @description 统计最近多少天（含今天） */
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WasteResponse"];
                 };
             };
             /** @description Validation Error */

@@ -12,7 +12,6 @@ from decimal import ROUND_HALF_UP, Decimal
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.modules.collection.models import DailyLog
 from app.modules.dish.models import Dish
 from app.modules.nutrition.models import DishNutrition, NutritionStandard
 from app.modules.public import repository
@@ -29,6 +28,7 @@ from app.shared.nutrients import (
     NUTRIENT_SCALES,
     NUTRIENT_UNITS,
 )
+from app.shared.standards import compare_to_standard, sum_per_capita_across_meals
 
 DISCLAIMER = (
     "本屏只展示菜品级营养与群体级供给数据，不针对任何个人，也不构成任何医疗建议；"
@@ -56,9 +56,9 @@ def build_board(session: Session, *, on_date: date | None = None) -> PublicBoard
     cards = [_dish_card(dish, nutritions[dish.id]) for dish in dishes if dish.id in nutritions]
 
     actuals: dict[StandardCode, Decimal | None] = {
-        StandardCode.SALT: _sum_per_capita(daily_logs, "salt_total_g"),
-        StandardCode.EDIBLE_OIL: _sum_per_capita(daily_logs, "oil_total_g"),
-        StandardCode.ADDED_SUGAR: _sum_per_capita(daily_logs, "sugar_total_g"),
+        StandardCode.SALT: sum_per_capita_across_meals(daily_logs, "salt_total_g"),
+        StandardCode.EDIBLE_OIL: sum_per_capita_across_meals(daily_logs, "oil_total_g"),
+        StandardCode.ADDED_SUGAR: sum_per_capita_across_meals(daily_logs, "sugar_total_g"),
         StandardCode.FOOD_VARIETY: Decimal(
             repository.count_day_ingredients(session, on_date=target_date)
         ),
@@ -112,36 +112,12 @@ def _standard_row(standard: NutritionStandard, actual: Decimal | None) -> Standa
         target_min=_optional_str(standard.target_min),
         target_max=_optional_str(standard.target_max),
         actual=_optional_str(actual),
-        status=_status(standard, actual),
+        status=compare_to_standard(
+            target_min=standard.target_min, target_max=standard.target_max, actual=actual
+        ),
         source=standard.source,
         source_quote=standard.source_quote,
     )
-
-
-def _status(standard: NutritionStandard, actual: Decimal | None) -> str:
-    """与基准比较的状态。
-
-    口径统一为「当日累计」：指南给的是每日上限/下限，用单餐去下结论会误导。
-    """
-    if actual is None:
-        return "unknown"
-    if standard.target_max is not None and actual > standard.target_max:
-        return "over"
-    if standard.target_min is not None and actual < standard.target_min:
-        return "under"
-    return "ok"
-
-
-def _sum_per_capita(logs: list[DailyLog], field: str) -> Decimal | None:
-    """当日人均累计：把每一餐的「总量 ÷ 该餐人次」相加。
-
-    各餐次人次不同，因此不能先把总量加总再除一次——那会算成另一件事。
-    """
-    usable = [log for log in logs if log.diner_count > 0]
-    if not usable:
-        return None
-    total = sum((getattr(log, field) / Decimal(log.diner_count) for log in usable), Decimal("0"))
-    return total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
 def _fmt(value: Decimal, digits: int) -> str:

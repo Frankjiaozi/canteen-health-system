@@ -47,7 +47,7 @@ export const SYSTEM_MODULES: SystemModule[] = [
     title: '数据看板',
     description: '油盐糖趋势、人均摄入对比、达标率与剩餐浪费率',
     requiresAuth: true,
-    status: 'planned',
+    status: 'ready',
   },
   {
     path: '/admin/forecast',

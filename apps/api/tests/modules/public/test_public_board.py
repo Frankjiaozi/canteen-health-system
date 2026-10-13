@@ -12,8 +12,8 @@ from types import SimpleNamespace
 from app.modules.dish.models import Dish
 from app.modules.menu.models import MenuDay, MenuDayItem
 from app.modules.nutrition.models import DishNutrition
-from app.modules.public import service
 from app.shared.enums import NutrientCaliber, NutritionValueType
+from app.shared.standards import sum_per_capita_across_meals
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -144,10 +144,10 @@ def test_per_capita_sums_each_meal_against_its_own_diner_count() -> None:
         SimpleNamespace(diner_count=100, salt_total_g=Decimal("400")),
     ]
 
-    assert service._sum_per_capita(logs, "salt_total_g") == Decimal("6.00")
+    assert sum_per_capita_across_meals(logs, "salt_total_g") == Decimal("6.00")
 
 
 def test_per_capita_ignores_meals_without_diners() -> None:
     logs = [SimpleNamespace(diner_count=0, salt_total_g=Decimal("100"))]
 
-    assert service._sum_per_capita(logs, "salt_total_g") is None
+    assert sum_per_capita_across_meals(logs, "salt_total_g") is None
