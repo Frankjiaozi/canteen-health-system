@@ -95,6 +95,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/meta/enums": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 枚举取值与中文文案 */
+        get: operations["list_enum_options_api_v1_meta_enums_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ingredients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 分页查询食材 */
+        get: operations["list_ingredients_api_v1_ingredients_get"];
+        put?: never;
+        /** 新增食材 */
+        post: operations["create_ingredient_api_v1_ingredients_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ingredients/{ingredient_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询单个食材 */
+        get: operations["get_ingredient_api_v1_ingredients__ingredient_id__get"];
+        put?: never;
+        post?: never;
+        /** 停用食材（软删除） */
+        delete: operations["deactivate_ingredient_api_v1_ingredients__ingredient_id__delete"];
+        options?: never;
+        head?: never;
+        /** 修改食材 */
+        patch: operations["update_ingredient_api_v1_ingredients__ingredient_id__patch"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -148,6 +202,36 @@ export interface components {
              */
             latency_ms: number;
         };
+        /** EnumOption */
+        EnumOption: {
+            /**
+             * Value
+             * @description 稳定代码，落库与接口传输都用它
+             */
+            value: string;
+            /**
+             * Label
+             * @description 中文展示名
+             */
+            label: string;
+        };
+        /** EnumOptions */
+        EnumOptions: {
+            /** Ingredient Category */
+            ingredient_category: components["schemas"]["EnumOption"][];
+            /** Dish Category */
+            dish_category: components["schemas"]["EnumOption"][];
+            /** Cooking Method */
+            cooking_method: components["schemas"]["EnumOption"][];
+            /** Meal Type */
+            meal_type: components["schemas"]["EnumOption"][];
+            /** Seasoning Category */
+            seasoning_category: components["schemas"]["EnumOption"][];
+            /** User Role */
+            user_role: components["schemas"]["EnumOption"][];
+            /** Standard Code */
+            standard_code: components["schemas"]["EnumOption"][];
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -190,6 +274,189 @@ export interface components {
              * @description 服务器当前时间（带时区）
              */
             server_time: string;
+        };
+        /**
+         * IngredientCategory
+         * @enum {string}
+         */
+        IngredientCategory: "GRAIN" | "VEGETABLE" | "FRUIT" | "LIVESTOCK_POULTRY" | "AQUATIC" | "EGG" | "DAIRY" | "BEAN" | "NUT" | "FUNGUS_ALGAE" | "OIL_FAT" | "CONDIMENT" | "OTHER";
+        /** IngredientCreate */
+        IngredientCreate: {
+            /**
+             * Name
+             * @description 食材名称
+             */
+            name: string;
+            /** @description 食材类别 */
+            category: components["schemas"]["IngredientCategory"];
+            /**
+             * Energy Kcal
+             * @description 能量（千卡/100g）
+             */
+            energy_kcal?: number | string | null;
+            /**
+             * Protein G
+             * @description 蛋白质（克/100g）
+             */
+            protein_g?: number | string | null;
+            /**
+             * Fat G
+             * @description 脂肪（克/100g）
+             */
+            fat_g?: number | string | null;
+            /**
+             * Carb G
+             * @description 碳水化合物（克/100g）
+             */
+            carb_g?: number | string | null;
+            /**
+             * Sodium Mg
+             * @description 钠（毫克/100g）
+             */
+            sodium_mg?: number | string | null;
+            /**
+             * Edible Ratio
+             * @description 可食部比例（0~1）
+             * @default 1.0
+             */
+            edible_ratio: number | string;
+            /**
+             * Unit Price
+             * @description 单价（元/千克）
+             */
+            unit_price?: number | string | null;
+            /**
+             * Data Source
+             * @description 数据来源，必须可追溯
+             */
+            data_source: string;
+            /**
+             * Source Version
+             * @description 来源版本
+             */
+            source_version?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /**
+         * IngredientPage
+         * @description 统一分页结构。
+         */
+        IngredientPage: {
+            /** Items */
+            items: components["schemas"]["IngredientRead"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+        };
+        /** IngredientRead */
+        IngredientRead: {
+            /**
+             * Name
+             * @description 食材名称
+             */
+            name: string;
+            /** @description 食材类别 */
+            category: components["schemas"]["IngredientCategory"];
+            /**
+             * Energy Kcal
+             * @description 能量（千卡/100g）
+             */
+            energy_kcal?: string | null;
+            /**
+             * Protein G
+             * @description 蛋白质（克/100g）
+             */
+            protein_g?: string | null;
+            /**
+             * Fat G
+             * @description 脂肪（克/100g）
+             */
+            fat_g?: string | null;
+            /**
+             * Carb G
+             * @description 碳水化合物（克/100g）
+             */
+            carb_g?: string | null;
+            /**
+             * Sodium Mg
+             * @description 钠（毫克/100g）
+             */
+            sodium_mg?: string | null;
+            /**
+             * Edible Ratio
+             * @description 可食部比例（0~1）
+             * @default 1.0
+             */
+            edible_ratio: string;
+            /**
+             * Unit Price
+             * @description 单价（元/千克）
+             */
+            unit_price?: string | null;
+            /**
+             * Data Source
+             * @description 数据来源，必须可追溯
+             */
+            data_source: string;
+            /**
+             * Source Version
+             * @description 来源版本
+             */
+            source_version?: string | null;
+            /** Note */
+            note?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Category Label */
+            category_label: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * IngredientUpdate
+         * @description 局部更新：只提交需要改的字段。
+         */
+        IngredientUpdate: {
+            /** Name */
+            name?: string | null;
+            category?: components["schemas"]["IngredientCategory"] | null;
+            /** Energy Kcal */
+            energy_kcal?: number | string | null;
+            /** Protein G */
+            protein_g?: number | string | null;
+            /** Fat G */
+            fat_g?: number | string | null;
+            /** Carb G */
+            carb_g?: number | string | null;
+            /** Sodium Mg */
+            sodium_mg?: number | string | null;
+            /** Edible Ratio */
+            edible_ratio?: number | string | null;
+            /** Unit Price */
+            unit_price?: number | string | null;
+            /** Data Source */
+            data_source?: string | null;
+            /** Source Version */
+            source_version?: string | null;
+            /** Note */
+            note?: string | null;
         };
         /** LoginRequest */
         LoginRequest: {
@@ -234,8 +501,15 @@ export interface components {
 }
 export type SchemaAuthUser = components['schemas']['AuthUser'];
 export type SchemaDatabaseHealthResponse = components['schemas']['DatabaseHealthResponse'];
+export type SchemaEnumOption = components['schemas']['EnumOption'];
+export type SchemaEnumOptions = components['schemas']['EnumOptions'];
 export type SchemaHttpValidationError = components['schemas']['HTTPValidationError'];
 export type SchemaHealthResponse = components['schemas']['HealthResponse'];
+export type SchemaIngredientCategory = components['schemas']['IngredientCategory'];
+export type SchemaIngredientCreate = components['schemas']['IngredientCreate'];
+export type SchemaIngredientPage = components['schemas']['IngredientPage'];
+export type SchemaIngredientRead = components['schemas']['IngredientRead'];
+export type SchemaIngredientUpdate = components['schemas']['IngredientUpdate'];
 export type SchemaLoginRequest = components['schemas']['LoginRequest'];
 export type SchemaUserRole = components['schemas']['UserRole'];
 export type SchemaValidationError = components['schemas']['ValidationError'];
@@ -355,6 +629,196 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuthUser"];
+                };
+            };
+        };
+    };
+    list_enum_options_api_v1_meta_enums_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnumOptions"];
+                };
+            };
+        };
+    };
+    list_ingredients_api_v1_ingredients_get: {
+        parameters: {
+            query?: {
+                /** @description 按名称或数据来源模糊匹配 */
+                keyword?: string | null;
+                /** @description 按食材类别过滤 */
+                category?: components["schemas"]["IngredientCategory"] | null;
+                /** @description 是否包含已停用的食材 */
+                include_inactive?: boolean;
+                /** @description 页码，从 1 开始 */
+                page?: number;
+                /** @description 每页条数 */
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngredientPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_ingredient_api_v1_ingredients_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IngredientCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngredientRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_ingredient_api_v1_ingredients__ingredient_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ingredient_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngredientRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deactivate_ingredient_api_v1_ingredients__ingredient_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ingredient_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngredientRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_ingredient_api_v1_ingredients__ingredient_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ingredient_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IngredientUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngredientRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from app.db.seed import run
+from app.db.seed import DEMO_DATA_SOURCE, run
 from app.db.session import get_session_factory
 from app.modules.collection.models import DailyLog, DailyLogItem
 from app.modules.dish.models import Dish, RecipeItem
@@ -36,7 +36,13 @@ def test_seed_is_idempotent() -> None:
 
 def test_seed_covers_required_demo_scope(db_session: Session) -> None:
     """验收要求：不少于 20 道菜覆盖一个完整轮换——本阶段先落 5 道可跑通的样板菜。"""
-    assert db_session.scalar(select(func.count()).select_from(Ingredient)) == 22
+    # 只数种子脚本写入的食材：连同接口测试造的数据一起数会让断言依赖执行顺序
+    seeded_ingredients = db_session.scalar(
+        select(func.count())
+        .select_from(Ingredient)
+        .where(Ingredient.data_source == DEMO_DATA_SOURCE)
+    )
+    assert seeded_ingredients == 22
     assert db_session.scalar(select(func.count()).select_from(Dish)) == 5
     assert db_session.scalar(select(func.count()).select_from(NutritionStandard)) == 4
     assert db_session.scalar(select(func.count()).select_from(MenuDay)) == 14

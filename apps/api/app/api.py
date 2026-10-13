@@ -9,6 +9,8 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.modules.auth.router import router as auth_routes
+from app.modules.ingredient.router import router as ingredient_routes
+from app.modules.system.meta import router as meta_routes
 from app.modules.system.router import router as system_routes
 
 # 不挂前缀：容器编排与运维直接访问 /health
@@ -18,5 +20,5 @@ root_router.include_router(system_routes)
 # 业务接口总路由，由 main.py 挂到 /api/v1 下
 api_router = APIRouter()
 api_router.include_router(auth_routes)
-# 后续模块在此挂载，例如：
-# api_router.include_router(ingredient_routes)
+api_router.include_router(meta_routes)
+api_router.include_router(ingredient_routes)
