@@ -49,6 +49,11 @@ jobs:
       - name: 类型检查
         working-directory: apps/api
         run: python -m mypy app
+      - name: 应用迁移并校验模型与迁移一致
+        working-directory: apps/api
+        run: |
+          python -m alembic upgrade head
+          python -m alembic check
       - name: 测试
         working-directory: apps/api
         run: python -m pytest

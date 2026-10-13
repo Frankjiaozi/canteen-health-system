@@ -29,6 +29,8 @@ const interpreter =
 const result = spawnSync(interpreter, process.argv.slice(2), {
   stdio: 'inherit',
   cwd: process.cwd(),
+  // 让子进程统一按 UTF-8 输出，Windows 控制台默认代码页会让中文日志与提示变乱码
+  env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' },
 });
 
 if (result.error) {

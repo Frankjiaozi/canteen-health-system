@@ -14,9 +14,11 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 import pytest
+from app.db.session import get_session_factory
 from app.main import create_app
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
 
 @pytest.fixture(scope="session")
@@ -31,3 +33,18 @@ def client(api_app: FastAPI) -> Iterator[TestClient]:
         yield test_client
     finally:
         test_client.close()
+
+
+@pytest.fixture
+def db_session() -> Iterator[Session]:
+    """数据库会话。
+
+    测试结束时统一回滚，保证用例之间互不污染、也不会在开发库里留下垃圾数据。
+    用例内部可以自由 `flush()`（以便触发约束校验），但不要 `commit()`。
+    """
+    session = get_session_factory()()
+    try:
+        yield session
+    finally:
+        session.rollback()
+        session.close()

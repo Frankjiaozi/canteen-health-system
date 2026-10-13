@@ -51,7 +51,8 @@ canteen_project/
 └── canteen-requirements.md  需求文档
 ```
 
-设计与分层约定见 [docs/architecture.md](./docs/architecture.md)，日常开发见 [docs/dev-guide.md](./docs/dev-guide.md)。
+设计与分层约定见 [docs/architecture.md](./docs/architecture.md)，数据模型见
+[docs/data-model.md](./docs/data-model.md)，日常开发见 [docs/dev-guide.md](./docs/dev-guide.md)。
 
 ## 快速开始
 
@@ -101,7 +102,7 @@ pnpm dev
 | --- | --- | --- |
 | 1 | 仓库与工程基建 | ✅ 已完成 |
 | 2 | 后端核心骨架 | ✅ 已完成 |
-| 3 | 完整数据模型 + 迁移 | ⏳ 待开始 |
+| 3 | 完整数据模型 + 迁移 | ✅ 已完成 |
 | 4 | 种子数据 | ⏳ 待开始 |
 | 5 | 认证与 RBAC | ⏳ 待开始 |
 | 6 | 营养引擎第一层 | ⏳ 待开始 |
