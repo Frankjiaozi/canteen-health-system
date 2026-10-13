@@ -965,8 +965,17 @@ def run(session: Session, *, history_days: int = HISTORY_DAYS) -> _Tally:
 def main() -> int:
     configure_logging("INFO")
     settings = get_settings()
-    if settings.is_production:
-        logger.error("拒绝在生产环境执行种子数据脚本")
+    # 种子脚本会写入带已知口令的演示账号，生产环境默认拒绝执行。
+    # 内网首次部署确实需要初始化演示数据时，显式设置 ALLOW_DEMO_SEED=true 放行。
+    if settings.is_production and os.environ.get("ALLOW_DEMO_SEED", "").lower() not in {
+        "1",
+        "true",
+        "yes",
+    }:
+        logger.error(
+            "生产环境默认拒绝执行种子脚本（它会写入带已知口令的演示账号）。"
+            "确需初始化演示数据，请显式设置 ALLOW_DEMO_SEED=true"
+        )
         return 1
 
     with get_session_factory()() as session:

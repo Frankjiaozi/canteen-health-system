@@ -1,0 +1,75 @@
+# 生产/内网自部署编排：一条命令拉起数据库、后端与前端。
+#
+#   cp infra/.env.example infra/.env      # 改掉 JWT_SECRET 与数据库口令
+#   docker compose -f infra/docker-compose.yml up -d --build
+#
+# 首次部署后再灌入演示数据（生产环境需要显式允许）：
+#   docker compose -f infra/docker-compose.yml exec -e ALLOW_DEMO_SEED=true api python -m app.db.seed
+#   docker compose -f infra/docker-compose.yml exec api python -m app.modules.nutrition.compute
+name: canteen
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-canteen}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请在 infra/.env 中设置数据库口令}
+      POSTGRES_DB: ${POSTGRES_DB:-canteen}
+      TZ: Asia/Shanghai
+      PGTZ: Asia/Shanghai
+    volumes:
+      - canteen-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-canteen} -d ${POSTGRES_DB:-canteen}']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+      args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.13-slim}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      DEBUG: 'false'
+      APP_TIMEZONE: Asia/Shanghai
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-canteen}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-canteen}
+      JWT_SECRET: ${JWT_SECRET:?请在 infra/.env 中设置 JWT_SECRET}
+      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-480}
+      # 通过 HTTPS 部署时置为 true，让浏览器只在加密连接上回传登录 Cookie
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    # 先跑迁移再起服务：单机自部署场景下，这样最不容易漏步骤
+    command:
+      - sh
+      - -c
+      - python -m alembic upgrade head && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+    healthcheck:
+      test: ['CMD-SHELL', 'python -c "import urllib.request;urllib.request.urlopen(\"http://127.0.0.1:8000/health\")"']
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:24-alpine}
+        NGINX_IMAGE: ${NGINX_IMAGE:-nginx:alpine}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - '${WEB_PORT:-8080}:80'
+
+volumes:
+  canteen-pg:

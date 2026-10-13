@@ -6,7 +6,8 @@ test('登录后可以看到四类指标', async ({ page }) => {
   await page.goto('/admin/dashboard');
 
   await expect(page.getByText('油盐糖用量趋势')).toBeVisible();
-  await expect(page.getByText('人均摄入与推荐值')).toBeVisible();
+  // 精确匹配：图表下方的口径说明里也提到了这个栏目名
+  await expect(page.getByText('人均摄入与推荐值', { exact: true })).toBeVisible();
   await expect(page.getByText('营养达标率')).toBeVisible();
   await expect(page.getByText('剩餐量与浪费率')).toBeVisible();
   // 图表来自真实接口，而不是空壳

@@ -32,6 +32,9 @@
     "test:py": "cd apps/api && node ../../scripts/py.mjs -m pytest",
     "test:web": "pnpm --filter @canteen/web test",
     "e2e": "pnpm --filter @canteen/web e2e",
+    "docker:up": "docker compose -f infra/docker-compose.yml up -d --build",
+    "docker:down": "docker compose -f infra/docker-compose.yml down",
+    "docker:logs": "docker compose -f infra/docker-compose.yml logs -f",
     "prepare": "husky"
   },
   "devDependencies": {

@@ -118,11 +118,20 @@ export function DashboardPage() {
             {trends.isPending ? (
               <Skeleton active />
             ) : (
-              <EChart
-                height={320}
-                ariaLabel="油盐糖每日用量趋势图"
-                option={buildTrendOption(trends.data)}
-              />
+              <>
+                <EChart
+                  height={300}
+                  ariaLabel="油盐糖每日用量趋势图"
+                  option={buildTrendOption(trends.data)}
+                />
+                <Typography.Paragraph
+                  type="secondary"
+                  style={{ marginTop: 8, marginBottom: 0, fontSize: 12 }}
+                >
+                  注：这里统计的是当餐全部就餐人次的总量，与「每人每日」的基准不是同一量纲，
+                  因此不在此图直接画目标线；达标判断以右侧「人均摄入与推荐值」为准。
+                </Typography.Paragraph>
+              </>
             )}
           </Card>
         </Col>
@@ -213,13 +222,12 @@ const comparisonColumns: TableProps<StandardComparison>['columns'] = [
 function buildTrendOption(data?: TrendsResponse): EChartOption {
   const points = data?.points ?? [];
   const dates = points.map((point) => point.date.slice(5));
-  const saltTarget = data?.targets.find((target) => target.code === 'SALT');
-  const oilTarget = data?.targets.find((target) => target.code === 'EDIBLE_OIL');
 
   return {
     tooltip: { trigger: 'axis' },
-    legend: { data: ['食用油', '食盐', '添加糖'] },
-    grid: { left: 56, right: 24, top: 40, bottom: 32 },
+    // 图例放顶部：默认的底部居中被横轴日期标签压住，读起来很挤
+    legend: { data: ['食用油', '食盐', '添加糖'], top: 0 },
+    grid: { left: 64, right: 24, top: 44, bottom: 32 },
     xAxis: { type: 'category', data: dates },
     yAxis: { type: 'value', name: '克' },
     series: [
@@ -242,18 +250,6 @@ function buildTrendOption(data?: TrendsResponse): EChartOption {
         data: points.map((point) => toNumber(point.sugar_total_g)),
       },
     ],
-    // 这里画的是当餐总量，与「人均/日」的基准不是一个量纲，因此不画目标线。
-    // 达标判断统一放在「人均摄入与推荐值」那栏，避免在图上直接比出错误结论。
-    ...(saltTarget || oilTarget
-      ? {
-          title: {
-            text: '注：总量按当餐全部就餐人次统计，达标判断以「人均摄入与推荐值」为准',
-            left: 0,
-            top: 0,
-            textStyle: { fontSize: 12, fontWeight: 'normal', color: '#8c8c8c' },
-          },
-        }
-      : {}),
   };
 }
 
@@ -268,7 +264,15 @@ function buildComplianceOption(data?: ComplianceResponse): EChartOption {
     },
     grid: { left: 56, right: 24, top: 24, bottom: 32 },
     xAxis: { type: 'category', data: points.map((point) => point.date.slice(5)) },
-    yAxis: { type: 'value', max: 1, name: '达标率', axisLabel: { formatter: '{value}' } },
+    yAxis: {
+      type: 'value',
+      max: 1,
+      name: '达标率',
+      // 纵轴按百分比读，0.5 这种刻度对使用者没有意义
+      axisLabel: {
+        formatter: (value: number) => `${Math.round(value * 100)}%`,
+      },
+    },
     series: [
       {
         name: '达标率',
@@ -285,11 +289,16 @@ function buildWasteOption(data?: WasteResponse): EChartOption {
 
   return {
     tooltip: { trigger: 'axis' },
-    legend: { data: ['浪费率', '剩餐量'] },
-    grid: { left: 56, right: 56, top: 40, bottom: 32 },
+    legend: { data: ['浪费率', '剩餐量'], top: 0 },
+    grid: { left: 64, right: 64, top: 44, bottom: 32 },
     xAxis: { type: 'category', data: points.map((point) => point.date.slice(5)) },
     yAxis: [
-      { type: 'value', name: '浪费率', max: 1 },
+      {
+        type: 'value',
+        name: '浪费率',
+        // 不写死上限：浪费率通常在 10% 上下，固定到 100% 会把柱子压成一条线
+        axisLabel: { formatter: (value: number) => `${Math.round(value * 100)}%` },
+      },
       { type: 'value', name: '千克', position: 'right' },
     ],
     series: [

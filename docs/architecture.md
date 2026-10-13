@@ -120,3 +120,11 @@ src/
 - `dish_nutritions.computation_trace` 保存配方快照、所用校准系数与公式版本，任何数值都能回溯到来源与计算过程。
 - 食材营养数据逐条记录来源与版本。
 - 配方与菜单的修改通过 `audit_logs` 记录操作人、时间与前后值。
+
+## 八、部署形态
+
+面向**学校内网自部署**：`infra/docker-compose.yml` 一条命令拉起数据库、后端与前端，
+只对外暴露前端端口；`/api` 由 nginx 反代到后端，前后端同源——登录凭证是 httpOnly Cookie，
+同源才走得通，也就不需要为跨域凭证另做配置。数据库迁移随后端容器启动自动执行。
+
+完整说明见 [deployment.md](./deployment.md)。

@@ -1,0 +1,29 @@
+# 依赖与构建产物：镜像里会重新装一遍，带进去只会拖慢构建
+**/node_modules
+**/dist
+**/.venv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+**/.vite
+
+# 测试产物与本地状态
+**/test-results
+**/playwright-report
+**/coverage
+**/.env
+**/.env.local
+cookies.txt
+
+# 版本控制与编辑器
+.git
+.gitattributes
+.github
+.vscode
+.idea
+
+# 文档与需求稿：运行镜像里用不到
+docs
+*.md

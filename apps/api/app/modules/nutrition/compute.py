@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import argparse
 
-from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 from app.db.session import get_session_factory
 from app.modules.nutrition import service
@@ -31,9 +30,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     configure_logging("INFO")
-    if get_settings().is_production:
-        logger.error("拒绝在生产环境执行批量营养计算")
-        return 1
+    logger.info("开始营养计算：统计最近 %d 天", args.days)
 
     with get_session_factory()() as session:
         report = service.compute_recent_days(session, days=args.days)

@@ -52,7 +52,8 @@ canteen_project/
 ```
 
 设计与分层约定见 [docs/architecture.md](./docs/architecture.md)，数据模型见
-[docs/data-model.md](./docs/data-model.md)，日常开发见 [docs/dev-guide.md](./docs/dev-guide.md)。
+[docs/data-model.md](./docs/data-model.md)，日常开发见 [docs/dev-guide.md](./docs/dev-guide.md)，
+内网自部署见 [docs/deployment.md](./docs/deployment.md)。
 
 ## 快速开始
 
@@ -99,6 +100,7 @@ pnpm dev
 | `pnpm typecheck` | mypy + tsc |
 | `pnpm test` | pytest + vitest |
 | `pnpm e2e` | Playwright 端到端 |
+| `pnpm docker:up` | 构建并启动整套容器（内网自部署） |
 
 ## 交付进度
 
@@ -113,7 +115,14 @@ pnpm dev
 | 7 | 食材库端到端切片 | ✅ 已完成 |
 | 8 | 公开大屏 | ✅ 已完成 |
 | 9 | 管理端看板 | ✅ 已完成 |
-| 10 | 部署编排与文档 | ⏳ 待开始 |
+| 10 | 部署编排与文档 | ✅ 已完成 |
+
+10 个模块全部完成并通过验收。部署方式见 [docs/deployment.md](./docs/deployment.md)：
+
+```bash
+cp infra/.env.example infra/.env   # 改掉数据库口令与 JWT_SECRET
+pnpm docker:up                     # 前端 :8080、后端与数据库在容器网络内
+```
 
 ## 已知边界
 

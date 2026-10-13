@@ -158,7 +158,16 @@ function DishCard({ dish }: { dish: PublicDishCard }) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
+      {/* 五项指标在卡片内均匀铺开，避免下半部分留一大片空白 */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          gap: 10,
+          flex: 1,
+        }}
+      >
         {dish.nutrients.map((nutrient) => (
           <NutrientRow key={nutrient.code} nutrient={nutrient} />
         ))}
