@@ -1,6 +1,12 @@
 packages:
   - 'apps/web'
   - 'packages/*'
+# 依赖树保持隔离（pnpm 默认），不为兼容性做扁平化
+shamefullyHoist: false
+# 自动安装 peer 依赖，避免工期被 peer 缺失打断
+autoInstallPeers: true
+# peer 版本不完全匹配时只告警、不中断安装
+strictPeerDependencies: false
 minimumReleaseAgeExclude:
   - '@typescript-eslint/eslint-plugin@8.71.2'
   - '@typescript-eslint/parser@8.71.2'

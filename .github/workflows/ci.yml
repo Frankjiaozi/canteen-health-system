@@ -76,3 +76,31 @@ jobs:
         run: pnpm --filter @canteen/web test
       - name: 生产构建
         run: pnpm --filter @canteen/web build
+
+  # ---------------------------------------------------------------------------
+  # 契约：重新生成前端 API 类型并断言与仓库中一致
+  #
+  # 拦截的是「后端接口改了、前端类型没重新生成」这类漂移。
+  # ---------------------------------------------------------------------------
+  contract:
+    name: 契约 · OpenAPI 类型一致性
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+      - name: 安装依赖
+        run: |
+          pnpm install --frozen-lockfile
+          python -m pip install -e "apps/api[dev]"
+      - name: 重新生成 API 类型
+        run: pnpm gen:api
+      - name: 断言无契约漂移
+        run: git diff --exit-code -- packages/api-client/src/schema.d.ts

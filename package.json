@@ -26,7 +26,7 @@
     "format": "cd apps/api && node ../../scripts/py.mjs -m ruff format . && cd ../.. && pnpm --filter @canteen/web format",
     "typecheck": "pnpm typecheck:py && pnpm typecheck:web",
     "typecheck:py": "cd apps/api && node ../../scripts/py.mjs -m mypy app",
-    "typecheck:web": "pnpm --filter @canteen/web typecheck",
+    "typecheck:web": "pnpm --filter @canteen/api-client typecheck && pnpm --filter @canteen/web typecheck",
     "test": "pnpm test:py && pnpm test:web",
     "test:py": "cd apps/api && node ../../scripts/py.mjs -m pytest",
     "test:web": "pnpm --filter @canteen/web test",
