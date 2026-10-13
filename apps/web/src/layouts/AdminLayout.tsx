@@ -14,6 +14,7 @@ import { Avatar, Button, Layout, Menu, Space, Tag, Tooltip, Typography } from 'a
 import type { ReactNode } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useCurrentUser, useLogout } from '@/features/auth/hooks/useAuth';
+import { OfflineNotice } from '@/shared/components/OfflineNotice';
 import { SYSTEM_MODULES } from '@/shared/config/modules';
 
 const { Header, Sider, Content } = Layout;
@@ -99,6 +100,7 @@ export function AdminLayout() {
         </Header>
 
         <Content style={{ padding: 16 }}>
+          <OfflineNotice />
           <Outlet />
         </Content>
       </Layout>

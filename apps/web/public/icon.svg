@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="食堂健康管理系统">
+  <rect width="512" height="512" rx="96" fill="#0a1a33" />
+  <circle cx="256" cy="236" r="132" fill="none" stroke="#1677ff" stroke-width="26" />
+  <circle cx="256" cy="236" r="74" fill="none" stroke="#52c41a" stroke-width="22" />
+  <path d="M256 92v70M256 310v70M112 236h70M330 236h70" stroke="#eaf2ff" stroke-width="22"
+        stroke-linecap="round" />
+</svg>
