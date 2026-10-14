@@ -160,7 +160,7 @@ def load_menu_dishes(session: Session, menu_day_id: UUID) -> list[Dish]:
 def load_per_serving_rows(
     session: Session, *, on_date: date, meal_type: MealType
 ) -> list[DishNutrition]:
-    """当餐全部菜品的单份口径结果，三种数值类型都返回。
+    """某天某餐全部菜品的单份口径结果，三种数值类型都返回。
 
     这里刻意**不替调用方挑一份**：挑选规则是展示层的决定（抽样 > 校准 > 理论），
     统一放在 `app.shared.nutrition_values`，查询层只负责把候选行取全。
@@ -170,6 +170,25 @@ def load_per_serving_rows(
             select(DishNutrition).where(
                 DishNutrition.date == on_date,
                 DishNutrition.meal_type == meal_type,
+                DishNutrition.caliber == NutrientCaliber.PER_SERVING,
+                DishNutrition.value_type.in_(VALUE_TYPES),
+            )
+        ).all()
+    )
+
+
+def load_latest_per_serving_rows(session: Session, dish_ids: Sequence[UUID]) -> list[DishNutrition]:
+    """每道菜**最近一天**的单份结果，供菜谱级汇总使用（例如菜单推荐的输入）。
+
+    与 `load_per_serving_rows` 的区别是不限定日期：推荐要的是「这道菜现在大概是多少」，
+    而不是「某一天是多少」。
+    """
+    if not dish_ids:
+        return []
+    return list(
+        session.scalars(
+            select(DishNutrition).where(
+                DishNutrition.dish_id.in_(dish_ids),
                 DishNutrition.caliber == NutrientCaliber.PER_SERVING,
                 DishNutrition.value_type.in_(VALUE_TYPES),
             )

@@ -102,6 +102,11 @@ strict_equality = true
 show_error_codes = true
 exclude = ["^alembic/"]
 
+[[tool.mypy.overrides]]
+# PuLP 不带类型标注，也没有官方 stub；求解器的调用面很窄，不值得为它写一层封装
+module = ["pulp"]
+ignore_missing_imports = true
+
 # ---------------------------------------------------------------------------
 # pytest
 # ---------------------------------------------------------------------------

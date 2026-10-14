@@ -75,7 +75,7 @@ export const SYSTEM_MODULES: SystemModule[] = [
     title: '菜单推荐',
     description: '在营养目标约束下生成菜单与份量建议，每条都有理由',
     requiresAuth: true,
-    status: 'planned',
+    status: 'ready',
   },
   {
     path: '/display',

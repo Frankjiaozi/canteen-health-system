@@ -56,6 +56,19 @@ class Settings(BaseSettings):
     # 开发期前端走 Vite 代理访问后端，同源即可；生产由 nginx 反代，通常留空
     cors_origins: list[str] = []
 
+    # ---- 菜单推荐的营养目标 ----
+    #: 全天的能量目标（千卡）。**这是一组演示值，待核实**：
+    #: 营养配餐领域常引用《学生餐营养指南》卫生行业标准，但需求文档记录
+    #: 「未能核实到权威原文」。结构与数值分开处理——结构（供能比）有指南原文，
+    #: 数值先填演示值，界面上标注「待核实」，拿到标准原文后改这里即可。
+    nutrition_energy_target_kcal: int = 2000
+    #: 全天能量目标的下限；上限由能量目标本身给出
+    nutrition_energy_target_min_kcal: int = 1800
+    #: 一餐占全天的能量比例：早 30% / 午 40% / 晚 30%
+    nutrition_meal_share_lunch: float = 0.4
+    #: 一餐的伙食预算（元 / 人）
+    nutrition_meal_budget_per_person: float = 8.0
+
     @field_validator("app_timezone")
     @classmethod
     def _validate_timezone(cls, value: str) -> str:

@@ -17,6 +17,7 @@ from app.modules.importer.router import router as import_routes
 from app.modules.ingredient.router import router as ingredient_routes
 from app.modules.nutrition.router import router as calibration_routes
 from app.modules.public.router import router as public_routes
+from app.modules.recommendation.router import router as recommendation_routes
 from app.modules.seasoning.router import router as seasoning_routes
 from app.modules.system.meta import router as meta_routes
 from app.modules.system.router import router as system_routes
@@ -34,6 +35,7 @@ api_router.include_router(seasoning_routes)
 api_router.include_router(dish_routes)
 api_router.include_router(import_routes)
 api_router.include_router(forecast_routes)
+api_router.include_router(recommendation_routes)
 api_router.include_router(collection_routes)
 api_router.include_router(public_routes)
 api_router.include_router(analytics_routes)

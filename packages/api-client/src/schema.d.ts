@@ -362,6 +362,74 @@ export interface paths {
         patch: operations["update_holiday_api_v1_forecast_holidays__holiday_id__patch"];
         trace?: never;
     };
+    "/api/v1/recommendation/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 生成一份菜单建议 */
+        post: operations["generate_api_v1_recommendation_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/recommendation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询历史推荐 */
+        get: operations["list_suggestions_api_v1_recommendation_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/recommendation/{suggestion_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查看某份推荐 */
+        get: operations["get_suggestion_api_v1_recommendation__suggestion_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/recommendation/{suggestion_id}/decide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 采纳或否决 */
+        post: operations["decide_api_v1_recommendation__suggestion_id__decide_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/collection/logs": {
         parameters: {
             query?: never;
@@ -1069,6 +1137,13 @@ export interface components {
              * @description 一次往返查询耗时（毫秒）
              */
             latency_ms: number;
+        };
+        /** DecideRequest */
+        DecideRequest: {
+            /** @description ACCEPTED 采纳 / REJECTED 否决 */
+            status: components["schemas"]["SuggestionStatus"];
+            /** Reason */
+            reason?: string | null;
         };
         /**
          * DishCategory
@@ -1804,6 +1879,50 @@ export interface components {
          * @enum {string}
          */
         MealType: "BREAKFAST" | "LUNCH" | "DINNER";
+        /** MenuSuggestionRead */
+        MenuSuggestionRead: {
+            /** Id */
+            id: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            meal_type: components["schemas"]["MealType"];
+            /** Meal Type Label */
+            meal_type_label: string;
+            status: components["schemas"]["SuggestionStatus"];
+            /** Status Label */
+            status_label: string;
+            /** Dishes */
+            dishes: components["schemas"]["PlannedDishRead"][];
+            /** Gaps */
+            gaps: components["schemas"]["NutrientGap"][];
+            /** Reasons */
+            reasons: components["schemas"]["SuggestionReason"][];
+            /** Cost Estimate */
+            cost_estimate: string;
+            /** Budget */
+            budget: string;
+            /** Diner Count */
+            diner_count: number;
+            /** Target Basis */
+            target_basis: {
+                [key: string]: unknown;
+            };
+            /** Binding */
+            binding: string[];
+            /** Solver Status */
+            solver_status: string;
+            /** Excluded Dishes */
+            excluded_dishes: string[];
+            /** Missing Price Warning */
+            missing_price_warning?: string | null;
+            /** Rejected Reason */
+            rejected_reason?: string | null;
+            /** Decided At */
+            decided_at?: string | null;
+        };
         /** NutrientAmount */
         NutrientAmount: {
             /** Code */
@@ -1816,6 +1935,34 @@ export interface components {
             digits: number;
             /** Value */
             value?: string | null;
+        };
+        /**
+         * NutrientGap
+         * @description 与目标的差距。**缺口多大**要写出来，只给「达标 / 不达标」的标签不算完成。
+         */
+        NutrientGap: {
+            /** Code */
+            code: string;
+            /** Label */
+            label: string;
+            /** Unit */
+            unit: string;
+            /** Target Text */
+            target_text: string;
+            /** Actual */
+            actual: string;
+            /**
+             * Status
+             * @description ok / over / under
+             */
+            status: string;
+            /**
+             * Gap
+             * @description 缺口；达标时为 0
+             */
+            gap: string;
+            /** Note */
+            note?: string | null;
         };
         /**
          * NutrientValue
@@ -1943,6 +2090,38 @@ export interface components {
              * @description 数值口径说明，避免把不同来源的数字混着解读
              */
             basis_note: string;
+        };
+        /** PlannedDishRead */
+        PlannedDishRead: {
+            /** Dish Id */
+            dish_id: string;
+            /** Dish Name */
+            dish_name: string;
+            /** Category Label */
+            category_label: string;
+            /** Cooking Method Label */
+            cooking_method_label: string;
+            /**
+             * Servings
+             * @description 建议份数
+             */
+            servings: string;
+            /**
+             * Cost
+             * @description 这道菜的成本（元）
+             */
+            cost: string;
+            /** Energy Kcal */
+            energy_kcal: string;
+            /** Salt G */
+            salt_g: string;
+            /** Popularity */
+            popularity: string;
+            /**
+             * Nutrition Basis
+             * @default
+             */
+            nutrition_basis: string;
         };
         /**
          * PublicBoard
@@ -2511,6 +2690,51 @@ export interface components {
             target_max?: string | null;
         };
         /**
+         * SuggestionReason
+         * @description 一条推荐理由。厨师长不信任不解释的黑箱建议，所以每条都要说得出原因。
+         */
+        SuggestionReason: {
+            /**
+             * Kind
+             * @description nutrition / cost / popularity / constraint / variety
+             */
+            kind: string;
+            /** Text */
+            text: string;
+        };
+        /**
+         * SuggestionStatus
+         * @enum {string}
+         */
+        SuggestionStatus: "PENDING" | "ACCEPTED" | "REJECTED";
+        /** SuggestionSummary */
+        SuggestionSummary: {
+            /** Id */
+            id: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            meal_type: components["schemas"]["MealType"];
+            /** Meal Type Label */
+            meal_type_label: string;
+            status: components["schemas"]["SuggestionStatus"];
+            /** Status Label */
+            status_label: string;
+            /** Dish Count */
+            dish_count: number;
+            /** Cost Estimate */
+            cost_estimate: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Rejected Reason */
+            rejected_reason?: string | null;
+        };
+        /**
          * TrendPoint
          * @description 某一天的油盐糖用量。
          */
@@ -2637,6 +2861,7 @@ export type SchemaDailyLogSummary = components['schemas']['DailyLogSummary'];
 export type SchemaDailyLogWrite = components['schemas']['DailyLogWrite'];
 export type SchemaDashboardSummary = components['schemas']['DashboardSummary'];
 export type SchemaDatabaseHealthResponse = components['schemas']['DatabaseHealthResponse'];
+export type SchemaDecideRequest = components['schemas']['DecideRequest'];
 export type SchemaDishCategory = components['schemas']['DishCategory'];
 export type SchemaDishCreate = components['schemas']['DishCreate'];
 export type SchemaDishDetail = components['schemas']['DishDetail'];
@@ -2667,11 +2892,14 @@ export type SchemaLoggedDish = components['schemas']['LoggedDish'];
 export type SchemaLoggedDishWrite = components['schemas']['LoggedDishWrite'];
 export type SchemaLoginRequest = components['schemas']['LoginRequest'];
 export type SchemaMealType = components['schemas']['MealType'];
+export type SchemaMenuSuggestionRead = components['schemas']['MenuSuggestionRead'];
 export type SchemaNutrientAmount = components['schemas']['NutrientAmount'];
+export type SchemaNutrientGap = components['schemas']['NutrientGap'];
 export type SchemaNutrientValue = components['schemas']['NutrientValue'];
 export type SchemaNutritionComparison = components['schemas']['NutritionComparison'];
 export type SchemaNutritionSummary = components['schemas']['NutritionSummary'];
 export type SchemaPerCapitaResponse = components['schemas']['PerCapitaResponse'];
+export type SchemaPlannedDishRead = components['schemas']['PlannedDishRead'];
 export type SchemaPublicBoard = components['schemas']['PublicBoard'];
 export type SchemaPublicDishCard = components['schemas']['PublicDishCard'];
 export type SchemaRecipeIngredientLine = components['schemas']['RecipeIngredientLine'];
@@ -2694,6 +2922,9 @@ export type SchemaSeasoningRead = components['schemas']['SeasoningRead'];
 export type SchemaSeasoningUpdate = components['schemas']['SeasoningUpdate'];
 export type SchemaStandardComparison = components['schemas']['StandardComparison'];
 export type SchemaStandardTarget = components['schemas']['StandardTarget'];
+export type SchemaSuggestionReason = components['schemas']['SuggestionReason'];
+export type SchemaSuggestionStatus = components['schemas']['SuggestionStatus'];
+export type SchemaSuggestionSummary = components['schemas']['SuggestionSummary'];
 export type SchemaTrendPoint = components['schemas']['TrendPoint'];
 export type SchemaTrendsResponse = components['schemas']['TrendsResponse'];
 export type SchemaUserRole = components['schemas']['UserRole'];
@@ -3587,6 +3818,139 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HolidayRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_api_v1_recommendation_generate_post: {
+        parameters: {
+            query: {
+                /** @description 要推荐的日期 */
+                on_date: string;
+                meal_type?: components["schemas"]["MealType"];
+                /** @description 不填则用最近一次采集的人次 */
+                diner_count?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuSuggestionRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_suggestions_api_v1_recommendation_get: {
+        parameters: {
+            query?: {
+                on_date?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuggestionSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_suggestion_api_v1_recommendation__suggestion_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                suggestion_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuSuggestionRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decide_api_v1_recommendation__suggestion_id__decide_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                suggestion_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecideRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuSuggestionRead"];
                 };
             };
             /** @description Validation Error */

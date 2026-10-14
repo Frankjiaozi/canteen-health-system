@@ -35,6 +35,7 @@ from app.shared.enums import (
     SeasoningCategory,
 )
 from app.shared.nutrients import NUTRIENT_FIELDS
+from app.shared.nutrition_values import VALUE_TYPE_DESCRIPTIONS, VALUE_TYPE_PRIORITY
 from app.shared.standards import quantize
 
 logger = get_logger(__name__)
@@ -537,6 +538,84 @@ def _closure_checks(
             )
         )
     return checks
+
+
+@dataclass(frozen=True, slots=True)
+class NutritionSnapshot:
+    """一道菜的单份营养快照，供别的域取用。
+
+    跨域调用只拿到这个值对象，不接触 ORM 行：别的域（例如菜单推荐）需要的是
+    「这道菜现在大概是多少」，而不是一张可写的表。
+    """
+
+    dish_id: UUID
+    energy_kcal: Decimal
+    protein_g: Decimal
+    fat_g: Decimal
+    carb_g: Decimal
+    sodium_mg: Decimal
+    #: 这份数值来自哪一层（抽样实测 / 校准 / 配方推算）
+    value_type: str | None
+    value_type_label: str
+    on_date: date | None
+
+    def as_vector(self) -> NutrientVector:
+        return NutrientVector(
+            energy_kcal=self.energy_kcal,
+            protein_g=self.protein_g,
+            fat_g=self.fat_g,
+            carb_g=self.carb_g,
+            sodium_mg=self.sodium_mg,
+        )
+
+
+def latest_per_serving_snapshots(
+    session: Session, dish_ids: Sequence[UUID]
+) -> dict[UUID, NutritionSnapshot]:
+    """每道菜最近一次的单份营养，取证据最强的一份；没有落库结果的按当前配方现算。
+
+    菜单推荐要按「这道菜现在大概是多少」来算营养供给，而不是某一天的历史值，
+    所以按菜品取最近一天，再按抽样 > 校准 > 理论挑一份。
+    """
+    rows = repository.load_latest_per_serving_rows(session, dish_ids)
+    best: dict[UUID, Any] = {}
+    for row in rows:
+        current = best.get(row.dish_id)
+        if current is None or (VALUE_TYPE_PRIORITY[row.value_type], row.date) > (
+            VALUE_TYPE_PRIORITY[current.value_type],
+            current.date,
+        ):
+            best[row.dish_id] = row
+
+    snapshots: dict[UUID, NutritionSnapshot] = {
+        dish_id: NutritionSnapshot(
+            dish_id=dish_id,
+            energy_kcal=row.energy_kcal,
+            protein_g=row.protein_g,
+            fat_g=row.fat_g,
+            carb_g=row.carb_g,
+            sodium_mg=row.sodium_mg,
+            value_type=row.value_type.value,
+            value_type_label=VALUE_TYPE_DESCRIPTIONS[row.value_type],
+            on_date=row.date,
+        )
+        for dish_id, row in best.items()
+    }
+
+    missing = [dish_id for dish_id in dish_ids if dish_id not in snapshots]
+    for dish_id, vector in preview_per_serving(session, missing).items():
+        snapshots[dish_id] = NutritionSnapshot(
+            dish_id=dish_id,
+            energy_kcal=vector.energy_kcal,
+            protein_g=vector.protein_g,
+            fat_g=vector.fat_g,
+            carb_g=vector.carb_g,
+            sodium_mg=vector.sodium_mg,
+            value_type=None,
+            value_type_label="按当前配方现算（尚未落库）",
+            on_date=None,
+        )
+    return snapshots
 
 
 def build_sampling_candidates(
