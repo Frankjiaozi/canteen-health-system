@@ -4,14 +4,39 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.errors import ForbiddenError, UnauthorizedError
-from app.core.security import verify_password
+from app.core.errors import ConflictError, ForbiddenError, UnauthorizedError
+from app.core.security import hash_password, verify_password
 from app.modules.auth import repository
 from app.modules.auth.models import User
-from app.modules.auth.schemas import AuthUser
+from app.modules.auth.schemas import AuthUser, RegisterRequest
+from app.shared.enums import UserRole
+
+USERNAME_TAKEN = "该登录名已被使用，请换一个"
+
+
+def register(session: Session, payload: RegisterRequest) -> User:
+    if repository.get_by_username(session, payload.username) is not None:
+        raise ConflictError(USERNAME_TAKEN)
+    user = User(
+        username=payload.username,
+        display_name=payload.display_name,
+        password_hash=hash_password(payload.password),
+        role=UserRole.RECORDER,
+        is_active=True,
+    )
+    try:
+        return repository.create(session, user)
+    except IntegrityError as exc:
+        # 并发注册可能在预检查后撞上唯一约束，仍返回可读的重名提示。
+        session.rollback()
+        constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+        if constraint == "uq_users_username":
+            raise ConflictError(USERNAME_TAKEN) from exc
+        raise
 
 
 def to_auth_user(user: User) -> AuthUser:

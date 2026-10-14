@@ -1,7 +1,7 @@
 import { LockOutlined, UserOutlined } from '@ant-design/icons';
-import { Button, Card, Form, Input, Typography } from 'antd';
+import { Alert, Button, Card, Form, Input, Typography } from 'antd';
 import { useState } from 'react';
-import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { ApiError } from '@/shared/api/errors';
 import { useCurrentUser, useLogin } from '../hooks/useAuth';
 import type { LoginPayload } from '../types';
@@ -43,7 +43,7 @@ export function LoginPage() {
     >
       <Card style={{ width: '100%', maxWidth: 400 }}>
         <Typography.Title level={3} style={{ marginBottom: 4 }}>
-          食堂健康管理系统
+          知味 · 校园智慧膳食平台
         </Typography.Title>
         <Typography.Paragraph type="secondary" style={{ marginBottom: 24 }}>
           营养核算 · 采购预测 · 决策支持
@@ -70,9 +70,7 @@ export function LoginPage() {
           </Form.Item>
 
           {errorText ? (
-            <Typography.Paragraph type="danger" style={{ marginBottom: 12 }}>
-              {errorText}
-            </Typography.Paragraph>
+            <Alert title={errorText} type="error" showIcon style={{ marginBottom: 16 }} />
           ) : null}
 
           <Button
@@ -85,6 +83,13 @@ export function LoginPage() {
             登录
           </Button>
         </Form>
+
+        <Typography.Paragraph style={{ marginTop: 20, marginBottom: 0, textAlign: 'center' }}>
+          还没有账号？{' '}
+          <Link to="/register" state={location.state}>
+            立即注册
+          </Link>
+        </Typography.Paragraph>
 
         {import.meta.env.DEV ? (
           <Typography.Paragraph type="secondary" style={{ marginTop: 20, marginBottom: 0 }}>

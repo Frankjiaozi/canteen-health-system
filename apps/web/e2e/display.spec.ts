@@ -4,7 +4,7 @@ test('公开大屏不需要登录就能看到今日菜单与营养', async ({ pa
   await page.goto('/display');
 
   await expect(page.getByText('今日菜单与营养')).toBeVisible();
-  await expect(page.getByText('食堂健康管理系统')).toBeVisible();
+  await expect(page.getByText('知味 · 校园智慧膳食平台')).toBeVisible();
   // 免登录：不应被重定向到登录页
   await expect(page).not.toHaveURL(/login/);
 

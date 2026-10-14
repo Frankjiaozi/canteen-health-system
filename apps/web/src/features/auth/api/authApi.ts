@@ -1,13 +1,21 @@
 import { api } from '@/shared/api/client';
 import { unwrap } from '@/shared/api/result';
-import type { AuthUser, LoginPayload } from '../types';
+import { toApiError } from '@/shared/api/errors';
+import type { AuthUser, LoginPayload, RegisterPayload } from '../types';
+
+export async function register(payload: RegisterPayload): Promise<AuthUser> {
+  return unwrap(await api.POST('/api/v1/auth/register', { body: payload }));
+}
 
 export async function login(payload: LoginPayload): Promise<AuthUser> {
   return unwrap(await api.POST('/api/v1/auth/login', { body: payload }));
 }
 
 export async function logout(): Promise<void> {
-  await api.POST('/api/v1/auth/logout');
+  const result = await api.POST('/api/v1/auth/logout');
+  if (!result.response.ok) {
+    throw toApiError(result.response.status, result.error);
+  }
 }
 
 export async function fetchCurrentUser(): Promise<AuthUser> {

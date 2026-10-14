@@ -14,7 +14,7 @@ def test_health_reports_app_metadata(client: TestClient) -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "ok"
-    assert body["app_name"] == "食堂健康管理系统"
+    assert body["app_name"] == "知味 · 校园智慧膳食平台"
     assert body["timezone"] == "Asia/Shanghai"
     # 服务器时间必须带时区偏移，避免前端拿到区域无关时间
     assert body["server_time"].endswith("+08:00")

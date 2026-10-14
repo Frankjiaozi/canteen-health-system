@@ -22,6 +22,12 @@ def get_by_id(session: Session, user_id: UUID) -> User | None:
     return session.get(User, user_id)
 
 
+def create(session: Session, user: User) -> User:
+    session.add(user)
+    session.flush()
+    return user
+
+
 def mark_login(session: Session, user: User, moment: datetime) -> None:
     user.last_login_at = moment
     session.flush()

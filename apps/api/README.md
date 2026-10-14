@@ -1,6 +1,6 @@
 # canteen-api
 
-食堂健康管理系统后端服务。分层与目录约定见仓库根目录 `docs/architecture.md`。
+知味 · 校园智慧膳食平台后端服务。分层与目录约定见仓库根目录 `docs/architecture.md`。
 
 ## 本地启动
 

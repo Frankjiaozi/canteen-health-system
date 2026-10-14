@@ -1,8 +1,8 @@
 {
-  "name": "canteen-health-system",
+  "name": "zhiwei",
   "version": "0.1.0",
   "private": true,
-  "description": "食堂健康管理系统 —— 面向食堂端的营养核算与采购预测，面向学校的决策支持",
+  "description": "知味 · 校园智慧膳食平台 —— 面向食堂端的营养核算与采购预测，面向学校的决策支持",
   "packageManager": "pnpm@11.25.0",
   "engines": {
     "node": ">=22.12"

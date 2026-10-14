@@ -11,8 +11,8 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: '食堂健康管理系统',
-        short_name: '食堂健康',
+        name: '知味 · 校园智慧膳食平台',
+        short_name: '知味',
         description: '营养核算、采购预测与决策支持',
         lang: 'zh-CN',
         start_url: '/',

@@ -1,4 +1,4 @@
-"""认证接口：登录、退出、当前用户。"""
+"""认证接口：注册、登录、退出、当前用户。"""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from app.core.security import create_access_token
 from app.db.session import get_session
 from app.modules.auth import service
 from app.modules.auth.dependencies import get_current_user
-from app.modules.auth.schemas import AuthUser, LoginRequest
+from app.modules.auth.schemas import AuthUser, LoginRequest, RegisterRequest
 
 router = APIRouter(prefix="/auth", tags=["认证"])
 
@@ -31,6 +31,25 @@ def _set_auth_cookie(response: Response, token: str) -> None:
         samesite="lax",
         path="/",
     )
+
+
+@router.post(
+    "/register",
+    response_model=AuthUser,
+    status_code=status.HTTP_201_CREATED,
+    summary="注册录入员账号并登录",
+)
+def register(
+    payload: RegisterRequest,
+    response: Response,
+    session: Session = Depends(get_session),
+) -> AuthUser:
+    user = service.register(session, payload)
+    service.record_login(session, user)
+    session.commit()
+    token = create_access_token(user_id=user.id, username=user.username, role=user.role)
+    _set_auth_cookie(response, token)
+    return service.to_auth_user(user)
 
 
 @router.post("/login", response_model=AuthUser, summary="登录")
