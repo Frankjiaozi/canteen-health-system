@@ -26,12 +26,25 @@ test('日常运行分组按时间顺序排，点进去能到对应页面', async
   await loginAs(page, 'recorder');
   await page.getByRole('menuitem', { name: /日常运行/ }).click();
 
-  for (const name of ['菜单推荐', '采购预测', '每日采集', '抽样纠偏']) {
+  // 「菜单推荐」与「采购预测」已合成「明日菜单与采购」，四项变三项
+  for (const name of ['明日菜单与采购', '每日采集', '抽样纠偏']) {
     await expect(page.getByRole('menuitem', { name })).toBeVisible();
   }
+  await expect(page.getByRole('menuitem', { name: '采购预测' })).toHaveCount(0);
 
   await page.getByRole('menuitem', { name: '每日采集' }).click();
   await expect(page).toHaveURL(/\/admin\/collection$/);
+});
+
+test('旧的菜单推荐与采购预测地址跳到合并后的页面', async ({ page }) => {
+  await loginAs(page, 'recorder');
+
+  await page.goto('/admin/recommendation');
+  await expect(page).toHaveURL(/\/admin\/menu-plan$/);
+
+  await page.goto('/admin/forecast');
+  await expect(page).toHaveURL(/\/admin\/menu-plan$/);
+  await expect(page.getByText('明日菜单与采购', { exact: true })).toBeVisible();
 });
 
 test('当前页面所在的分组会自动展开', async ({ page }) => {

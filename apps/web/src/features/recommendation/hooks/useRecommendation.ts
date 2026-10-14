@@ -1,13 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { App } from 'antd';
 import { ApiError } from '@/shared/api/errors';
-import {
-  decideSuggestion,
-  fetchSuggestionById,
-  fetchSuggestions,
-  generateSuggestion,
-} from '../api/recommendationApi';
-import type { MealType, SuggestionStatus } from '../types';
+import { decideSuggestion, fetchSuggestionById, fetchSuggestions } from '../api/recommendationApi';
+import type { SuggestionStatus } from '../types';
 
 export const recommendationKeys = {
   all: ['recommendation'] as const,
@@ -27,30 +22,6 @@ export function useSuggestionDetail(id: string | null) {
     queryKey: recommendationKeys.detail(id ?? ''),
     queryFn: () => fetchSuggestionById(id as string),
     enabled: id !== null,
-  });
-}
-
-/**
- * 生成推荐。
- *
- * 结果直接用变更的返回值，不塞进查询缓存：生成是「按下去算一次」的动作，
- * 同一日期再点应当给出新的一版，缓存住反而会让人以为按钮没反应。
- */
-export function useGenerateSuggestion() {
-  const queryClient = useQueryClient();
-  const { message } = App.useApp();
-
-  return useMutation({
-    mutationFn: (input: { onDate: string; mealType: MealType }) =>
-      generateSuggestion(input.onDate, input.mealType),
-    onSuccess: async (result) => {
-      await queryClient.invalidateQueries({ queryKey: recommendationKeys.all });
-      void message.success(`已生成 ${result.dishes.length} 道菜的菜单建议`);
-    },
-    onError: (error: unknown) => {
-      // 求解器无解时后端会把卡住的约束说清楚，原样展示比「生成失败」有用得多
-      void message.error(error instanceof ApiError ? error.message : '生成失败，请稍后重试', 8);
-    },
   });
 }
 

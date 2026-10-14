@@ -1,22 +1,11 @@
 import { api } from '@/shared/api/client';
 import { unwrap } from '@/shared/api/result';
-import type {
-  BacktestResult,
-  ForecastRunResult,
-  HolidayPage,
-  HolidayRead,
-  HolidayWrite,
-  MealType,
-} from '../types';
+import type { BacktestResult, HolidayPage, HolidayRead, HolidayWrite, MealType } from '../types';
 
-export async function runForecast(onDate: string, mealType: MealType): Promise<ForecastRunResult> {
-  return unwrap(
-    await api.POST('/api/v1/forecast/run', {
-      params: { query: { on_date: onDate, meal_type: mealType } },
-    }),
-  );
-}
-
+/**
+ * 回测与日历。生成份数这件事不在这个域的前端里做——它由「明日菜单与采购」一次调用完成
+ * （见 features/menuplan），份数的依据与回测结果在这两个接口里查。
+ */
 export async function fetchBacktest(days: number, mealType: MealType): Promise<BacktestResult> {
   return unwrap(
     await api.GET('/api/v1/forecast/backtest', {

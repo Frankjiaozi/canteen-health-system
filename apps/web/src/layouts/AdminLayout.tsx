@@ -8,7 +8,6 @@ import {
   DesktopOutlined,
   ExperimentOutlined,
   FormOutlined,
-  LineChartOutlined,
   LogoutOutlined,
   ScheduleOutlined,
 } from '@ant-design/icons';
@@ -31,8 +30,7 @@ const LEAF_ICONS: Record<string, ReactNode> = {
   '/admin/seasonings': <DatabaseOutlined />,
   '/admin/collection': <FormOutlined />,
   '/admin/calibration': <ExperimentOutlined />,
-  '/admin/forecast': <LineChartOutlined />,
-  '/admin/recommendation': <BulbOutlined />,
+  '/admin/menu-plan': <BulbOutlined />,
 };
 
 const GROUP_ICONS: Record<string, ReactNode> = {

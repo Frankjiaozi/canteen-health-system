@@ -14,7 +14,8 @@ class PlannedDishRead(BaseModel):
     dish_name: str
     category_label: str
     cooking_method_label: str
-    servings: str = Field(description="建议份数")
+    #: 这一道菜的成本（元）。份数不在这里——推荐只回答「做哪几道菜」，
+    #: 份数由预测给出，见 menu-plan 接口
     cost: str = Field(description="这道菜的成本（元）")
     #: 单位：单份营养与调料用量，便于核对为什么选了它
     energy_kcal: str

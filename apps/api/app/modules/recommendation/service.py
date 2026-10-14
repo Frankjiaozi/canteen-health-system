@@ -79,8 +79,17 @@ def generate(
     on_date: date,
     meal_type: MealType = MealType.LUNCH,
     diner_count: int | None = None,
+    servings_by_dish: dict[UUID, Decimal] | None = None,
 ) -> MenuSuggestionRead:
-    """生成一份菜单建议。"""
+    """生成一份菜单建议。
+
+    **份数不由推荐决定**。推荐回答的是「明天做哪几道菜」；份数是预测的活——
+    它要考虑明天是不是放假、这道菜历史卖得怎么样，而推荐手里没有这些信息。
+
+    但份数必须参与营养评估：「人均供给」= Σ(单份营养 × 份数) ÷ 人次，
+    不知道做多少份就算不出这一餐提供了多少营养。所以它是**输入**，不是推荐的结果。
+    不传时按「每人一份」估——那只是评估基准，不代表建议这么做。
+    """
     settings = get_settings()
     dishes = repository.load_active_dishes(session)
     materials = repository.load_materials(session)
@@ -95,6 +104,7 @@ def generate(
 
     plan_targets, target_basis = targets.build_targets(meal_type, standards)
     diners = diner_count or repository.load_latest_diner_count(session, on_date=on_date)
+    baseline = servings_by_dish or {candidate.dish_id: Decimal(diners) for candidate in candidates}
     excluded = repository.load_previous_dishes(session, on_date=on_date, meal_type=meal_type)
     budget = (Decimal(str(settings.nutrition_meal_budget_per_person)) * diners).quantize(
         Decimal("0.01")
@@ -111,6 +121,7 @@ def generate(
         min_ingredient_kinds=targets.min_ingredient_kinds(standards),
         category_min=CATEGORY_MIN,
         category_max=CATEGORY_MAX,
+        fixed_servings=baseline,
         excluded_dish_ids=frozenset(excluded),
     )
 
@@ -129,7 +140,6 @@ def generate(
                 "dish_name": by_id[item.dish_id].name,
                 "category_label": by_id[item.dish_id].category.label,
                 "cooking_method_label": by_id[item.dish_id].cooking_method.label,
-                "servings": str(item.servings),
                 "cost": str(item.cost),
                 "energy_kcal": str(by_id[item.dish_id].energy_kcal),
                 "salt_g": str(by_id[item.dish_id].salt_g),
@@ -168,6 +178,22 @@ def generate(
         diners,
     )
     return read_suggestion(suggestion)
+
+
+def candidate_dish_ids(session: Session) -> list[UUID]:
+    """可作为推荐候选的菜品。
+
+    「合并页」要先拿这份清单去预测份数、再交给推荐选菜，两边的候选集必须是同一批，
+    否则会出现「预测了但没参与推荐」或「推荐了却没有份数」的错位。
+    """
+    dishes = repository.load_active_dishes(session)
+    materials = repository.load_materials(session)
+    popularity = repository.load_popularity(session)
+    return [
+        dish_id
+        for dish_id, usage in materials.items()
+        if usage.ingredient_ids and dish_id in dishes and dish_id in popularity
+    ]
 
 
 def _candidates(
@@ -358,7 +384,6 @@ def read_suggestion(suggestion: MenuSuggestion) -> MenuSuggestionRead:
                 dish_name=str(row.get("dish_name")),
                 category_label=str(row.get("category_label", "")),
                 cooking_method_label=str(row.get("cooking_method_label", "")),
-                servings=str(row.get("servings")),
                 cost=str(row.get("cost")),
                 energy_kcal=str(row.get("energy_kcal", "—")),
                 salt_g=str(row.get("salt_g", "—")),

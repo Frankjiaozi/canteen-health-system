@@ -63,14 +63,11 @@ export const NAV_GROUPS: NavGroup[] = [
     hint: '按时间顺序：事前定菜单与采购、当天采集、每周抽样',
     children: [
       {
-        path: '/admin/recommendation',
-        title: '菜单推荐',
-        description: '在营养目标约束下生成菜单与份量建议，每条都有理由',
-      },
-      {
-        path: '/admin/forecast',
-        title: '采购预测',
-        description: '按同星期历史与校历事件预测次日份数与食材需求',
+        // 原先「菜单推荐」与「采购预测」是两页：定菜单要点一次、算采购再点一次，
+        // 而这两件事本来就是「明天做什么菜、要买多少料」一件事的两面，合到一页。
+        path: '/admin/menu-plan',
+        title: '明日菜单与采购',
+        description: '选出明天做哪几道菜，按各菜的预测份数算出要买多少料',
       },
       {
         path: '/admin/collection',

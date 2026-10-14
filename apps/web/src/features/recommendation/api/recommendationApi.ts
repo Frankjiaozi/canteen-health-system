@@ -1,17 +1,6 @@
 import { api } from '@/shared/api/client';
 import { unwrap } from '@/shared/api/result';
-import type { MealType, MenuSuggestionRead, SuggestionStatus, SuggestionSummary } from '../types';
-
-export async function generateSuggestion(
-  onDate: string,
-  mealType: MealType,
-): Promise<MenuSuggestionRead> {
-  return unwrap(
-    await api.POST('/api/v1/recommendation/generate', {
-      params: { query: { on_date: onDate, meal_type: mealType } },
-    }),
-  );
-}
+import type { MenuSuggestionRead, SuggestionStatus, SuggestionSummary } from '../types';
 
 export async function fetchSuggestions(onDate: string): Promise<SuggestionSummary[]> {
   return unwrap(

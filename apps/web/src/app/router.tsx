@@ -5,8 +5,7 @@ import { RequireAuth } from '@/features/auth/components/RequireAuth';
 import { SamplingPage } from '@/features/calibration/routes';
 import { DailyLogPage } from '@/features/collection/routes';
 import { DisplayPage } from '@/features/display/routes';
-import { ForecastPage } from '@/features/forecast/routes';
-import { RecommendationPage } from '@/features/recommendation/routes';
+import { MenuPlanPage } from '@/features/menuplan/routes';
 import { DashboardPage } from '@/features/dashboard/routes';
 import { DishListPage, SeasoningListPage } from '@/features/dish/routes';
 import { IngredientListPage } from '@/features/ingredient/routes';
@@ -60,10 +59,12 @@ const router = createBrowserRouter([
       { path: 'seasonings', element: lazyElement(<SeasoningListPage />) },
       { path: 'collection', element: lazyElement(<DailyLogPage />) },
       { path: 'calibration', element: lazyElement(<SamplingPage />) },
+      { path: 'menu-plan', element: lazyElement(<MenuPlanPage />) },
       // 旧地址留一个跳转，「数据看板」不再单列一项
       { path: 'dashboard', element: <Navigate to="/admin" replace /> },
-      { path: 'forecast', element: lazyElement(<ForecastPage />) },
-      { path: 'recommendation', element: lazyElement(<RecommendationPage />) },
+      // 「菜单推荐」与「采购预测」已合成「明日菜单与采购」，旧地址照旧能用
+      { path: 'forecast', element: <Navigate to="/admin/menu-plan" replace /> },
+      { path: 'recommendation', element: <Navigate to="/admin/menu-plan" replace /> },
     ],
   },
   {

@@ -7,10 +7,13 @@ import { useSearchParams } from 'react-router-dom';
  *
  * 同步到地址栏不只是为了好看：录入员可以把「去录今天这餐」的链接直接发给同事，
  * 刷新页面也不会跳回今天；端到端测试同样可以径直打开某一天，不必去操作日期控件。
+ *
+ * `defaultDate` 给「默认不是今天」的页面用：「明日菜单与采购」打开时就该是明天，
+ * 让用户每次先手动翻一天是没必要的。
  */
-export function useDateMealSelection(defaultMeal: string) {
+export function useDateMealSelection(defaultMeal: string, defaultDate?: string) {
   const [params, setParams] = useSearchParams();
-  const date = params.get('date') ?? dayjs().format('YYYY-MM-DD');
+  const date = params.get('date') ?? defaultDate ?? dayjs().format('YYYY-MM-DD');
   const meal = params.get('meal') ?? defaultMeal;
 
   const update = useCallback(

@@ -178,9 +178,7 @@ def solve_menu(
         if fixed is not None:
             # 份数已经给定：选了就按这个份数做，不选就是 0。它不再是决策变量，
             # 于是模型只剩「选哪些菜」这一件事——这正是推荐该回答的问题。
-            portions[dish.dish_id] = pulp.LpVariable(
-                f"s_{index}", lowBound=0, upBound=float(fixed)
-            )
+            portions[dish.dish_id] = pulp.LpVariable(f"s_{index}", lowBound=0, upBound=float(fixed))
             problem += portions[dish.dish_id] == float(fixed) * pick[dish.dish_id]
             continue
         portions[dish.dish_id] = pulp.LpVariable(

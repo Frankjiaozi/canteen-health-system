@@ -12,7 +12,7 @@
 
 | 界面 | 访问方式 | 内容 |
 | --- | --- | --- |
-| 食堂管理端 | 需登录（录入员 / 食堂管理员 / 学校管理方） | 每日采集、配方维护、看板与报表 |
+| 食堂管理端 | 需登录（录入员 / 食堂管理员 / 学校管理方） | 基础数据建库、明日菜单与采购、每日采集、抽样纠偏、看板 |
 | 公开大屏 | **免登录** | 今日菜单、每道菜营养指标、膳食指南对照条 |
 | 管理端看板 | 需登录 | 油盐糖趋势、人均摄入对比、达标率、剩餐浪费率 |
 
@@ -49,13 +49,15 @@ canteen_project/
 ├── packages/api-client/     OpenAPI 生成的类型与请求客户端
 ├── infra/                   docker-compose、Dockerfile、nginx
 ├── scripts/                 生成 API 客户端等工程脚本
-├── docs/                    架构、数据模型、开发指南
+├── docs/                    架构、数据模型、开发指南、实施记录
 └── canteen-requirements.md  需求文档
 ```
 
 设计与分层约定见 [docs/architecture.md](./docs/architecture.md)，数据模型见
 [docs/data-model.md](./docs/data-model.md)，日常开发见 [docs/dev-guide.md](./docs/dev-guide.md)，
-内网自部署见 [docs/deployment.md](./docs/deployment.md)。
+内网自部署见 [docs/deployment.md](./docs/deployment.md)；
+「哪一步为什么这么做、踩过什么坑」按模块记在
+[docs/implementation-log.md](./docs/implementation-log.md)。
 
 ## 快速开始
 
@@ -133,8 +135,9 @@ pnpm dev
 | 14 | 采集页离线队列：断网提交进本地队列，联网自动补交（M2 完整） | ✅ 已完成 |
 | 15 | 消耗量预测：同星期移动平均 × 日历修正、采购建议单、MAPE 回测（M5） | ✅ 已完成 |
 | 16 | 菜单推荐：整数规划求解、硬约束可验证、营养差距与推荐理由、人工可否决（M6） | ✅ 已完成 |
+| 17 | 明日菜单与采购：把「菜单推荐」与「采购预测」合成一页，份数由预测给出，采购量按公斤与金额出单 | ✅ 已完成 |
 
-16 个模块全部完成并通过验收。需求里的闭环「手机现场录入 → 大屏看到结果」在改为电脑端之后
+17 个模块全部完成并通过验收。需求里的闭环「手机现场录入 → 大屏看到结果」在改为电脑端之后
 已经真正闭合：登录 → 「每日采集」勾出当天供应的菜并填几组数字 → 保存即重算营养 →
 免登录的公开大屏立刻看得见。
 部署方式见 [docs/deployment.md](./docs/deployment.md)：

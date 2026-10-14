@@ -7,6 +7,8 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Collection, Sequence
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
@@ -48,96 +50,56 @@ EXCLUDED_FLAGS: tuple[str, ...] = (
 
 
 def run_forecast(
-    session: Session, *, on_date: date, meal_type: MealType = MealType.LUNCH
+    session: Session,
+    *,
+    on_date: date,
+    meal_type: MealType = MealType.LUNCH,
+    dish_ids: Sequence[UUID] | None = None,
 ) -> ForecastRunResult:
-    """预测某天某一餐每道菜的份数，并汇总出采购建议单。"""
-    start = on_date - timedelta(weeks=HISTORY_WEEKS)
-    holidays = repository.load_holidays(session, start=start, end=on_date)
-    context = strategy.day_context(on_date, holidays)
-    calendar_note = context.note
+    """预测某天某一餐每道菜的份数，并汇总出采购建议单。
 
-    history = repository.load_dish_history(session, start=start, end=on_date - timedelta(days=1))
-    dishes = repository.load_active_dishes(session)
-    profile = strategy.weekday_profile(
-        [
-            [strategy.HistoryPoint(day, servings) for day, servings in points]
-            for points in history.values()
-        ]
-    )
-
-    planned_ids, basis_date, basis = _planned_dishes(session, on_date=on_date, meal_type=meal_type)
+    `dish_ids` 给定时按这几道菜预测与汇总（合并页用它：采购按推荐选出的菜算）；
+    不给则沿用旧行为——采购按当天菜单、没有菜单就按上周同一天实际供应的菜。
+    """
+    prediction = predict_dishes(session, on_date=on_date, meal_type=meal_type, dish_ids=dish_ids)
+    if dish_ids is not None:
+        planned_ids, basis_date, basis = list(dish_ids), on_date, "RECOMMENDATION"
+    else:
+        planned_ids, basis_date, basis = _planned_dishes(
+            session, on_date=on_date, meal_type=meal_type
+        )
     planned = set(planned_ids)
 
-    rows: list[dict[str, object]] = []
-    forecasts: list[DishForecast] = []
-    skipped: list[str] = []
-    for dish_id, points in history.items():
-        dish = dishes.get(dish_id)
-        if dish is None:
-            continue
-        result = strategy.forecast_dish(
-            [strategy.HistoryPoint(day, servings) for day, servings in points],
-            target=on_date,
-            context=context,
-            profile=profile,
+    forecasts = [
+        DishForecast(
+            dish_id=str(dish.dish_id),
+            dish_name=dish.dish_name,
+            category_label=dish.category_label,
+            cooking_method_label=dish.cooking_method_label,
+            predicted_servings=str(dish.predicted),
+            ci_lower=str(dish.lower),
+            ci_upper=str(dish.upper),
+            baseline=str(dish.baseline),
+            adjustment=str(dish.adjustment),
+            basis=dish.basis,
+            basis_label=dish.basis_label,
+            samples=[
+                ForecastSample(date=when, servings=str(value)) for when, value in dish.samples
+            ],
+            planned=dish.dish_id in planned,
         )
-        if result is None:
-            skipped.append(dish.name)
-            continue
-        rows.append(
-            {
-                "dish_id": dish_id,
-                "predicted_servings": result.predicted,
-                "ci_lower": result.lower,
-                "ci_upper": result.upper,
-                "features": {
-                    "model": "同星期移动平均 × 日历修正",
-                    "baseline": str(result.baseline),
-                    "adjustment": str(result.adjustment),
-                    "samples": [
-                        {"date": point.date.isoformat(), "servings": str(point.servings)}
-                        for point in result.samples
-                    ],
-                    "calendar_note": result.calendar_note,
-                },
-            }
-        )
-        forecasts.append(
-            DishForecast(
-                dish_id=str(dish_id),
-                dish_name=dish.name,
-                category_label=dish.category.label,
-                cooking_method_label=dish.cooking_method.label,
-                predicted_servings=str(result.predicted),
-                ci_lower=str(result.lower),
-                ci_upper=str(result.upper),
-                baseline=str(result.baseline),
-                adjustment=str(result.adjustment),
-                basis=result.basis,
-                basis_label=(
-                    "同星期几平均"
-                    if result.basis == "SAME_WEEKDAY"
-                    else "全期平均 × 星期几规律（同星期样本不足）"
-                ),
-                samples=[
-                    ForecastSample(date=point.date, servings=str(point.servings))
-                    for point in result.samples
-                ],
-                planned=dish_id in planned,
-            )
-        )
+        for dish in prediction.dishes
+    ]
 
-    repository.replace_forecasts(
-        session,
-        on_date=on_date,
-        meal_type=meal_type,
-        model_version=strategy.MODEL_VERSION,
-        rows=rows,
-    )
+    persist_predictions(session, prediction, on_date=on_date, meal_type=meal_type)
     session.commit()
 
-    predicted = {UUID(str(row["dish_id"])): row for row in rows}
-    requirements, total_cost = _requirements(session, dish_ids=planned_ids, predicted=predicted)
+    requirements, total_cost = build_purchase_list(
+        session,
+        servings_by_dish={
+            dish_id: value for dish_id, value in prediction.servings.items() if dish_id in planned
+        },
+    )
     logger.info("预测完成：%s %s，%d 道菜", on_date, meal_type.label, len(forecasts))
     return ForecastRunResult(
         date=on_date,
@@ -152,13 +114,172 @@ def run_forecast(
         dishes=sorted(forecasts, key=lambda item: Decimal(item.predicted_servings), reverse=True),
         requirements=requirements,
         total_cost=total_cost,
-        calendar_notes=[calendar_note] if calendar_note else [],
-        skipped=sorted(skipped),
+        calendar_notes=[prediction.calendar_note] if prediction.calendar_note else [],
+        skipped=prediction.skipped,
         note=(
             "预测份数 = 最近 6 个同星期几的份数平均 × 日历修正系数；"
             "区间来自历史离散程度，并保底 ±10%。"
             "标了异常、临时替换与份数为 0 的日子不进历史序列。"
         ),
+    )
+
+
+def _forecast_rows(
+    prediction: PredictionSet, only: Collection[UUID] | None = None
+) -> list[dict[str, object]]:
+    """把预测结果整理成落库用的行。快照自带依据，事后复盘不必再猜。"""
+    return [
+        {
+            "dish_id": dish.dish_id,
+            "predicted_servings": dish.predicted,
+            "ci_lower": dish.lower,
+            "ci_upper": dish.upper,
+            "features": {
+                "model": "同星期移动平均 × 日历修正",
+                "baseline": str(dish.baseline),
+                "adjustment": str(dish.adjustment),
+                "samples": [
+                    {"date": when.isoformat(), "servings": str(value)}
+                    for when, value in dish.samples
+                ],
+                "calendar_note": dish.calendar_note,
+            },
+        }
+        for dish in prediction.dishes
+        if only is None or dish.dish_id in only
+    ]
+
+
+def persist_predictions(
+    session: Session,
+    prediction: PredictionSet,
+    *,
+    on_date: date,
+    meal_type: MealType,
+    only: Collection[UUID] | None = None,
+) -> None:
+    """把预测结果落库（同一日期同模型版本整份替换）。
+
+    合并页与预测接口共用它：两个入口算出来的是同一件事，
+    落库的口径就不能两样，否则回看时无法判断某一行的依据来自哪次生成。
+
+    `only` 限定只落这几道菜——预测表记的是「这一餐要做的菜的份数」，
+    把候选里没入选的也塞进去，回看时会以为那天要做十几道菜。
+    """
+    repository.replace_forecasts(
+        session,
+        on_date=on_date,
+        meal_type=meal_type,
+        model_version=strategy.MODEL_VERSION,
+        rows=_forecast_rows(prediction, only),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class PredictedDish:
+    """一道菜的份数预测。合并页与预测页共用它，避免两处各拼一遍。"""
+
+    dish_id: UUID
+    dish_name: str
+    category_label: str
+    cooking_method_label: str
+    predicted: Decimal
+    lower: Decimal
+    upper: Decimal
+    baseline: Decimal
+    adjustment: Decimal
+    basis: str
+    basis_label: str
+    samples: tuple[tuple[date, Decimal], ...]
+    calendar_note: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class PredictionSet:
+    dishes: list[PredictedDish]
+    #: 历史不足、预测不出来的菜名——如实列出，不给凑出来的数字
+    skipped: list[str]
+    calendar_note: str | None
+
+    @property
+    def servings(self) -> dict[UUID, Decimal]:
+        return {dish.dish_id: dish.predicted for dish in self.dishes}
+
+
+def predict_dishes(
+    session: Session,
+    *,
+    on_date: date,
+    meal_type: MealType = MealType.LUNCH,
+    dish_ids: Sequence[UUID] | None = None,
+) -> PredictionSet:
+    """按「同星期移动平均 × 日历修正」预测每道菜的份数，**逐菜独立**。
+
+    逐菜独立这点很关键：它意味着**可以先把所有候选菜的份数都预测出来**，
+    再拿这些份数去评估营养、选菜——不需要先知道菜单。否则「推荐要份数、份数要菜单」
+    就成了死循环。
+
+    `dish_ids` 给定时只预测这几道（合并页用它，份数按推荐选出的菜算）；
+    不给则预测所有有历史的菜（预测页的旧行为）。
+    """
+    start = on_date - timedelta(weeks=HISTORY_WEEKS)
+    context = strategy.day_context(
+        on_date, repository.load_holidays(session, start=start, end=on_date)
+    )
+    history = repository.load_dish_history(session, start=start, end=on_date - timedelta(days=1))
+    dishes = repository.load_active_dishes(session)
+    profile = strategy.weekday_profile(
+        [
+            [strategy.HistoryPoint(day, servings) for day, servings in points]
+            for points in history.values()
+        ]
+    )
+
+    wanted = set(dish_ids) if dish_ids is not None else None
+    predictions: list[PredictedDish] = []
+    skipped: list[str] = []
+    for dish_id, dish in dishes.items():
+        if wanted is not None and dish_id not in wanted:
+            continue
+        points = history.get(dish_id)
+        result = (
+            strategy.forecast_dish(
+                [strategy.HistoryPoint(day, servings) for day, servings in points],
+                target=on_date,
+                context=context,
+                profile=profile,
+            )
+            if points
+            else None
+        )
+        if result is None:
+            skipped.append(dish.name)
+            continue
+        predictions.append(
+            PredictedDish(
+                dish_id=dish_id,
+                dish_name=dish.name,
+                category_label=dish.category.label,
+                cooking_method_label=dish.cooking_method.label,
+                predicted=result.predicted,
+                lower=result.lower,
+                upper=result.upper,
+                baseline=result.baseline,
+                adjustment=result.adjustment,
+                basis=result.basis,
+                basis_label=(
+                    "同星期几平均"
+                    if result.basis == "SAME_WEEKDAY"
+                    else "全期平均 × 星期几规律（同星期样本不足）"
+                ),
+                samples=tuple((point.date, point.servings) for point in result.samples),
+                calendar_note=result.calendar_note,
+            )
+        )
+    return PredictionSet(
+        dishes=sorted(predictions, key=lambda item: item.predicted, reverse=True),
+        skipped=sorted(skipped),
+        calendar_note=context.note,
     )
 
 
@@ -182,45 +303,56 @@ def _planned_dishes(
     )
 
 
-def _requirements(
-    session: Session, *, dish_ids: list[UUID], predicted: dict[UUID, dict[str, object]]
+def build_purchase_list(
+    session: Session, *, servings_by_dish: dict[UUID, Decimal]
 ) -> tuple[list[IngredientRequirement], str | None]:
-    """由预测份数反推食材与调味料需求量，并按单价估算金额。"""
+    """由份数反推食材与调味料需求量，并按单价估算金额。
+
+    采购单是给人拿去下单的，所以**按金额从大到小排**、**用量按公斤报**：
+    按名称字母序排的单一列出去，最该先看的「牛肉买了多少钱」被埋在中间。
+    """
+    if not servings_by_dish:
+        return [], None
+    dish_ids = list(servings_by_dish)
     usage = repository.load_ingredient_usage(session, dish_ids)
     totals: dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
-    units: dict[str, str] = {}
     prices: dict[str, Decimal | None] = {}
 
     for dish_id in dish_ids:
-        row = predicted.get(dish_id)
-        if row is None:
-            continue
-        servings = Decimal(str(row["predicted_servings"]))
-        for name, unit, per_serving, price in usage.get(dish_id, []):
+        servings = servings_by_dish[dish_id]
+        for name, _unit, per_serving, price in usage.get(dish_id, []):
             totals[name] += per_serving * servings
-            units[name] = unit
             prices[name] = None if price is None else Decimal(price)
 
     requirements: list[IngredientRequirement] = []
     total_cost = Decimal("0")
     priced = False
-    for name in sorted(totals):
-        quantity = totals[name].quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+    for name, grams in totals.items():
+        # 按公斤报：下单是论公斤的，43101.6 克这种数字没人愿意换算
+        quantity = (grams / Decimal("1000")).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
         price = prices.get(name)
         # 单价是「元 / 公斤」、用量是克，所以除以 1000 再乘
-        cost = None if price is None else quantity * price / Decimal("1000")
+        cost = None if price is None else quantity * price
         if cost is not None:
             total_cost += cost
             priced = True
         requirements.append(
             IngredientRequirement(
                 name=name,
-                unit=units[name],
+                unit="公斤",
                 quantity=str(quantity),
                 unit_price=None if price is None else str(price),
                 estimated_cost=None if cost is None else str(cost.quantize(Decimal("0.01"))),
             )
         )
+    # 按金额从大到小；没有单价的排最后（它们算不出金额，不能占着前排）
+    requirements.sort(
+        key=lambda row: (
+            row.estimated_cost is None,
+            -Decimal(row.estimated_cost or "0"),
+            row.name,
+        )
+    )
     return requirements, str(total_cost.quantize(Decimal("0.01"))) if priced else None
 
 

@@ -430,6 +430,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/menu-plan/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 生成明日菜单与采购建议 */
+        post: operations["generate_api_v1_menu_plan_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/collection/logs": {
         parameters: {
             query?: never;
@@ -1879,6 +1896,80 @@ export interface components {
          * @enum {string}
          */
         MealType: "BREAKFAST" | "LUNCH" | "DINNER";
+        /**
+         * MenuPlanDish
+         * @description 推荐入选的一道菜，附上它明天的预测份数。
+         */
+        MenuPlanDish: {
+            /** Dish Id */
+            dish_id: string;
+            /** Dish Name */
+            dish_name: string;
+            /** Category Label */
+            category_label: string;
+            /** Cooking Method Label */
+            cooking_method_label: string;
+            /** Energy Kcal */
+            energy_kcal: string;
+            /** Salt G */
+            salt_g: string;
+            /** Popularity */
+            popularity: string;
+            /** Nutrition Basis */
+            nutrition_basis: string;
+            /** Predicted Servings */
+            predicted_servings?: string | null;
+            /** Predicted Basis Label */
+            predicted_basis_label?: string | null;
+            /**
+             * Prediction Fallback
+             * @default false
+             */
+            prediction_fallback: boolean;
+        };
+        /** MenuPlanResponse */
+        MenuPlanResponse: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            meal_type: components["schemas"]["MealType"];
+            /** Meal Type Label */
+            meal_type_label: string;
+            /** Diner Count */
+            diner_count: number;
+            /** Suggestion Id */
+            suggestion_id: string;
+            /** Dishes */
+            dishes: components["schemas"]["MenuPlanDish"][];
+            /** Gaps */
+            gaps: components["schemas"]["NutrientGap"][];
+            /** Reasons */
+            reasons: components["schemas"]["SuggestionReason"][];
+            /** Requirements */
+            requirements: components["schemas"]["IngredientRequirement"][];
+            /** Total Cost */
+            total_cost?: string | null;
+            /** Budget */
+            budget: string;
+            /** Target Basis */
+            target_basis: {
+                [key: string]: unknown;
+            };
+            /** Missing Price Warning */
+            missing_price_warning?: string | null;
+            /** Excluded Dishes */
+            excluded_dishes: string[];
+            /** Calendar Notes */
+            calendar_notes: string[];
+            /** Skipped Predictions */
+            skipped_predictions: string[];
+            /** Servings Note */
+            servings_note: string;
+            /** Notes */
+            notes: string[];
+        };
         /** MenuSuggestionRead */
         MenuSuggestionRead: {
             /** Id */
@@ -2101,11 +2192,6 @@ export interface components {
             category_label: string;
             /** Cooking Method Label */
             cooking_method_label: string;
-            /**
-             * Servings
-             * @description 建议份数
-             */
-            servings: string;
             /**
              * Cost
              * @description 这道菜的成本（元）
@@ -2892,6 +2978,8 @@ export type SchemaLoggedDish = components['schemas']['LoggedDish'];
 export type SchemaLoggedDishWrite = components['schemas']['LoggedDishWrite'];
 export type SchemaLoginRequest = components['schemas']['LoginRequest'];
 export type SchemaMealType = components['schemas']['MealType'];
+export type SchemaMenuPlanDish = components['schemas']['MenuPlanDish'];
+export type SchemaMenuPlanResponse = components['schemas']['MenuPlanResponse'];
 export type SchemaMenuSuggestionRead = components['schemas']['MenuSuggestionRead'];
 export type SchemaNutrientAmount = components['schemas']['NutrientAmount'];
 export type SchemaNutrientGap = components['schemas']['NutrientGap'];
@@ -3951,6 +4039,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MenuSuggestionRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_api_v1_menu_plan_generate_post: {
+        parameters: {
+            query: {
+                /** @description 要安排的日期 */
+                on_date: string;
+                meal_type?: components["schemas"]["MealType"];
+                /** @description 不填则用最近一次采集的人次 */
+                diner_count?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuPlanResponse"];
                 };
             };
             /** @description Validation Error */
