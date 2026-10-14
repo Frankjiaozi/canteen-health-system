@@ -38,9 +38,13 @@ logger = get_logger(__name__)
 #: 一餐供应几道菜
 DISH_COUNT_MIN = 4
 DISH_COUNT_MAX = 6
-#: 每道菜占就餐人次的份数区间：做太少不够分，做太多必然剩下
-SERVING_RATIO_MIN = Decimal("0.5")
-SERVING_RATIO_MAX = Decimal("1.5")
+#: 每道菜占就餐人次的份数区间。
+#:
+#: 这个区间不能放宽：取 0.5~1.5 时求解器会把好几道菜压在 0.5 那一端（「做 442 份给 885 人」），
+#: 取 0.8~1.3 时米饭顶到上限、其余压到下限——两次都是数学上达标、食堂看着不像话。
+#: 食堂的实际做法就是「每人一份」，变化只在于有人多要有人不要，所以取 0.9~1.1。
+SERVING_RATIO_MIN = Decimal("0.9")
+SERVING_RATIO_MAX = Decimal("1.1")
 #: 单一烹饪方式的道数占比上限：炒菜不超过一半
 MAX_METHOD_RATIO = Decimal("0.5")
 #: 各类菜的道数上下限。一餐的基本结构：必有主食、汤与素菜，
@@ -61,6 +65,12 @@ CATEGORY_MAX: dict[DishCategory, int] = {
 _OIL = SeasoningCategory.EDIBLE_OIL
 _SALT = SeasoningCategory.SALT
 _SUGAR = SeasoningCategory.SUGAR
+
+#: 判定达标时允许的相对零头。
+#:
+#: 求解器有内部容差，份数又取到两位小数，于是重算出来的实际值可能比边界低千分之一
+#: （720 的能量算出来 719.999）。把它报成「低于目标」，看的人会以为约束没生效。
+_BOUND_TOLERANCE = Decimal("0.001")
 
 
 def generate(
@@ -212,31 +222,44 @@ def _candidates(
 def _gaps(
     plan_targets: tuple[solver.PlanTarget, ...], per_capita: dict[str, Decimal], meal_type: MealType
 ) -> list[NutrientGap]:
+    """差距分析。
+
+    油盐糖的上限在约束里用的是**每日基准**（见 targets.py 的说明），但那样报出来一律是
+    「达标」，等于没做差距分析。所以这几项的差距改为对照**按餐次折算的推荐量**：
+    午餐的盐该 ≤2 克，实际 4.2 克——这才是食堂能拿去改的数字。
+    """
     share = targets.meal_share(meal_type)
     rows: list[NutrientGap] = []
     for target in plan_targets:
         actual = per_capita.get(target.code, Decimal("0"))
+        is_seasoning = target.code in {"EDIBLE_OIL", "SALT", "ADDED_SUGAR"}
+        reported_upper = (
+            (target.upper * share).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            if is_seasoning and target.upper is not None
+            else target.upper
+        )
         status = "ok"
         gap = Decimal("0")
-        if target.upper is not None and actual > target.upper:
-            status, gap = "over", actual - target.upper
-        elif target.lower is not None and actual < target.lower:
+        if reported_upper is not None and actual > reported_upper * (1 + _BOUND_TOLERANCE):
+            status, gap = "over", actual - reported_upper
+        elif target.lower is not None and actual < target.lower * (1 - _BOUND_TOLERANCE):
             status, gap = "under", target.lower - actual
         note = None
-        if target.code in {"EDIBLE_OIL", "SALT", "ADDED_SUGAR"} and target.upper is not None:
-            # 油盐糖的上限是每日值，没有按餐次折算。把折算后的对照也摆出来，
-            # 免得「达标」被误读成「这一餐用盐很克制」。
-            scaled = (target.upper * share).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        if is_seasoning and target.upper is not None:
             note = (
-                f"上限取每日基准 {target.upper}{target.unit}；"
-                f"按这一餐占 {share * 100:.0f}% 折算应为 {scaled}{target.unit}"
+                f"目标按每日基准 {target.upper}{target.unit} 折到这一餐（占 {share * 100:.0f}%）；"
+                f"求解时的上限用的是每日基准本身，否则现有配方下必然无解"
             )
         rows.append(
             NutrientGap(
                 code=target.code,
                 label=target.label,
                 unit=target.unit,
-                target_text=_target_text(target),
+                target_text=(
+                    f"≤ {reported_upper}{target.unit}"
+                    if is_seasoning and reported_upper is not None
+                    else _target_text(target)
+                ),
                 actual=str(actual),
                 status=status,
                 gap=str(gap.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),

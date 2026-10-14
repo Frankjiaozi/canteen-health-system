@@ -178,15 +178,12 @@ def solve_menu(
             continue
         expression = per_capita(field_name)
         scale = float(_scale_of(target))
+        # 区间是**硬约束**：需求要求「生成的菜单满足全部硬约束」，那就不能在解不出来时
+        # 让它悄悄越界。真解不出来时报不可行并指出卡在哪条，比给一份越界的菜单诚实。
         if target.lower is not None:
-            shortfall = pulp.LpVariable(f"lo_{target.code}", lowBound=0)
-            problem += expression + shortfall >= float(target.lower)
-            # PuLP 的变量不支持直接相除，先把系数算出来再乘
-            slacks.append(shortfall * (float(weight.nutrition) / scale))
+            problem += expression >= float(target.lower)
         if target.upper is not None:
-            excess = pulp.LpVariable(f"hi_{target.code}", lowBound=0)
-            problem += expression - excess <= float(target.upper)
-            slacks.append(excess * (float(weight.nutrition) / scale))
+            problem += expression <= float(target.upper)
         # 区间取中而不是贴着下限：只要求「落在区间内」时，求解器会一路踩到边界，
         # 交出一份「刚刚好达标」的菜单。这一项把它拉向区间中间。
         midpoint = _midpoint(target)
