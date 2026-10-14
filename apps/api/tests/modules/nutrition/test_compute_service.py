@@ -40,7 +40,8 @@ def test_compute_creates_both_calibers(db_session: Session) -> None:
         db_session, on_date=menu_day.date, meal_type=menu_day.meal_type
     )
 
-    assert report.dishes == 4  # 主食 + 当日轮换的三道菜
+    # 每餐五道：主食、汤、荤菜、半荤、素菜各一
+    assert report.dishes == 5
     assert report.rows == report.dishes * 2, "每道菜都应有单份与人均两条结果"
 
 

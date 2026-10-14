@@ -20,6 +20,8 @@ dependencies = [
     "pyjwt>=2.15.1",
     "pwdlib[bcrypt]>=0.3.1",
     "python-multipart>=0.0.32",
+    # Excel 批量导入（20 道菜的配方靠界面逐条敲要几个小时）
+    "openpyxl>=3.1.5",
     "tzdata>=2026.1",
 ]
 
@@ -29,6 +31,8 @@ dev = [
     "httpx>=0.28.1",
     "ruff>=0.17.0",
     "mypy>=2.4.0",
+    # openpyxl 不带类型标注，mypy 需要这份第三方 stub
+    "types-openpyxl>=3.1.5",
 ]
 
 [tool.setuptools.packages.find]

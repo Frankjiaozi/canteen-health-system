@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 from uuid import UUID
@@ -210,6 +211,26 @@ def _snapshot(ingredient: Ingredient) -> dict[str, Any]:
 
 def _as_str(value: Any) -> str | None:
     return None if value is None else str(value)
+
+
+def upsert_many(session: Session, rows: Iterable[dict[str, Any]]) -> dict[str, int]:
+    """批量导入专用：按名称新增或更新。只 flush 不 commit，由调用方统一提交。"""
+    counts = {"created": 0, "updated": 0}
+    for row in rows:
+        name = str(row["name"])
+        existing = repository.find_by_name(session, name)
+        if existing is None:
+            session.add(Ingredient(**row))
+            counts["created"] += 1
+            continue
+
+        changed = [field for field, value in row.items() if getattr(existing, field) != value]
+        for field in changed:
+            setattr(existing, field, row[field])
+        if changed:
+            counts["updated"] += 1
+    session.flush()
+    return counts
 
 
 def _scaled(value: Decimal | None, field: str) -> Decimal | None:

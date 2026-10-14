@@ -33,7 +33,14 @@ export const SYSTEM_MODULES: SystemModule[] = [
     title: '菜品与配方',
     description: '菜品定义与标准配方，单份营养由配方推算得出',
     requiresAuth: true,
-    status: 'planned',
+    status: 'ready',
+  },
+  {
+    path: '/admin/seasonings',
+    title: '调味料库',
+    description: '油、盐、糖等单独管理，它们是营养计算的关键变量与每日采集对象',
+    requiresAuth: true,
+    status: 'ready',
   },
   {
     path: '/admin/collection',

@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from app.db.seed import DEMO_DATA_SOURCE, run
+from app.db.seed import DEMO_DATA_SOURCE, HISTORY_DAYS, run
 from app.db.session import get_session_factory
 from app.modules.collection.models import DailyLog, DailyLogItem
 from app.modules.dish.models import Dish, RecipeItem
@@ -35,27 +35,32 @@ def test_seed_is_idempotent() -> None:
 
 
 def test_seed_covers_required_demo_scope(db_session: Session) -> None:
-    """验收要求：不少于 20 道菜覆盖一个完整轮换——本阶段先落 5 道可跑通的样板菜。"""
+    """验收要求：不少于 20 道菜覆盖一个完整轮换。"""
     # 只数种子脚本写入的食材：连同接口测试造的数据一起数会让断言依赖执行顺序
     seeded_ingredients = db_session.scalar(
         select(func.count())
         .select_from(Ingredient)
         .where(Ingredient.data_source == DEMO_DATA_SOURCE)
     )
-    assert seeded_ingredients == 22
-    assert db_session.scalar(select(func.count()).select_from(Dish)) == 5
+    assert seeded_ingredients == 30
+    assert db_session.scalar(select(func.count()).select_from(Dish)) >= 20
     assert db_session.scalar(select(func.count()).select_from(NutritionStandard)) == 4
-    assert db_session.scalar(select(func.count()).select_from(MenuDay)) == 14
-    assert db_session.scalar(select(func.count()).select_from(DailyLog)) == 14
+    # 8 周历史：同星期移动平均的每个星期几有 8 个样本，回测才有意义
+    assert db_session.scalar(select(func.count()).select_from(MenuDay)) == HISTORY_DAYS
+    assert db_session.scalar(select(func.count()).select_from(DailyLog)) == HISTORY_DAYS
 
 
 def test_every_dish_has_at_least_one_recipe_item(db_session: Session) -> None:
-    """没有配方的菜品无法参与营养计算，属于必须拦住的数据缺陷。"""
-    dish_ids = set(db_session.scalars(select(Dish.id)))
+    """**上过菜单**的菜品必须有配方。
+
+    不要求「所有菜品都有配方」：刚建好、还没排进菜单的菜品本来就允许没有配方
+    （界面上会提示）。但一旦排进菜单，没有配方就算不出营养，属于必须拦住的缺陷。
+    """
+    served = set(db_session.scalars(select(MenuDayItem.dish_id).distinct()))
     with_recipe = set(db_session.scalars(select(RecipeItem.dish_id).distinct()))
 
-    assert dish_ids
-    assert dish_ids - with_recipe == set(), "存在没有配方明细的菜品"
+    assert served
+    assert served - with_recipe == set(), "存在已上菜单但没有配方明细的菜品"
 
 
 def test_recipe_items_reference_existing_ingredients(db_session: Session) -> None:

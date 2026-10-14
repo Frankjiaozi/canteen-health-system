@@ -4,6 +4,7 @@ import { Navigate, RouterProvider, createBrowserRouter } from 'react-router-dom'
 import { RequireAuth } from '@/features/auth/components/RequireAuth';
 import { DisplayPage } from '@/features/display/routes';
 import { DashboardPage } from '@/features/dashboard/routes';
+import { DishListPage, SeasoningListPage } from '@/features/dish/routes';
 import { IngredientListPage } from '@/features/ingredient/routes';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { SYSTEM_MODULES } from '@/shared/config/modules';
@@ -58,7 +59,8 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: lazyElement(<AdminHomePage />) },
       { path: 'ingredients', element: lazyElement(<IngredientListPage />) },
-      { path: 'dishes', element: placeholderElement('/admin/dishes') },
+      { path: 'dishes', element: lazyElement(<DishListPage />) },
+      { path: 'seasonings', element: lazyElement(<SeasoningListPage />) },
       { path: 'collection', element: placeholderElement('/admin/collection') },
       { path: 'dashboard', element: lazyElement(<DashboardPage />) },
       { path: 'forecast', element: placeholderElement('/admin/forecast') },

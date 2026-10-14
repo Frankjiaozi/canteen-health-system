@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Any
 
 
 class LabelledStrEnum(StrEnum):
@@ -250,3 +251,18 @@ ENUM_LABELS: dict[tuple[type[LabelledStrEnum], str], str] = {
     (AuditAction, AuditAction.APPROVE.value): "采纳",
     (AuditAction, AuditAction.REJECT.value): "否决",
 }
+
+
+def resolve_labelled(enum_cls: type[Any], text: str) -> Any | None:
+    """按中文文案或稳定代码解析枚举取值，认不出来返回 None。
+
+    批量导入时用得上：填表的人写「蔬菜类」和写「VEGETABLE」都应该认，
+    而不是逼着他去查系统内部的代码。
+    """
+    raw = text.strip()
+    if not raw:
+        return None
+    for member in enum_cls:
+        if raw == member.value or raw == member.label:
+            return member
+    return None

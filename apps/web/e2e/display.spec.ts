@@ -8,10 +8,13 @@ test('公开大屏不需要登录就能看到今日菜单与营养', async ({ pa
   // 免登录：不应被重定向到登录页
   await expect(page).not.toHaveURL(/login/);
 
-  // 菜品与营养指标来自真实的营养计算结果
-  await expect(page.getByText('米饭')).toBeVisible();
-  await expect(page.getByText('能量').first()).toBeVisible();
-  await expect(page.getByText('276.80').first()).toBeVisible();
+  // 菜单按轮换逐日变化，因此不写死菜名：直接与接口返回的内容比对，
+  // 这样既不受轮换影响，又能验证「大屏上的数字就是接口里的数字」
+  const board = await (await page.request.get('/api/v1/public/board/today')).json();
+  expect(board.dishes.length).toBeGreaterThan(0);
+  const first = board.dishes[0];
+  await expect(page.getByText(first.name).first()).toBeVisible();
+  await expect(page.getByText(first.nutrients[0].value).first()).toBeVisible();
 });
 
 test('公开大屏展示膳食指南对照条与合规说明', async ({ page }) => {

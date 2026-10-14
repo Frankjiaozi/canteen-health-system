@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from uuid import UUID
 
 from sqlalchemy import Select, func, or_, select
@@ -62,3 +63,20 @@ def get(session: Session, ingredient_id: UUID) -> Ingredient | None:
 
 def find_by_name(session: Session, name: str) -> Ingredient | None:
     return session.scalar(select(Ingredient).where(Ingredient.name == name))
+
+
+def names_in_use(session: Session, names: Sequence[str]) -> set[str]:
+    """返回给定名称中已存在的那些，供批量导入一次性判断新增还是更新。"""
+    if not names:
+        return set()
+    return set(session.scalars(select(Ingredient.name).where(Ingredient.name.in_(names))).all())
+
+
+def ids_by_name(session: Session, names: Sequence[str]) -> dict[str, UUID]:
+    """名称 → 主键。批量导入时一次性把引用关系查出来，避免逐行查询。"""
+    if not names:
+        return {}
+    rows = session.execute(
+        select(Ingredient.name, Ingredient.id).where(Ingredient.name.in_(names))
+    ).all()
+    return {row[0]: row[1] for row in rows}

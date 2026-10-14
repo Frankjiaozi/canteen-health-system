@@ -149,6 +149,134 @@ export interface paths {
         patch: operations["update_ingredient_api_v1_ingredients__ingredient_id__patch"];
         trace?: never;
     };
+    "/api/v1/seasonings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 分页查询调味料 */
+        get: operations["list_seasonings_api_v1_seasonings_get"];
+        put?: never;
+        /** 新增调味料 */
+        post: operations["create_seasoning_api_v1_seasonings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seasonings/{seasoning_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询单个调味料 */
+        get: operations["get_seasoning_api_v1_seasonings__seasoning_id__get"];
+        put?: never;
+        post?: never;
+        /** 停用调味料（软删除） */
+        delete: operations["deactivate_seasoning_api_v1_seasonings__seasoning_id__delete"];
+        options?: never;
+        head?: never;
+        /** 修改调味料 */
+        patch: operations["update_seasoning_api_v1_seasonings__seasoning_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/dishes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 分页查询菜品 */
+        get: operations["list_dishes_api_v1_dishes_get"];
+        put?: never;
+        /** 新增菜品 */
+        post: operations["create_dish_api_v1_dishes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dishes/{dish_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询单个菜品（含配方） */
+        get: operations["get_dish_api_v1_dishes__dish_id__get"];
+        put?: never;
+        post?: never;
+        /** 停用菜品（软删除） */
+        delete: operations["deactivate_dish_api_v1_dishes__dish_id__delete"];
+        options?: never;
+        head?: never;
+        /** 修改菜品基础信息 */
+        patch: operations["update_dish_api_v1_dishes__dish_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/dishes/{dish_id}/recipe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 保存配方（整体替换并重算营养） */
+        put: operations["replace_recipe_api_v1_dishes__dish_id__recipe_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/import/template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 下载导入模板
+         * @description 下载 Excel 模板。固定用 ASCII 文件名，免得 Content-Disposition 里出现编码问题。
+         */
+        get: operations["download_template_api_v1_import_template_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/import/dishes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 导入菜品与配方 */
+        post: operations["import_dishes_api_v1_import_dishes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/board/today": {
         parameters: {
             query?: never;
@@ -276,6 +404,14 @@ export interface components {
             /** Role Label */
             role_label: string;
         };
+        /** Body_import_dishes_api_v1_import_dishes_post */
+        Body_import_dishes_api_v1_import_dishes_post: {
+            /**
+             * File
+             * @description 按模板填写的 .xlsx 文件
+             */
+            file: string;
+        };
         /** CompliancePoint */
         CompliancePoint: {
             /**
@@ -311,6 +447,11 @@ export interface components {
             /** Overall Rate */
             overall_rate?: string | null;
         };
+        /**
+         * CookingMethod
+         * @enum {string}
+         */
+        CookingMethod: "STEAM" | "BOIL" | "STIR_FRY" | "DEEP_FRY" | "STEW" | "COLD_DRESS";
         /** DashboardSummary */
         DashboardSummary: {
             /** Days */
@@ -369,6 +510,179 @@ export interface components {
              * @description 一次往返查询耗时（毫秒）
              */
             latency_ms: number;
+        };
+        /**
+         * DishCategory
+         * @enum {string}
+         */
+        DishCategory: "MEAT" | "VEGETABLE" | "HALF_MEAT" | "SOUP" | "STAPLE";
+        /**
+         * DishCreate
+         * @description 新建菜品时可一并提交配方，省掉一次往返。
+         */
+        DishCreate: {
+            /**
+             * Name
+             * @description 菜品名称
+             */
+            name: string;
+            /** @description 菜品类别 */
+            category: components["schemas"]["DishCategory"];
+            /** @description 烹饪方式 */
+            cooking_method: components["schemas"]["CookingMethod"];
+            /**
+             * Standard Serving G
+             * @description 标准份量（克）
+             */
+            standard_serving_g: number | string;
+            /**
+             * Servings Per Pot
+             * @description 单锅制作份数
+             */
+            servings_per_pot: number | string;
+            /**
+             * Allergens
+             * @description 过敏原标记
+             */
+            allergens?: string[];
+            /** Note */
+            note?: string | null;
+            recipe?: components["schemas"]["RecipePayload"] | null;
+        };
+        /** DishDetail */
+        DishDetail: {
+            /**
+             * Name
+             * @description 菜品名称
+             */
+            name: string;
+            /** @description 菜品类别 */
+            category: components["schemas"]["DishCategory"];
+            /** @description 烹饪方式 */
+            cooking_method: components["schemas"]["CookingMethod"];
+            /**
+             * Standard Serving G
+             * @description 标准份量（克）
+             */
+            standard_serving_g: string;
+            /**
+             * Servings Per Pot
+             * @description 单锅制作份数
+             */
+            servings_per_pot: string;
+            /**
+             * Allergens
+             * @description 过敏原标记
+             */
+            allergens?: string[];
+            /** Note */
+            note?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Recipe Version */
+            recipe_version: number;
+            /** Is Active */
+            is_active: boolean;
+            /** Category Label */
+            category_label: string;
+            /** Cooking Method Label */
+            cooking_method_label: string;
+            /** @description 最近一次算出的单份营养；尚未计算时为空 */
+            nutrition?: components["schemas"]["NutritionSummary"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            recipe: components["schemas"]["RecipeRead"];
+        };
+        /** DishPage */
+        DishPage: {
+            /** Items */
+            items: components["schemas"]["DishRead"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+        };
+        /** DishRead */
+        DishRead: {
+            /**
+             * Name
+             * @description 菜品名称
+             */
+            name: string;
+            /** @description 菜品类别 */
+            category: components["schemas"]["DishCategory"];
+            /** @description 烹饪方式 */
+            cooking_method: components["schemas"]["CookingMethod"];
+            /**
+             * Standard Serving G
+             * @description 标准份量（克）
+             */
+            standard_serving_g: string;
+            /**
+             * Servings Per Pot
+             * @description 单锅制作份数
+             */
+            servings_per_pot: string;
+            /**
+             * Allergens
+             * @description 过敏原标记
+             */
+            allergens?: string[];
+            /** Note */
+            note?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Recipe Version */
+            recipe_version: number;
+            /** Is Active */
+            is_active: boolean;
+            /** Category Label */
+            category_label: string;
+            /** Cooking Method Label */
+            cooking_method_label: string;
+            /** @description 最近一次算出的单份营养；尚未计算时为空 */
+            nutrition?: components["schemas"]["NutritionSummary"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** DishUpdate */
+        DishUpdate: {
+            /** Name */
+            name?: string | null;
+            category?: components["schemas"]["DishCategory"] | null;
+            cooking_method?: components["schemas"]["CookingMethod"] | null;
+            /** Standard Serving G */
+            standard_serving_g?: number | string | null;
+            /** Servings Per Pot */
+            servings_per_pot?: number | string | null;
+            /** Allergens */
+            allergens?: string[] | null;
+            /** Note */
+            note?: string | null;
         };
         /** EnumOption */
         EnumOption: {
@@ -442,6 +756,77 @@ export interface components {
              * @description 服务器当前时间（带时区）
              */
             server_time: string;
+        };
+        /** ImportCounts */
+        ImportCounts: {
+            /** Sheet */
+            sheet: string;
+            /**
+             * Created
+             * @default 0
+             */
+            created: number;
+            /**
+             * Updated
+             * @default 0
+             */
+            updated: number;
+            /**
+             * Skipped
+             * @default 0
+             */
+            skipped: number;
+        };
+        /**
+         * ImportIssue
+         * @description 一条逐行问题。error 会阻止导入，warning 只提示。
+         */
+        ImportIssue: {
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "error" | "warning";
+            /**
+             * Sheet
+             * @description 出问题的 sheet 名
+             */
+            sheet: string;
+            /**
+             * Row
+             * @description Excel 行号（含表头，从 1 开始）
+             */
+            row?: number | null;
+            /**
+             * Field
+             * @description 出问题的列
+             */
+            field?: string | null;
+            /** Message */
+            message: string;
+        };
+        /** ImportReport */
+        ImportReport: {
+            /**
+             * Dry Run
+             * @description true 表示只校验、未写库
+             */
+            dry_run: boolean;
+            /**
+             * Ok
+             * @description 没有 error 才算通过；dry_run 下同样如此
+             */
+            ok: boolean;
+            /** Counts */
+            counts: components["schemas"]["ImportCounts"][];
+            /** Issues */
+            issues: components["schemas"]["ImportIssue"][];
+            /**
+             * Recomputed Rows
+             * @description 导入后重算的营养结果条数
+             * @default 0
+             */
+            recomputed_rows: number;
         };
         /**
          * IngredientCategory
@@ -693,6 +1078,29 @@ export interface components {
              */
             upper: string;
         };
+        /**
+         * NutritionSummary
+         * @description 列表里展示的单份营养摘要，取自最近一次计算结果。
+         */
+        NutritionSummary: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Value Type */
+            value_type: string;
+            /** Energy Kcal */
+            energy_kcal: string;
+            /** Protein G */
+            protein_g: string;
+            /** Fat G */
+            fat_g: string;
+            /** Carb G */
+            carb_g: string;
+            /** Sodium Mg */
+            sodium_mg: string;
+        };
         /** PerCapitaResponse */
         PerCapitaResponse: {
             /** Days */
@@ -798,6 +1206,261 @@ export interface components {
              * @description 成分数据缺失项，无则为空数组
              */
             missing_nutrients: string[];
+        };
+        /**
+         * RecipeIngredientLine
+         * @description 配方里的一行食材。
+         */
+        RecipeIngredientLine: {
+            /**
+             * Ingredient Id
+             * Format: uuid
+             */
+            ingredient_id: string;
+            /**
+             * Quantity Per Serving G
+             * @description 单份用量（克，市品重量）
+             */
+            quantity_per_serving_g: number | string;
+            /**
+             * Edible Ratio Override
+             * @description 覆盖食材库默认可食部比例
+             */
+            edible_ratio_override?: number | string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** RecipeIngredientRead */
+        RecipeIngredientRead: {
+            /**
+             * Ingredient Id
+             * Format: uuid
+             */
+            ingredient_id: string;
+            /** Ingredient Name */
+            ingredient_name: string;
+            /** Ingredient Active */
+            ingredient_active: boolean;
+            /** Quantity Per Serving G */
+            quantity_per_serving_g: string;
+            /** Edible Ratio Override */
+            edible_ratio_override: string | null;
+            /** Unit Price */
+            unit_price: string | null;
+            /** Energy Kcal */
+            energy_kcal: string | null;
+            /** Protein G */
+            protein_g: string | null;
+            /** Fat G */
+            fat_g: string | null;
+            /** Carb G */
+            carb_g: string | null;
+            /** Sodium Mg */
+            sodium_mg: string | null;
+            /** Note */
+            note: string | null;
+        };
+        /**
+         * RecipePayload
+         * @description 整份配方。维护方式为整体替换，不做逐行增删。
+         */
+        RecipePayload: {
+            /**
+             * Ingredients
+             * @description 至少要有一行食材，否则算不出营养
+             */
+            ingredients: components["schemas"]["RecipeIngredientLine"][];
+            /** Seasonings */
+            seasonings?: components["schemas"]["RecipeSeasoningLine"][];
+        };
+        /** RecipeRead */
+        RecipeRead: {
+            /** Ingredients */
+            ingredients: components["schemas"]["RecipeIngredientRead"][];
+            /** Seasonings */
+            seasonings: components["schemas"]["RecipeSeasoningRead"][];
+        };
+        /**
+         * RecipeSeasoningLine
+         * @description 配方里的一行调味料分摊量。
+         */
+        RecipeSeasoningLine: {
+            /**
+             * Seasoning Id
+             * Format: uuid
+             */
+            seasoning_id: string;
+            /**
+             * Quantity Per Serving G
+             * @description 单份用量（克）
+             */
+            quantity_per_serving_g: number | string;
+            /** Note */
+            note?: string | null;
+        };
+        /** RecipeSeasoningRead */
+        RecipeSeasoningRead: {
+            /**
+             * Seasoning Id
+             * Format: uuid
+             */
+            seasoning_id: string;
+            /** Seasoning Name */
+            seasoning_name: string;
+            /** Seasoning Active */
+            seasoning_active: boolean;
+            /** Quantity Per Serving G */
+            quantity_per_serving_g: string;
+            /** Unit Price */
+            unit_price: string | null;
+            /** Note */
+            note: string | null;
+        };
+        /** RecipeUpdateResult */
+        RecipeUpdateResult: {
+            dish: components["schemas"]["DishDetail"];
+            /**
+             * Recipe Version
+             * @description 配方版本，每次保存递增
+             */
+            recipe_version: number;
+            /**
+             * Recomputed Rows
+             * @description 同步重算的营养结果条数
+             */
+            recomputed_rows: number;
+        };
+        /**
+         * SeasoningCategory
+         * @enum {string}
+         */
+        SeasoningCategory: "EDIBLE_OIL" | "SALT" | "SUGAR" | "SOY_SAUCE" | "OYSTER_SAUCE" | "STARCH" | "OTHER";
+        /** SeasoningCreate */
+        SeasoningCreate: {
+            /**
+             * Name
+             * @description 调味料名称
+             */
+            name: string;
+            /** @description 调味料类别 */
+            category: components["schemas"]["SeasoningCategory"];
+            /**
+             * Unit
+             * @description 计量单位
+             * @default g
+             */
+            unit: string;
+            /** Energy Kcal */
+            energy_kcal?: number | string | null;
+            /** Protein G */
+            protein_g?: number | string | null;
+            /** Fat G */
+            fat_g?: number | string | null;
+            /** Carb G */
+            carb_g?: number | string | null;
+            /** Sodium Mg */
+            sodium_mg?: number | string | null;
+            /**
+             * Unit Price
+             * @description 单价（元/千克）
+             */
+            unit_price?: number | string | null;
+            /** Data Source */
+            data_source?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** SeasoningPage */
+        SeasoningPage: {
+            /** Items */
+            items: components["schemas"]["SeasoningRead"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+        };
+        /** SeasoningRead */
+        SeasoningRead: {
+            /**
+             * Name
+             * @description 调味料名称
+             */
+            name: string;
+            /** @description 调味料类别 */
+            category: components["schemas"]["SeasoningCategory"];
+            /**
+             * Unit
+             * @description 计量单位
+             * @default g
+             */
+            unit: string;
+            /** Energy Kcal */
+            energy_kcal?: string | null;
+            /** Protein G */
+            protein_g?: string | null;
+            /** Fat G */
+            fat_g?: string | null;
+            /** Carb G */
+            carb_g?: string | null;
+            /** Sodium Mg */
+            sodium_mg?: string | null;
+            /**
+             * Unit Price
+             * @description 单价（元/千克）
+             */
+            unit_price?: string | null;
+            /** Data Source */
+            data_source?: string | null;
+            /** Note */
+            note?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Category Label */
+            category_label: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * SeasoningUpdate
+         * @description 局部更新：只提交需要改的字段。
+         */
+        SeasoningUpdate: {
+            /** Name */
+            name?: string | null;
+            category?: components["schemas"]["SeasoningCategory"] | null;
+            /** Unit */
+            unit?: string | null;
+            /** Energy Kcal */
+            energy_kcal?: number | string | null;
+            /** Protein G */
+            protein_g?: number | string | null;
+            /** Fat G */
+            fat_g?: number | string | null;
+            /** Carb G */
+            carb_g?: number | string | null;
+            /** Sodium Mg */
+            sodium_mg?: number | string | null;
+            /** Unit Price */
+            unit_price?: number | string | null;
+            /** Data Source */
+            data_source?: string | null;
+            /** Note */
+            note?: string | null;
         };
         /**
          * StandardComparison
@@ -951,14 +1614,25 @@ export interface components {
     pathItems: never;
 }
 export type SchemaAuthUser = components['schemas']['AuthUser'];
+export type SchemaBodyImportDishesApiV1ImportDishesPost = components['schemas']['Body_import_dishes_api_v1_import_dishes_post'];
 export type SchemaCompliancePoint = components['schemas']['CompliancePoint'];
 export type SchemaComplianceResponse = components['schemas']['ComplianceResponse'];
+export type SchemaCookingMethod = components['schemas']['CookingMethod'];
 export type SchemaDashboardSummary = components['schemas']['DashboardSummary'];
 export type SchemaDatabaseHealthResponse = components['schemas']['DatabaseHealthResponse'];
+export type SchemaDishCategory = components['schemas']['DishCategory'];
+export type SchemaDishCreate = components['schemas']['DishCreate'];
+export type SchemaDishDetail = components['schemas']['DishDetail'];
+export type SchemaDishPage = components['schemas']['DishPage'];
+export type SchemaDishRead = components['schemas']['DishRead'];
+export type SchemaDishUpdate = components['schemas']['DishUpdate'];
 export type SchemaEnumOption = components['schemas']['EnumOption'];
 export type SchemaEnumOptions = components['schemas']['EnumOptions'];
 export type SchemaHttpValidationError = components['schemas']['HTTPValidationError'];
 export type SchemaHealthResponse = components['schemas']['HealthResponse'];
+export type SchemaImportCounts = components['schemas']['ImportCounts'];
+export type SchemaImportIssue = components['schemas']['ImportIssue'];
+export type SchemaImportReport = components['schemas']['ImportReport'];
 export type SchemaIngredientCategory = components['schemas']['IngredientCategory'];
 export type SchemaIngredientCreate = components['schemas']['IngredientCreate'];
 export type SchemaIngredientPage = components['schemas']['IngredientPage'];
@@ -967,9 +1641,22 @@ export type SchemaIngredientUpdate = components['schemas']['IngredientUpdate'];
 export type SchemaLoginRequest = components['schemas']['LoginRequest'];
 export type SchemaNutrientAmount = components['schemas']['NutrientAmount'];
 export type SchemaNutrientValue = components['schemas']['NutrientValue'];
+export type SchemaNutritionSummary = components['schemas']['NutritionSummary'];
 export type SchemaPerCapitaResponse = components['schemas']['PerCapitaResponse'];
 export type SchemaPublicBoard = components['schemas']['PublicBoard'];
 export type SchemaPublicDishCard = components['schemas']['PublicDishCard'];
+export type SchemaRecipeIngredientLine = components['schemas']['RecipeIngredientLine'];
+export type SchemaRecipeIngredientRead = components['schemas']['RecipeIngredientRead'];
+export type SchemaRecipePayload = components['schemas']['RecipePayload'];
+export type SchemaRecipeRead = components['schemas']['RecipeRead'];
+export type SchemaRecipeSeasoningLine = components['schemas']['RecipeSeasoningLine'];
+export type SchemaRecipeSeasoningRead = components['schemas']['RecipeSeasoningRead'];
+export type SchemaRecipeUpdateResult = components['schemas']['RecipeUpdateResult'];
+export type SchemaSeasoningCategory = components['schemas']['SeasoningCategory'];
+export type SchemaSeasoningCreate = components['schemas']['SeasoningCreate'];
+export type SchemaSeasoningPage = components['schemas']['SeasoningPage'];
+export type SchemaSeasoningRead = components['schemas']['SeasoningRead'];
+export type SchemaSeasoningUpdate = components['schemas']['SeasoningUpdate'];
 export type SchemaStandardComparison = components['schemas']['StandardComparison'];
 export type SchemaStandardTarget = components['schemas']['StandardTarget'];
 export type SchemaTrendPoint = components['schemas']['TrendPoint'];
@@ -1275,6 +1962,431 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["IngredientRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_seasonings_api_v1_seasonings_get: {
+        parameters: {
+            query?: {
+                /** @description 按名称或数据来源模糊匹配 */
+                keyword?: string | null;
+                /** @description 按类别过滤 */
+                category?: components["schemas"]["SeasoningCategory"] | null;
+                /** @description 是否包含已停用的调味料 */
+                include_inactive?: boolean;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeasoningPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_seasoning_api_v1_seasonings_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeasoningCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeasoningRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_seasoning_api_v1_seasonings__seasoning_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                seasoning_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeasoningRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deactivate_seasoning_api_v1_seasonings__seasoning_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                seasoning_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeasoningRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_seasoning_api_v1_seasonings__seasoning_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                seasoning_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeasoningUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeasoningRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_dishes_api_v1_dishes_get: {
+        parameters: {
+            query?: {
+                /** @description 按名称模糊匹配 */
+                keyword?: string | null;
+                /** @description 按菜品类别过滤 */
+                category?: components["schemas"]["DishCategory"] | null;
+                /** @description 是否包含已停用的菜品 */
+                include_inactive?: boolean;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DishPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_dish_api_v1_dishes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DishCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DishDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_dish_api_v1_dishes__dish_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dish_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DishDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deactivate_dish_api_v1_dishes__dish_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dish_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DishDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_dish_api_v1_dishes__dish_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dish_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DishUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DishDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replace_recipe_api_v1_dishes__dish_id__recipe_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dish_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecipePayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeUpdateResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_template_api_v1_import_template_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    import_dishes_api_v1_import_dishes_post: {
+        parameters: {
+            query?: {
+                /** @description true 只校验并给出报告，不写库；确认无误后再传 false 真正导入 */
+                dry_run?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_import_dishes_api_v1_import_dishes_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportReport"];
                 };
             };
             /** @description Validation Error */

@@ -151,6 +151,18 @@ def list_menu_days_between(session: Session, start: date, end: date) -> list[Men
     )
 
 
+def list_menu_days_for_dish(session: Session, dish_id: UUID) -> list[MenuDay]:
+    """这道菜被安排进过哪些菜单日。配方改动后按这个范围重算。"""
+    return list(
+        session.scalars(
+            select(MenuDay)
+            .join(MenuDayItem, MenuDayItem.menu_day_id == MenuDay.id)
+            .where(MenuDayItem.dish_id == dish_id)
+            .order_by(MenuDay.date, MenuDay.meal_type)
+        )
+    )
+
+
 def upsert_dish_nutrition(
     session: Session,
     *,

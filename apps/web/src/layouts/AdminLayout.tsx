@@ -23,6 +23,7 @@ const MODULE_ICONS: Record<string, ReactNode> = {
   '/admin': <DashboardOutlined />,
   '/admin/ingredients': <DatabaseOutlined />,
   '/admin/dishes': <CoffeeOutlined />,
+  '/admin/seasonings': <DatabaseOutlined />,
   '/admin/collection': <FormOutlined />,
   '/admin/dashboard': <BarChartOutlined />,
   '/admin/forecast': <LineChartOutlined />,

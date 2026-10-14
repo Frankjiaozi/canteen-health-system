@@ -31,14 +31,15 @@ test('切换时间范围后数据随之变化', async ({ page }) => {
   await page.goto('/admin/dashboard');
 
   const recordedDays = page.locator('.ant-statistic').filter({ hasText: '有记录天数' });
+  // 演示历史是 8 周
   await expect(recordedDays).toContainText('14');
 
   await page.locator('.ant-segmented-item', { hasText: '近 7 天' }).click();
   await expect(recordedDays).toContainText('7');
 
   await page.locator('.ant-segmented-item', { hasText: '近 30 天' }).click();
-  // 演示数据只有两周，所以 30 天范围内依然只有 14 天有记录
-  await expect(recordedDays).toContainText('14');
+  // 30 天范围内有 30 天记录（演示历史 56 天，够覆盖）
+  await expect(recordedDays).toContainText('30');
 });
 
 test('未登录访问看板会被拦到登录页', async ({ page }) => {

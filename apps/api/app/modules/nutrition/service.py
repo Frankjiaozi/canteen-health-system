@@ -137,6 +137,22 @@ def compute_recent_days(session: Session, *, days: int) -> ComputeReport:
     return total
 
 
+def recompute_dish_nutrition(session: Session, dish_id: UUID) -> ComputeReport:
+    """重算某道菜在**所有供应过它的日子**里的营养结果。
+
+    配方一改，历史结果不能只改最近一天——公开大屏看的是当天，
+    而看板、抽样对比、预测回测看的都是历史，几处必须一起对齐。
+    """
+    menu_days = repository.list_menu_days_for_dish(session, dish_id)
+    total = ComputeReport()
+    for menu_day in menu_days:
+        total = total.merge(
+            compute_menu_day(session, on_date=menu_day.date, meal_type=menu_day.meal_type)
+        )
+    session.commit()
+    return total
+
+
 def _store_per_capita(
     session: Session,
     *,

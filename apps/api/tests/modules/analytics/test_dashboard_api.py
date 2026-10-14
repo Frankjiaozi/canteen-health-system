@@ -41,7 +41,8 @@ def test_summary_average_salt_matches_manual_calculation(
         Decimal("0.01"), rounding=ROUND_HALF_UP
     )
 
-    body = as_recorder.get(f"{BASE}/summary").json()
+    # 演示历史是 8 周，因此显式按 8 周取，让统计窗口与库里的数据范围一致
+    body = as_recorder.get(f"{BASE}/summary", params={"days": 56}).json()
 
     assert body["avg_salt_per_capita_g"] == str(expected)
     assert body["days_with_records"] == len(per_day)
