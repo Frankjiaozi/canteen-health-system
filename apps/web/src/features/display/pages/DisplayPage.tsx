@@ -94,7 +94,14 @@ function Header({ date, mealLabel, dinerCount, loading }: HeaderProps) {
   const formatted = date ? dayjs(date).format('YYYY 年 M 月 D 日 dddd') : '——';
 
   return (
-    <header style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+    <header
+      style={{
+        flexShrink: 0,
+        display: 'flex',
+        alignItems: 'flex-end',
+        justifyContent: 'space-between',
+      }}
+    >
       <div>
         <div style={{ fontSize: 30, fontWeight: 600, letterSpacing: 2 }}>
           知味 · 校园智慧膳食平台
@@ -114,12 +121,19 @@ function Header({ date, mealLabel, dinerCount, loading }: HeaderProps) {
 }
 
 function DishGrid({ dishes }: { dishes: PublicDishCard[] }) {
-  const columns = Math.min(dishes.length, 4);
+  // 一餐通常是五道菜（主食/汤/荤/半荤/素）。原来封顶 4 列，第五道会折到第二行，
+  // 每张卡只剩一半高度，内容就压到下面的指南对照条上了。改成按实际菜数分列，
+  // 够宽就一直是一行；真超过 6 道才折行，且行高由容器兜住、卡片自己裁剪。
+  const columns = Math.max(1, Math.min(dishes.length, 6));
 
   return (
     <div
+      data-testid="dish-grid"
       style={{
         height: '100%',
+        // minHeight:0 + overflow:hidden：即使内容偏高也只裁卡片，绝不压到下面的对照条上
+        minHeight: 0,
+        overflow: 'hidden',
         display: 'grid',
         gridTemplateColumns: `repeat(${columns}, 1fr)`,
         gridAutoRows: '1fr',
@@ -136,6 +150,7 @@ function DishGrid({ dishes }: { dishes: PublicDishCard[] }) {
 function DishCard({ dish }: { dish: PublicDishCard }) {
   return (
     <section
+      data-testid="dish-card"
       style={{
         background: CARD_BACKGROUND,
         border: CARD_BORDER,
@@ -145,6 +160,8 @@ function DishCard({ dish }: { dish: PublicDishCard }) {
         flexDirection: 'column',
         gap: 16,
         backdropFilter: 'blur(2px)',
+        minHeight: 0,
+        overflow: 'hidden',
       }}
     >
       <div>
@@ -207,7 +224,9 @@ function NutrientRow({ nutrient }: { nutrient: NutrientValue }) {
 function StandardBar({ standards }: { standards: StandardComparison[] }) {
   return (
     <div
+      data-testid="standards-bar"
       style={{
+        flexShrink: 0,
         display: 'grid',
         gridTemplateColumns: `repeat(${standards.length}, 1fr)`,
         gap: 16,

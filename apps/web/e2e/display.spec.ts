@@ -44,5 +44,21 @@ for (const viewport of [
 
     expect(overflow.horizontal).toBeLessThanOrEqual(0);
     expect(overflow.vertical).toBeLessThanOrEqual(0);
+
+    // 光看 document 的滚动高度抓不到这类 bug：大屏用 transform: scale() 套在
+    // overflow:hidden 的固定容器里，文档永远不会溢出，内容却可以压在一起。
+    // 所以直接量元素框——菜品区必须整体落在指南对照条上方，每张菜卡必须在菜品区之内。
+    const grid = await page.getByTestId('dish-grid').boundingBox();
+    const bar = await page.getByTestId('standards-bar').boundingBox();
+    expect(grid).not.toBeNull();
+    expect(bar).not.toBeNull();
+    expect(grid!.y + grid!.height).toBeLessThanOrEqual(bar!.y + 1);
+
+    for (const card of await page.getByTestId('dish-card').all()) {
+      const box = await card.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.y).toBeGreaterThanOrEqual(grid!.y - 1);
+      expect(box!.y + box!.height).toBeLessThanOrEqual(grid!.y + grid!.height + 1);
+    }
   });
 }
