@@ -10,17 +10,9 @@ export default defineConfig({
     // 这里只做「应用壳可离线打开」，业务数据的离线排队在实现每日采集页时补。
     VitePWA({
       registerType: 'autoUpdate',
-      manifest: {
-        name: '食堂健康管理系统',
-        short_name: '食堂健康',
-        description: '营养核算、采购预测与决策支持',
-        lang: 'zh-CN',
-        start_url: '/',
-        display: 'standalone',
-        background_color: '#0a1a33',
-        theme_color: '#1677ff',
-        icons: [{ src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
-      },
+      // 清单改由 public/manifest.webmanifest 提供静态文件：插件默认只在构建时生成它，
+      // 开发模式下取不到，会让「清单可获取」这类断言只在构建产物上成立。
+      manifest: false,
       workbox: {
         // 只预缓存前端静态资源。接口数据一律不缓存——食堂对着过期的营养数值做决策
         // 比看不到数据更糟。
