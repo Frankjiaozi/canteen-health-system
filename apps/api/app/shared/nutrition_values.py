@@ -31,7 +31,7 @@ VALUE_TYPES: tuple[NutritionValueType, ...] = tuple(VALUE_TYPE_PRIORITY)
 #: 给界面用的一句话说明：这个数是从哪一层来的
 VALUE_TYPE_DESCRIPTIONS: dict[NutritionValueType, str] = {
     NutritionValueType.SAMPLED: "抽样称重实测",
-    NutritionValueType.CALIBRATED: "按当日油盐糖实际用量校准",
+    NutritionValueType.CALIBRATED: "按历史采集的油盐糖实际用量校准",
     NutritionValueType.THEORETICAL: "按标准配方推算",
 }
 

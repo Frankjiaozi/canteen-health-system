@@ -34,8 +34,8 @@ logger = get_logger(__name__)
 
 SOURCE_NOTE_PER_SERVING = "按标准配方推算的单份营养（三层校准第一层）"
 SOURCE_NOTE_PER_CAPITA = "按标准配方推算的该菜人均摄入（三层校准第一层）"
-SOURCE_NOTE_CALIBRATED = "用当日油盐糖实际用量闭环校准后的单份营养（三层校准第二层）"
-SOURCE_NOTE_CALIBRATED_CAPITA = "闭环校准后的该菜人均摄入（三层校准第二层）"
+SOURCE_NOTE_CALIBRATED = "用历史采集的油盐糖实际用量校准后的单份营养（三层校准第二层）"
+SOURCE_NOTE_CALIBRATED_CAPITA = "校准后的该菜人均摄入（三层校准第二层）"
 SOURCE_NOTE_SAMPLED = "每周抽样称重实测的单份营养（三层校准第三层）"
 
 #: 反推出来的系数超出这个范围，就不是「调味料手感」能解释的了，

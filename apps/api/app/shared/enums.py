@@ -105,7 +105,7 @@ class NutritionValueType(LabelledStrEnum):
     """口径维度之二：这个数值是怎么来的。
 
     - THEORETICAL：按标准配方推算
-    - CALIBRATED：用当日油盐糖实际用量做了闭环校准
+    - CALIBRATED：用历史采集的油盐糖实际用量解出系数后做了校准
     - SAMPLED：抽样称重实测
     """
 
