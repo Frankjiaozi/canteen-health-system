@@ -104,12 +104,15 @@ def test_board_switches_to_the_sampled_value_once_a_dish_is_weighed(
 ) -> None:
     """称过之后，大屏就该改口说称出来的数——否则三层校准对公众是不可见的。"""
     menu_day = _today_menu(db_session)
+    # 取当天菜单上的第一道菜，不写死菜名：菜单是轮换的，写死哪一天就不灵了
     dish = db_session.scalar(
         select(Dish)
         .join(MenuDayItem, MenuDayItem.dish_id == Dish.id)
-        .where(MenuDayItem.menu_day_id == menu_day.id, Dish.name == "土豆炖牛肉")
+        .where(MenuDayItem.menu_day_id == menu_day.id)
+        .order_by(Dish.name)
+        .limit(1)
     )
-    assert dish is not None, "演示菜单里应当有「土豆炖牛肉」"
+    assert dish is not None, "当天菜单上应当有菜"
     theoretical = db_session.scalar(
         select(DishNutrition).where(
             DishNutrition.dish_id == dish.id,

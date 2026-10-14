@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import os
 import random
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any, NamedTuple
 from uuid import UUID, uuid5
@@ -109,6 +109,18 @@ def _upsert_by(session: Session, model: Any, natural_key: dict[str, Any], **valu
     for field in changed:
         setattr(existing, field, values[field])
     return "updated" if changed else "unchanged"
+
+
+def _existing_id(session: Session, model: Any, natural_key: dict[str, Any]) -> UUID | None:
+    """按自然键查已有行的主键。
+
+    种子主要按固定主键写（这样重跑幂等），但**固定主键插不进去**的情况是存在的：
+    数据库对「日期 + 餐次」这类组合有唯一约束，而这一行可能是别的来源先写下的
+    （开发库里手录过、端到端用例录过）。这时按自然键认领它、再收敛到种子定义，
+    比硬插一个会撞约束的新行正确。
+    """
+    conditions = [getattr(model, field) == value for field, value in natural_key.items()]
+    return session.scalar(select(model.id).where(*conditions))
 
 
 class _Tally:
@@ -1182,6 +1194,9 @@ _VEGETABLES: tuple[str, ...] = (
 
 #: (菜品池, 步长, 起始偏移)。步长与池长互质，取值才不会总落在同一个位置；
 #: 各池给不同的偏移，避免几道菜永远同时出现。
+#: 轮换基准日：锚在固定日期上，同一天永远供应同一批菜，历史不会随日子往前跑而改写。
+_ROTATION_EPOCH = date(2026, 1, 1)
+
 _MENU_ROTATION: tuple[tuple[tuple[str, ...], int, int], ...] = (
     (_STAPLES, 3, 0),
     (_SOUPS, 2, 0),
@@ -1248,13 +1263,24 @@ def seed_history(
     settings = get_settings()
     rng = random.Random(20261014)
     today = datetime.now(settings.timezone).date()
+    window_start = today - timedelta(days=days - 1)
+    # 收敛窗口：早于这次的演示行要清掉。窗口是「截至今天的 N 天」，随今天往前挪，
+    # 不清的话库里会一天多留一天——过几天演示历史就变成 60 多天，
+    # 「种子历史恰好 8 周」不再成立，也没人说得清多出来那天算不算数。
+    session.execute(delete(MenuDay).where(MenuDay.date < window_start))
+    session.execute(delete(DailyLog).where(DailyLog.date < window_start))
+    session.execute(delete(DishNutrition).where(DishNutrition.date < window_start))
+    session.flush()
     # 日历从库里读，种子不再自己抄一份：两处各写一份迟早会对不上，
     # 而一旦对不上，回测测出来的是两者的差，不是模型的准头。
     calendar = {row.date: row.kind for row in session.scalars(select(Holiday)).all()}
 
     for offset in range(days - 1, -1, -1):
         day = today - timedelta(days=offset)
-        day_index = days - 1 - offset
+        # 轮换的「第几天」锚在日历日期上，而不是「窗口内第几天」。
+        # 用窗口内序号的话，每过一天整个窗口前移，同一天供应的菜就全变了——
+        # 演示历史每天都在改写，看板与回测的数字跟着漂，谁也说不清哪个是真的。
+        day_index = (day - _ROTATION_EPOCH).days
 
         served = [
             pool[(day_index * step + start) % len(pool)] for pool, step, start in _MENU_ROTATION
@@ -1271,7 +1297,12 @@ def seed_history(
         diner_count = max(
             1, round((950 + rng.randrange(-120, 121)) * weekday_factor * holiday_factor)
         )
-        menu_day_id = _stable_id("menu_day", f"{day.isoformat()}:LUNCH")
+        # 按自然键认领已有行，而不是硬插一个固定主键：这一天可能已经被别的东西写过
+        # （例如端到端用例在昨天往「明天」录了一餐，而昨天的那天就是今天）。
+        # 数据库有 (date, meal_type) 唯一约束，硬插会直接撞上；认领则把它收敛到种子定义。
+        menu_day_id = _existing_id(
+            session, MenuDay, {"date": day, "meal_type": MealType.LUNCH}
+        ) or _stable_id("menu_day", f"{day.isoformat()}:LUNCH")
         tally.add(
             "菜单日",
             _upsert(
@@ -1285,7 +1316,9 @@ def seed_history(
             ),
         )
 
-        daily_log_id = _stable_id("daily_log", f"{day.isoformat()}:LUNCH")
+        daily_log_id = _existing_id(
+            session, DailyLog, {"date": day, "meal_type": MealType.LUNCH}
+        ) or _stable_id("daily_log", f"{day.isoformat()}:LUNCH")
 
         # 清掉这一天不在当前计划内的旧明细。种子脚本要能把演示库**收敛**到当前
         # 定义，而不是每改一次菜单就多留一批孤儿行——那些行会悄悄混进人均摄入的
@@ -1324,7 +1357,12 @@ def seed_history(
                 _upsert(
                     session,
                     MenuDayItem,
-                    _stable_id("menu_day_item", f"{day.isoformat()}:{dish_key}"),
+                    _existing_id(
+                        session,
+                        MenuDayItem,
+                        {"menu_day_id": menu_day_id, "dish_id": dish_ids[dish_key]},
+                    )
+                    or _stable_id("menu_day_item", f"{day.isoformat()}:{dish_key}"),
                     menu_day_id=menu_day_id,
                     dish_id=dish_ids[dish_key],
                     planned_servings=servings,
@@ -1371,7 +1409,12 @@ def seed_history(
                 _upsert(
                     session,
                     DailyLogItem,
-                    _stable_id("daily_log_item", f"{day.isoformat()}:{dish_key}"),
+                    _existing_id(
+                        session,
+                        DailyLogItem,
+                        {"daily_log_id": daily_log_id, "dish_id": dish_ids[dish_key]},
+                    )
+                    or _stable_id("daily_log_item", f"{day.isoformat()}:{dish_key}"),
                     daily_log_id=daily_log_id,
                     dish_id=dish_ids[dish_key],
                     servings_produced=servings,
