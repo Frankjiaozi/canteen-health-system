@@ -14,8 +14,10 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 import pytest
+from app.db import seed as seed_module
 from app.db.session import get_session_factory
 from app.main import create_app
+from app.modules.nutrition import service as nutrition_service
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -32,6 +34,22 @@ def login_as(api_client: TestClient, username: str) -> TestClient:
     )
     assert response.status_code == 200, response.text
     return api_client
+
+
+@pytest.fixture(scope="session", autouse=True)
+def prepared_database() -> None:
+    """保证测试库里有演示数据与算好的营养结果。
+
+    CI 上用的是空库、只跑了迁移，而公开大屏、看板、营养结果这几组用例都依赖
+    「种子数据 + 营养计算结果」。缺了这一步，它们会以「查不到数据」的形式失败，
+    报错信息完全看不出是环境问题——本地开发库里恰好留着历史数据，就把这个隐患盖住了。
+
+    因此把「备数据」显式化：任何一次 pytest 都自带完整数据，不依赖外部手动步骤。
+    种子脚本与营养计算都是幂等的，重复执行没有副作用。
+    """
+    with get_session_factory()() as session:
+        seed_module.run(session)
+        nutrition_service.compute_recent_days(session, days=seed_module.HISTORY_DAYS)
 
 
 @pytest.fixture(scope="session")
