@@ -30,7 +30,8 @@ test('注册、刷新、退出并重新登录，保留原访问目标', async ({
   await page.getByLabel('口令').fill(password);
   await page.getByRole('button', { name: '登录', exact: true }).click();
   await expect(page).toHaveURL(/\/admin$/);
-  await expect(page.getByRole('heading', { name: /注册流程测试，欢迎回来/ })).toBeVisible();
+  await expect(page.getByText('油盐糖用量趋势')).toBeVisible();
+  await expect(page.getByText('注册流程测试').first()).toBeVisible();
 });
 
 test('用户名冲突显示提示且不切换登录状态', async ({ page }) => {
@@ -61,5 +62,5 @@ test('退出接口失败时保留当前账号并显示错误', async ({ page }) 
   await page.getByRole('button', { name: '退出' }).click();
   await expect(page.getByText('退出暂时不可用')).toBeVisible();
   await expect(page).toHaveURL(/\/admin$/);
-  await expect(page.getByRole('heading', { name: /欢迎回来/ })).toBeVisible();
+  await expect(page.getByText('油盐糖用量趋势')).toBeVisible();
 });

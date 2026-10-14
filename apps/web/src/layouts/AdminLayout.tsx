@@ -1,15 +1,16 @@
 import {
+  AppstoreOutlined,
   BarChartOutlined,
   BulbOutlined,
   ClockCircleOutlined,
   CoffeeOutlined,
-  DashboardOutlined,
   DatabaseOutlined,
   DesktopOutlined,
   ExperimentOutlined,
   FormOutlined,
   LineChartOutlined,
   LogoutOutlined,
+  ScheduleOutlined,
 } from '@ant-design/icons';
 import { App, Avatar, Button, Layout, Menu, Space, Tag, Tooltip, Typography } from 'antd';
 import type { ReactNode } from 'react';
@@ -17,22 +18,40 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useCurrentUser, useLogout } from '@/features/auth/hooks/useAuth';
 import { usePendingCount, useSyncOfflineQueue } from '@/features/collection/hooks/useOfflineQueue';
 import { OfflineNotice } from '@/shared/components/OfflineNotice';
-import { SYSTEM_MODULES } from '@/shared/config/modules';
+import { findNavGroupKey, HOME_NAV, NAV_GROUPS, type NavGroup } from '@/shared/config/navigation';
 import { ApiError } from '@/shared/api/errors';
 
 const { Header, Sider, Content } = Layout;
 
-const MODULE_ICONS: Record<string, ReactNode> = {
-  '/admin': <DashboardOutlined />,
+/** 叶子项的图标。分组另有图标，两者分开写，免得「数据看板」与「基础数据」撞图。 */
+const LEAF_ICONS: Record<string, ReactNode> = {
+  '/admin': <BarChartOutlined />,
   '/admin/ingredients': <DatabaseOutlined />,
   '/admin/dishes': <CoffeeOutlined />,
   '/admin/seasonings': <DatabaseOutlined />,
   '/admin/collection': <FormOutlined />,
   '/admin/calibration': <ExperimentOutlined />,
-  '/admin/dashboard': <BarChartOutlined />,
   '/admin/forecast': <LineChartOutlined />,
   '/admin/recommendation': <BulbOutlined />,
 };
+
+const GROUP_ICONS: Record<string, ReactNode> = {
+  basics: <AppstoreOutlined />,
+  routine: <ScheduleOutlined />,
+};
+
+function toMenuItem(group: NavGroup) {
+  return {
+    key: group.key,
+    icon: GROUP_ICONS[group.key],
+    label: group.title,
+    children: group.children.map((leaf) => ({
+      key: leaf.path,
+      icon: LEAF_ICONS[leaf.path],
+      label: leaf.title,
+    })),
+  };
+}
 
 export function AdminLayout() {
   const { message } = App.useApp();
@@ -40,15 +59,15 @@ export function AdminLayout() {
   const location = useLocation();
   const { data: user } = useCurrentUser();
   const logoutMutation = useLogout();
+  const activeGroup = findNavGroupKey(location.pathname);
   // 待同步的采集单挂在应用外壳上补交：录入员停在任何管理页都会自动补上
   useSyncOfflineQueue();
   const pendingCount = usePendingCount();
 
-  const menuItems = SYSTEM_MODULES.filter((module) => module.requiresAuth).map((module) => ({
-    key: module.path,
-    icon: MODULE_ICONS[module.path],
-    label: module.title,
-  }));
+  const menuItems = [
+    { key: HOME_NAV.path, icon: LEAF_ICONS[HOME_NAV.path], label: HOME_NAV.title },
+    ...NAV_GROUPS.map(toMenuItem),
+  ];
 
   const handleLogout = async () => {
     try {
@@ -66,9 +85,14 @@ export function AdminLayout() {
           <Typography.Text strong>知味 · 校园智慧膳食平台</Typography.Text>
         </div>
         <Menu
+          // 换页面时重建菜单，让 defaultOpenKeys 按当前页重算一次。
+          // 比在 effect 里同步状态干净：也省掉「用户点开另一组又跳走」这类边界
+          key={location.pathname}
           mode="inline"
           selectedKeys={[location.pathname]}
           items={menuItems}
+          // 只展开当前页所在的分组：一进来把两组都摊开，跟没分组差不了多少
+          defaultOpenKeys={activeGroup === null ? [] : [activeGroup]}
           onClick={({ key }) => void navigate(key)}
           style={{ borderInlineEnd: 'none' }}
         />

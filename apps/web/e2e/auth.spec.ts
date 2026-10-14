@@ -31,7 +31,8 @@ test('登录成功后进入管理端并展示角色', async ({ page }) => {
   await login(page, 'recorder');
 
   await expect(page).toHaveURL(/\/admin$/);
-  await expect(page.getByRole('heading', { name: /欢迎回来/ })).toBeVisible();
+  // 首页就是数据看板：登录后先看到「今天怎么样」，而不是一个模块列表
+  await expect(page.getByText('油盐糖用量趋势')).toBeVisible();
   await expect(page.getByText('食堂录入员').first()).toBeVisible();
 });
 

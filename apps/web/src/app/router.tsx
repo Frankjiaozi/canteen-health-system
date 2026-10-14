@@ -15,9 +15,6 @@ import { AdminLayout } from '@/layouts/AdminLayout';
 const NotFoundPage = lazy(() =>
   import('@/shared/pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })),
 );
-const AdminHomePage = lazy(() =>
-  import('@/shared/pages/AdminHomePage').then((m) => ({ default: m.AdminHomePage })),
-);
 const LoginPage = lazy(() =>
   import('@/features/auth/pages/LoginPage').then((m) => ({ default: m.LoginPage })),
 );
@@ -56,13 +53,15 @@ const router = createBrowserRouter([
       </RequireAuth>
     ),
     children: [
-      { index: true, element: lazyElement(<AdminHomePage />) },
+      // 首页就是数据看板：打开系统先看「今天怎么样」，再点进具体模块处理
+      { index: true, element: lazyElement(<DashboardPage />) },
       { path: 'ingredients', element: lazyElement(<IngredientListPage />) },
       { path: 'dishes', element: lazyElement(<DishListPage />) },
       { path: 'seasonings', element: lazyElement(<SeasoningListPage />) },
       { path: 'collection', element: lazyElement(<DailyLogPage />) },
       { path: 'calibration', element: lazyElement(<SamplingPage />) },
-      { path: 'dashboard', element: lazyElement(<DashboardPage />) },
+      // 旧地址留一个跳转，「数据看板」不再单列一项
+      { path: 'dashboard', element: <Navigate to="/admin" replace /> },
       { path: 'forecast', element: lazyElement(<ForecastPage />) },
       { path: 'recommendation', element: lazyElement(<RecommendationPage />) },
     ],

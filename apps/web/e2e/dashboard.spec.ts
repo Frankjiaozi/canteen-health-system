@@ -3,7 +3,7 @@ import { loginAs } from './helpers';
 
 test('登录后可以看到四类指标', async ({ page }) => {
   await loginAs(page, 'recorder');
-  await page.goto('/admin/dashboard');
+  await page.goto('/admin');
 
   await expect(page.getByText('油盐糖用量趋势')).toBeVisible();
   // 精确匹配：图表下方的口径说明里也提到了这个栏目名
@@ -17,7 +17,7 @@ test('登录后可以看到四类指标', async ({ page }) => {
 
 test('人均摄入栏把口径讲清楚，并按基准给出结论', async ({ page }) => {
   await loginAs(page, 'school');
-  await page.goto('/admin/dashboard');
+  await page.goto('/admin');
 
   await expect(page.getByText(/理论值/)).toBeVisible();
   await expect(page.getByText(/实际投料量/)).toBeVisible();
@@ -28,7 +28,7 @@ test('人均摄入栏把口径讲清楚，并按基准给出结论', async ({ pa
 
 test('切换时间范围后数据随之变化', async ({ page }) => {
   await loginAs(page, 'recorder');
-  await page.goto('/admin/dashboard');
+  await page.goto('/admin');
 
   const recordedDays = page.locator('.ant-statistic').filter({ hasText: '有记录天数' });
   // 演示历史是 8 周
@@ -43,7 +43,7 @@ test('切换时间范围后数据随之变化', async ({ page }) => {
 });
 
 test('未登录访问看板会被拦到登录页', async ({ page }) => {
-  await page.goto('/admin/dashboard');
+  await page.goto('/admin');
 
   await expect(page).toHaveURL(/\/login$/);
 });
