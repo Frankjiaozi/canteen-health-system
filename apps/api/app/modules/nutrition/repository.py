@@ -16,7 +16,6 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Sequence
 from datetime import date
-from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -249,7 +248,8 @@ def replace_calibration_factors(
     meal_type: MealType,
     cooking_method: CookingMethod,
     source: CalibrationSource,
-    coefficients: dict[str, Decimal],
+    #: JSONB 列，值统一以字符串存入以免浮点误差（"1.18" / "0.9800"）
+    coefficients: dict[str, Any],
     dish_id: UUID | None = None,
     basis_note: str | None = None,
     created_by: UUID | None = None,

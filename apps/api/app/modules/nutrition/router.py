@@ -8,21 +8,36 @@
 from __future__ import annotations
 
 from datetime import date
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.errors import NotFoundError
 from app.db.session import get_session
 from app.modules.auth.dependencies import require_roles
 from app.modules.auth.schemas import AuthUser
+from app.modules.dish import repository as dish_repository
 from app.modules.nutrition import repository, service
-from app.modules.nutrition.models import CalibrationFactor
+from app.modules.nutrition.engine import NutrientVector
+from app.modules.nutrition.models import CalibrationFactor, DishNutrition
 from app.modules.nutrition.schemas import (
     CalibrationFactorRead,
     ClosureFactorRead,
     ClosureRunResponse,
+    NutritionComparison,
+    SampleCreate,
+    SampleResult,
 )
-from app.shared.enums import MealType, SeasoningCategory, UserRole
+from app.shared.enums import (
+    MealType,
+    NutrientCaliber,
+    NutritionValueType,
+    SeasoningCategory,
+    UserRole,
+)
+from app.shared.nutrients import NUTRIENT_FIELDS
 
 router = APIRouter(prefix="/calibration", tags=["三层校准"])
 
@@ -84,4 +99,80 @@ def _to_read(row: CalibrationFactor) -> CalibrationFactorRead:
         coefficients={key: str(value) for key, value in row.coefficients.items()},
         dish_id=None if row.dish_id is None else str(row.dish_id),
         basis_note=row.basis_note,
+    )
+
+
+@router.post("/samples", response_model=SampleResult, summary="录入抽样称重实测")
+def create_sample(
+    payload: SampleCreate,
+    session: Session = Depends(get_session),
+    actor: AuthUser = Depends(require_roles(*RUN_ROLES)),
+) -> SampleResult:
+    report = service.record_sample(
+        session,
+        dish_id=payload.dish_id,
+        on_date=payload.date,
+        meal_type=payload.meal_type,
+        measured=NutrientVector(
+            energy_kcal=payload.measured_energy_kcal,
+            protein_g=payload.measured_protein_g,
+            fat_g=payload.measured_fat_g,
+            carb_g=payload.measured_carb_g,
+            sodium_mg=payload.measured_sodium_mg,
+        ),
+        scope=payload.scope,
+        note=payload.note,
+        created_by=actor.id,
+    )
+    return SampleResult(
+        dish_id=report.dish_id,
+        dish_name=report.dish_name,
+        date=report.on_date,
+        meal_type=report.meal_type,
+        meal_type_label=report.meal_type.label,
+        measured=report.measured.as_trace(),
+        computed=report.computed.as_trace(),
+        deviations=report.deviations,
+        overall_factor=None if report.overall_factor is None else str(report.overall_factor),
+        applied=report.applied,
+        suspect_recipe=report.suspect_recipe,
+        note=report.note,
+    )
+
+
+@router.get("/comparison", response_model=NutritionComparison, summary="理论值/校准值/抽样值对比")
+def compare(
+    dish_id: UUID = Query(description="菜品 ID"),
+    on_date: date = Query(description="业务日期"),
+    meal_type: MealType = Query(default=MealType.LUNCH),
+    session: Session = Depends(get_session),
+    _: AuthUser = Depends(require_roles(*VIEW_ROLES)),
+) -> NutritionComparison:
+    dish = dish_repository.get(session, dish_id)
+    if dish is None:
+        raise NotFoundError("菜品不存在")
+
+    def _value(value_type: NutritionValueType) -> dict[str, str] | None:
+        row = session.scalar(
+            select(DishNutrition)
+            .where(
+                DishNutrition.dish_id == dish_id,
+                DishNutrition.date == on_date,
+                DishNutrition.meal_type == meal_type,
+                DishNutrition.caliber == NutrientCaliber.PER_SERVING,
+                DishNutrition.value_type == value_type,
+            )
+            .limit(1)
+        )
+        return (
+            None if row is None else {field: str(getattr(row, field)) for field in NUTRIENT_FIELDS}
+        )
+
+    return NutritionComparison(
+        dish_id=dish_id,
+        dish_name=dish.name,
+        date=on_date,
+        theoretical=_value(NutritionValueType.THEORETICAL),
+        calibrated=_value(NutritionValueType.CALIBRATED),
+        sampled=_value(NutritionValueType.SAMPLED),
     )

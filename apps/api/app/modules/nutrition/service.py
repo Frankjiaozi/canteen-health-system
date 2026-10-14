@@ -16,7 +16,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.errors import BusinessRuleError
+from app.core.errors import BusinessRuleError, NotFoundError
 from app.core.logging import get_logger
 from app.modules.nutrition import engine, repository
 from app.modules.nutrition.engine import NutrientVector
@@ -36,6 +36,15 @@ SOURCE_NOTE_PER_SERVING = "按标准配方推算的单份营养（三层校准�
 SOURCE_NOTE_PER_CAPITA = "按标准配方推算的该菜人均摄入（三层校准第一层）"
 SOURCE_NOTE_CALIBRATED = "用当日油盐糖实际用量闭环校准后的单份营养（三层校准第二层）"
 SOURCE_NOTE_CALIBRATED_CAPITA = "闭环校准后的该菜人均摄入（三层校准第二层）"
+SOURCE_NOTE_SAMPLED = "每周抽样称重实测的单份营养（三层校准第三层）"
+
+#: 反推出来的系数超出这个范围，就不是「调味料手感」能解释的了，
+#: 更可能是配方本身录错——这时候不要硬套，标记出来让人工核对。
+SUSPECT_FACTOR_LOW = Decimal("0.5")
+SUSPECT_FACTOR_HIGH = Decimal("2.0")
+
+#: 抽样实测值的误差区间下限：再怎么准，也不该声称误差是 0
+SAMPLED_MIN_TOLERANCE = Decimal("0.05")
 
 #: 每日采集里能拿到实际用量的调味料类别 → daily_logs 上的字段
 CLOSURE_ACTUAL_FIELD: dict[SeasoningCategory, str] = {
@@ -465,3 +474,174 @@ def _uncertainty_payload(
         "missing_nutrients": list(missing_nutrients),
         "ranges": {field: interval.as_dict() for field, interval in ranges.items()},
     }
+
+
+# ---------------------------------------------------------------------------
+# 第三层 抽样纠偏
+# ---------------------------------------------------------------------------
+@dataclass
+class SampleReport:
+    dish_id: UUID
+    dish_name: str
+    on_date: date
+    meal_type: MealType
+    measured: engine.NutrientVector
+    computed: engine.NutrientVector
+    #: 每项指标相对推算值的偏差比例（实测 − 推算）÷ 推算
+    deviations: dict[str, str]
+    #: 由能量反推出的调味料整体系数；无法反推时为空
+    overall_factor: Decimal | None
+    applied: bool
+    suspect_recipe: bool
+    note: str
+
+
+def record_sample(
+    session: Session,
+    *,
+    dish_id: UUID,
+    on_date: date,
+    meal_type: MealType,
+    measured: engine.NutrientVector,
+    scope: str,
+    note: str | None = None,
+    created_by: UUID | None = None,
+) -> SampleReport:
+    """第三层 抽样纠偏：用称重实测反推调味料该乘多少。
+
+    推理链条只有一句：**食材是按配方称重的，信任它；差额全部归给调味料**。
+    所以「要让总量对上实测值，调味料那一块该乘多少」是可以直接算出来的：
+
+        系数 = (实测能量 − 食材能量) ÷ 配方里的调味料能量
+
+    系数落在合理范围内才写入并生效。超出范围说明这不是调味料手感的问题，
+    更可能是配方本身录错了——这时只存实测证据并标记出来，不硬套系数，
+    免得把一个错误的配方「校准」成一个看起来自洽的错误值。
+    """
+    recipe = repository.load_recipes(session, [dish_id]).get(dish_id)
+    if recipe is None:
+        raise NotFoundError("菜品不存在")
+    if not recipe.ingredients and not recipe.seasonings:
+        raise BusinessRuleError("这道菜还没有配方，没有可比对的基准")
+
+    base = engine.compute_theoretical_per_serving(recipe)
+    computed = base.per_serving
+
+    deviations: dict[str, str] = {
+        field: str(
+            quantize(
+                (getattr(measured, field) - getattr(computed, field)) / getattr(computed, field),
+                4,
+            )
+        )
+        if getattr(computed, field) > 0
+        else "0.0000"
+        for field in engine.NUTRIENT_FIELDS
+    }
+
+    seasoning_energy = sum(vector.energy_kcal for vector in base.seasoning_by_category.values())
+    overall_factor: Decimal | None = None
+    if seasoning_energy > 0:
+        overall_factor = quantize(
+            (measured.energy_kcal - base.ingredient_part.energy_kcal) / seasoning_energy, 4
+        )
+
+    suspect = overall_factor is None or not (
+        SUSPECT_FACTOR_LOW <= overall_factor <= SUSPECT_FACTOR_HIGH
+    )
+    # 实测与推算的差距有多大，就承认多大的把握；但不声称误差是 0
+    observed = max(
+        (abs(Decimal(value)) for value in deviations.values()), default=SAMPLED_MIN_TOLERANCE
+    )
+    tolerance = max(observed, SAMPLED_MIN_TOLERANCE)
+
+    trace: dict[str, Any] = {
+        "engine": engine.ENGINE_NAME,
+        "engine_version": engine.ENGINE_VERSION,
+        "layer": "抽样纠偏实测",
+        "dish_name": recipe.dish_name,
+        "recipe_version": recipe.recipe_version,
+        "computed_per_serving": computed.as_trace(),
+        "measured_per_serving": measured.as_trace(),
+        "deviations": deviations,
+        "ingredient_part": base.ingredient_part.as_trace(),
+        "seasoning_part": {
+            category.value: vector.as_trace()
+            for category, vector in base.seasoning_by_category.items()
+        },
+        "derived_overall_factor": None if overall_factor is None else str(overall_factor),
+        "tolerance": {
+            "base": str(engine.BASE_TOLERANCE),
+            "applied": str(tolerance),
+            "reason": f"由实测偏差决定；实测与推算最大相差 {observed}",
+        },
+        "applied": not suspect,
+        "suspect_recipe": suspect,
+        "note": note,
+    }
+
+    repository.upsert_dish_nutrition(
+        session,
+        dish_id=dish_id,
+        on_date=on_date,
+        meal_type=meal_type,
+        caliber=NutrientCaliber.PER_SERVING,
+        value_type=NutritionValueType.SAMPLED,
+        nutrients=measured,
+        uncertainty={
+            "note": "抽样实测值；区间由实测与推算的偏差决定",
+            "tolerance": str(tolerance),
+            "missing_nutrients": [],
+            "ranges": {
+                field: interval.as_dict()
+                for field, interval in engine.build_uncertainty(
+                    measured, extra_tolerance=tolerance
+                ).items()
+            },
+        },
+        trace=trace,
+        source_note=SOURCE_NOTE_SAMPLED,
+    )
+
+    if not suspect and overall_factor is not None:
+        repository.replace_calibration_factors(
+            session,
+            on_date=on_date,
+            meal_type=meal_type,
+            cooking_method=recipe.cooking_method,
+            source=CalibrationSource.SAMPLING,
+            coefficients={"OVERALL": str(overall_factor)},
+            dish_id=dish_id if scope == "DISH" else None,
+            basis_note=(
+                f"抽样实测反推：(实测能量 {measured.energy_kcal} − 食材能量 "
+                f"{base.ingredient_part.energy_kcal}) ÷ 调味料能量 {seasoning_energy}"
+                f" = {overall_factor}"
+            ),
+            created_by=created_by,
+        )
+
+    session.commit()
+    logger.info(
+        "抽样纠偏：%s 系数 %s%s",
+        recipe.dish_name,
+        overall_factor,
+        "（疑似配方有误，未套用）" if suspect else "",
+    )
+    return SampleReport(
+        dish_id=dish_id,
+        dish_name=recipe.dish_name,
+        on_date=on_date,
+        meal_type=meal_type,
+        measured=measured,
+        computed=computed,
+        deviations=deviations,
+        overall_factor=overall_factor,
+        applied=not suspect,
+        suspect_recipe=suspect,
+        note=(
+            "已按实测值记录该菜单份营养（SAMPLED），并留下一张可复核的调味料系数"
+            if not suspect
+            else "实测与推算差距超出调味料能解释的范围，已保留实测证据但未套用系数，"
+            "建议核对这道菜的配方用量"
+        ),
+    )

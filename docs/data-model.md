@@ -69,8 +69,15 @@ Alembic 只依据该注册表生成迁移。
 | 表 | 说明 |
 | --- | --- |
 | `dish_nutritions` | 菜品营养结果，含误差区间与可追溯快照 |
-| `calibration_factors` | 校准系数，按「日期 + 餐次 + 烹饪方式 + 来源」唯一 |
+| `calibration_factors` | 校准系数。系数**按类别分开存**（`coefficients` JSONB，第二层是油 / 盐 / 糖各一项，第三层是 `OVERALL` 整体系数）；`dish_id` 为空表示这条系数针对整类烹饪方式 |
 | `nutrition_standards` | 膳食指南量化基准，配置化存储并带来源与原文引用 |
+
+`calibration_factors` 不设唯一约束，替换语义由 service 负责：同一 (日期, 餐次, 烹饪方式, 来源,
+菜品) 只保留一行。抽样那天可能测了同一烹饪方式的几道菜，各带自己的 `dish_id`，唯一约束反而会卡住
+这种正当用法。查询用索引 `(date, meal_type, cooking_method, source)`。
+
+系数不合成一个数字，是因为油、盐、糖的偏差幅度本来就不一样（多放油很常见，多放糖不常见），
+合成需要一个加权方式，而任何一种加权都没有客观依据。
 
 ### 预测与推荐
 

@@ -7,8 +7,11 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
+from typing import Literal
+from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.shared.enums import CalibrationSource, CookingMethod, MealType
 
@@ -66,6 +69,50 @@ class CalibrationFactorRead(BaseModel):
     coefficients: dict[str, str]
     dish_id: str | None = Field(default=None, description="针对单道菜的抽样纠偏才有值")
     basis_note: str | None = None
+
+
+class SampleCreate(BaseModel):
+    """抽样称重实测的录入内容。数值都是**单份**口径。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    dish_id: UUID
+    date: date
+    meal_type: MealType = MealType.LUNCH
+    measured_energy_kcal: Decimal = Field(ge=0)
+    measured_protein_g: Decimal = Field(ge=0)
+    measured_fat_g: Decimal = Field(ge=0)
+    measured_carb_g: Decimal = Field(ge=0)
+    measured_sodium_mg: Decimal = Field(ge=0)
+    #: DISH = 只修正这一道菜；COOKING_METHOD = 修正这类烹饪方式
+    scope: Literal["DISH", "COOKING_METHOD"] = "DISH"
+    note: str | None = Field(default=None, max_length=255)
+
+
+class SampleResult(BaseModel):
+    dish_id: UUID
+    dish_name: str
+    date: date
+    meal_type: MealType
+    meal_type_label: str
+    measured: dict[str, str]
+    computed: dict[str, str]
+    deviations: dict[str, str]
+    overall_factor: str | None = Field(description="由能量反推出的调味料整体系数")
+    applied: bool = Field(description="系数是否已生效")
+    suspect_recipe: bool = Field(description="实测偏差是否大到不像调味料问题")
+    note: str
+
+
+class NutritionComparison(BaseModel):
+    """同一道菜的三个口径来源并排——理论、校准、抽样实测。"""
+
+    dish_id: UUID
+    dish_name: str
+    date: date
+    theoretical: dict[str, str] | None = None
+    calibrated: dict[str, str] | None = None
+    sampled: dict[str, str] | None = None
 
 
 def to_comparison(

@@ -396,6 +396,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/calibration/daily-closure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 执行当日闭环校准 */
+        post: operations["run_daily_closure_api_v1_calibration_daily_closure_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/calibration/factors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查看已落库的校准系数 */
+        get: operations["list_factors_api_v1_calibration_factors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/calibration/samples": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 录入抽样称重实测 */
+        post: operations["create_sample_api_v1_calibration_samples_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/calibration/comparison": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 理论值/校准值/抽样值对比 */
+        get: operations["compare_api_v1_calibration_comparison_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -428,6 +496,93 @@ export interface components {
              * @description 按模板填写的 .xlsx 文件
              */
             file: string;
+        };
+        /**
+         * CalibrationFactorRead
+         * @description 已落库的一条校准系数。
+         */
+        CalibrationFactorRead: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            meal_type: components["schemas"]["MealType"];
+            /** Meal Type Label */
+            meal_type_label: string;
+            cooking_method: components["schemas"]["CookingMethod"];
+            /** Cooking Method Label */
+            cooking_method_label: string;
+            source: components["schemas"]["CalibrationSource"];
+            /** Source Label */
+            source_label: string;
+            /** Coefficients */
+            coefficients: {
+                [key: string]: string;
+            };
+            /**
+             * Dish Id
+             * @description 针对单道菜的抽样纠偏才有值
+             */
+            dish_id?: string | null;
+            /** Basis Note */
+            basis_note?: string | null;
+        };
+        /**
+         * CalibrationSource
+         * @enum {string}
+         */
+        CalibrationSource: "DAILY_CLOSURE" | "SAMPLING";
+        /**
+         * ClosureFactorRead
+         * @description 一种烹饪方式下，油盐糖各自的校准系数与它的依据。
+         */
+        ClosureFactorRead: {
+            cooking_method: components["schemas"]["CookingMethod"];
+            /** Cooking Method Label */
+            cooking_method_label: string;
+            /** Coefficients */
+            coefficients: {
+                [key: string]: string;
+            };
+            /** Coefficient Labels */
+            coefficient_labels: {
+                [key: string]: string;
+            };
+            /** Theoretical G */
+            theoretical_g: {
+                [key: string]: string;
+            };
+            /** Actual G */
+            actual_g: {
+                [key: string]: string | null;
+            };
+        };
+        /**
+         * ClosureRunResponse
+         * @description 一次当日闭环校准的结果。
+         */
+        ClosureRunResponse: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            meal_type: components["schemas"]["MealType"];
+            /** Meal Type Label */
+            meal_type_label: string;
+            /** Factors */
+            factors: components["schemas"]["ClosureFactorRead"][];
+            /**
+             * Calibrated Rows
+             * @description 本次写入的校准结果条数（单份 + 人均）
+             */
+            calibrated_rows: number;
+            /**
+             * Note
+             * @description 口径说明，避免把校准值当成新一套真值
+             */
+            note: string;
         };
         /** CompliancePoint */
         CompliancePoint: {
@@ -1041,6 +1196,11 @@ export interface components {
              */
             password: string;
         };
+        /**
+         * MealType
+         * @enum {string}
+         */
+        MealType: "BREAKFAST" | "LUNCH" | "DINNER";
         /** NutrientAmount */
         NutrientAmount: {
             /** Code */
@@ -1094,6 +1254,36 @@ export interface components {
              * @description 误差上界
              */
             upper: string;
+        };
+        /**
+         * NutritionComparison
+         * @description 同一道菜的三个口径来源并排——理论、校准、抽样实测。
+         */
+        NutritionComparison: {
+            /**
+             * Dish Id
+             * Format: uuid
+             */
+            dish_id: string;
+            /** Dish Name */
+            dish_name: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Theoretical */
+            theoretical?: {
+                [key: string]: string;
+            } | null;
+            /** Calibrated */
+            calibrated?: {
+                [key: string]: string;
+            } | null;
+            /** Sampled */
+            sampled?: {
+                [key: string]: string;
+            } | null;
         };
         /**
          * NutritionSummary
@@ -1370,6 +1560,89 @@ export interface components {
              * @description 密码，包含字母和数字
              */
             password: string;
+        };
+        /**
+         * SampleCreate
+         * @description 抽样称重实测的录入内容。数值都是**单份**口径。
+         */
+        SampleCreate: {
+            /**
+             * Dish Id
+             * Format: uuid
+             */
+            dish_id: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** @default LUNCH */
+            meal_type: components["schemas"]["MealType"];
+            /** Measured Energy Kcal */
+            measured_energy_kcal: number | string;
+            /** Measured Protein G */
+            measured_protein_g: number | string;
+            /** Measured Fat G */
+            measured_fat_g: number | string;
+            /** Measured Carb G */
+            measured_carb_g: number | string;
+            /** Measured Sodium Mg */
+            measured_sodium_mg: number | string;
+            /**
+             * Scope
+             * @default DISH
+             * @enum {string}
+             */
+            scope: "DISH" | "COOKING_METHOD";
+            /** Note */
+            note?: string | null;
+        };
+        /** SampleResult */
+        SampleResult: {
+            /**
+             * Dish Id
+             * Format: uuid
+             */
+            dish_id: string;
+            /** Dish Name */
+            dish_name: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            meal_type: components["schemas"]["MealType"];
+            /** Meal Type Label */
+            meal_type_label: string;
+            /** Measured */
+            measured: {
+                [key: string]: string;
+            };
+            /** Computed */
+            computed: {
+                [key: string]: string;
+            };
+            /** Deviations */
+            deviations: {
+                [key: string]: string;
+            };
+            /**
+             * Overall Factor
+             * @description 由能量反推出的调味料整体系数
+             */
+            overall_factor: string | null;
+            /**
+             * Applied
+             * @description 系数是否已生效
+             */
+            applied: boolean;
+            /**
+             * Suspect Recipe
+             * @description 实测偏差是否大到不像调味料问题
+             */
+            suspect_recipe: boolean;
+            /** Note */
+            note: string;
         };
         /**
          * SeasoningCategory
@@ -1656,6 +1929,10 @@ export interface components {
 }
 export type SchemaAuthUser = components['schemas']['AuthUser'];
 export type SchemaBodyImportDishesApiV1ImportDishesPost = components['schemas']['Body_import_dishes_api_v1_import_dishes_post'];
+export type SchemaCalibrationFactorRead = components['schemas']['CalibrationFactorRead'];
+export type SchemaCalibrationSource = components['schemas']['CalibrationSource'];
+export type SchemaClosureFactorRead = components['schemas']['ClosureFactorRead'];
+export type SchemaClosureRunResponse = components['schemas']['ClosureRunResponse'];
 export type SchemaCompliancePoint = components['schemas']['CompliancePoint'];
 export type SchemaComplianceResponse = components['schemas']['ComplianceResponse'];
 export type SchemaCookingMethod = components['schemas']['CookingMethod'];
@@ -1680,8 +1957,10 @@ export type SchemaIngredientPage = components['schemas']['IngredientPage'];
 export type SchemaIngredientRead = components['schemas']['IngredientRead'];
 export type SchemaIngredientUpdate = components['schemas']['IngredientUpdate'];
 export type SchemaLoginRequest = components['schemas']['LoginRequest'];
+export type SchemaMealType = components['schemas']['MealType'];
 export type SchemaNutrientAmount = components['schemas']['NutrientAmount'];
 export type SchemaNutrientValue = components['schemas']['NutrientValue'];
+export type SchemaNutritionComparison = components['schemas']['NutritionComparison'];
 export type SchemaNutritionSummary = components['schemas']['NutritionSummary'];
 export type SchemaPerCapitaResponse = components['schemas']['PerCapitaResponse'];
 export type SchemaPublicBoard = components['schemas']['PublicBoard'];
@@ -1694,6 +1973,8 @@ export type SchemaRecipeSeasoningLine = components['schemas']['RecipeSeasoningLi
 export type SchemaRecipeSeasoningRead = components['schemas']['RecipeSeasoningRead'];
 export type SchemaRecipeUpdateResult = components['schemas']['RecipeUpdateResult'];
 export type SchemaRegisterRequest = components['schemas']['RegisterRequest'];
+export type SchemaSampleCreate = components['schemas']['SampleCreate'];
+export type SchemaSampleResult = components['schemas']['SampleResult'];
 export type SchemaSeasoningCategory = components['schemas']['SeasoningCategory'];
 export type SchemaSeasoningCreate = components['schemas']['SeasoningCreate'];
 export type SchemaSeasoningPage = components['schemas']['SeasoningPage'];
@@ -2654,6 +2935,140 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WasteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_daily_closure_api_v1_calibration_daily_closure_post: {
+        parameters: {
+            query: {
+                /** @description 要校准的业务日期 */
+                on_date: string;
+                meal_type?: components["schemas"]["MealType"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClosureRunResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_factors_api_v1_calibration_factors_get: {
+        parameters: {
+            query: {
+                /** @description 业务日期 */
+                on_date: string;
+                meal_type?: components["schemas"]["MealType"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalibrationFactorRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_sample_api_v1_calibration_samples_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SampleCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SampleResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    compare_api_v1_calibration_comparison_get: {
+        parameters: {
+            query: {
+                /** @description 菜品 ID */
+                dish_id: string;
+                /** @description 业务日期 */
+                on_date: string;
+                meal_type?: components["schemas"]["MealType"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NutritionComparison"];
                 };
             };
             /** @description Validation Error */
