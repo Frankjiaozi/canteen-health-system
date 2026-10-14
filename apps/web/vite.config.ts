@@ -7,9 +7,14 @@ export default defineConfig({
   plugins: [
     react(),
     // PWA 基础设施：食堂网络不稳定，「断网也能继续录入」是需求里的硬指标。
-    // 这里只做「应用壳可离线打开」，业务数据的离线排队在实现每日采集页时补。
+    // 预缓存让应用壳在断网时也能打开；业务数据的离线排队见采集域的 store。
     VitePWA({
-      registerType: 'autoUpdate',
+      // **不自动更新**：自动更新看着省事，实际是「部署了新版本、浏览器还在跑旧的」，
+      // 排查起来很费劲。改成有新版时提示用户，由他点一下再换——
+      // 界面会明说「未保存的录入会丢失」，而不是在某个刷新动作里悄悄换掉。
+      registerType: 'prompt',
+      // 注册交给 UpdatePrompt 里手写的 useRegisterSW：注入的脚本没法弹提示
+      injectRegister: null,
       // 清单改由 public/manifest.webmanifest 提供静态文件：插件默认只在构建时生成它，
       // 开发模式下取不到，会让「清单可获取」这类断言只在构建产物上成立。
       manifest: false,

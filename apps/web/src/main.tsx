@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AppProviders } from '@/app/providers';
 import { AppRouter } from '@/app/router';
+import { UpdatePrompt } from '@/shared/components/UpdatePrompt';
 import '@/styles/global.css';
 
 const container = document.getElementById('root');
@@ -13,6 +14,8 @@ if (!container) {
 createRoot(container).render(
   <StrictMode>
     <AppProviders>
+      {/* 挂在最外层：登录页、管理端与公开大屏都该收到新版本提示 */}
+      <UpdatePrompt />
       <AppRouter />
     </AppProviders>
   </StrictMode>,
