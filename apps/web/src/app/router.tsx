@@ -5,6 +5,7 @@ import { RequireAuth } from '@/features/auth/components/RequireAuth';
 import { SamplingPage } from '@/features/calibration/routes';
 import { DailyLogPage } from '@/features/collection/routes';
 import { DisplayPage } from '@/features/display/routes';
+import { ForecastPage } from '@/features/forecast/routes';
 import { DashboardPage } from '@/features/dashboard/routes';
 import { DishListPage, SeasoningListPage } from '@/features/dish/routes';
 import { IngredientListPage } from '@/features/ingredient/routes';
@@ -73,7 +74,7 @@ const router = createBrowserRouter([
       { path: 'collection', element: lazyElement(<DailyLogPage />) },
       { path: 'calibration', element: lazyElement(<SamplingPage />) },
       { path: 'dashboard', element: lazyElement(<DashboardPage />) },
-      { path: 'forecast', element: placeholderElement('/admin/forecast') },
+      { path: 'forecast', element: lazyElement(<ForecastPage />) },
       { path: 'recommendation', element: placeholderElement('/admin/recommendation') },
     ],
   },

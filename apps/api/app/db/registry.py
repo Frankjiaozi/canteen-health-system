@@ -12,7 +12,7 @@ from app.modules.audit.models import AuditLog
 from app.modules.auth.models import User
 from app.modules.collection.models import DailyLog, DailyLogItem, Feedback
 from app.modules.dish.models import Dish, RecipeItem, RecipeSeasoning
-from app.modules.forecast.models import Forecast
+from app.modules.forecast.models import Forecast, Holiday
 from app.modules.ingredient.models import Ingredient
 from app.modules.menu.models import MenuDay, MenuDayItem
 from app.modules.nutrition.models import CalibrationFactor, DishNutrition, NutritionStandard
@@ -29,6 +29,7 @@ __all__ = [
     "DishNutrition",
     "Feedback",
     "Forecast",
+    "Holiday",
     "Ingredient",
     "MenuDay",
     "MenuDayItem",

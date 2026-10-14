@@ -154,6 +154,17 @@ class SuggestionStatus(LabelledStrEnum):
     REJECTED = "REJECTED"
 
 
+class HolidayKind(LabelledStrEnum):
+    """日历上的两种日子。
+
+    放假日在校人数骤降、份数要下调；**调休上班的周末反过来按工作日处理**——
+    只标放假不标调休，预测会在每个调休周末高估一大截。
+    """
+
+    HOLIDAY = "HOLIDAY"
+    WORKDAY = "WORKDAY"
+
+
 class StandardCode(LabelledStrEnum):
     """膳食指南的量化基准项。"""
 
@@ -256,6 +267,9 @@ ENUM_LABELS: dict[tuple[type[LabelledStrEnum], str], str] = {
     (AnomalyFlag, AnomalyFlag.SUSPENDED.value): "菜品停供",
     (AnomalyFlag, AnomalyFlag.EQUIPMENT_FAILURE.value): "设备故障",
     (AnomalyFlag, AnomalyFlag.CALIBRATION_RESIDUAL.value): "用量对不上（系统判定）",
+    # 日历
+    (HolidayKind, HolidayKind.HOLIDAY.value): "放假",
+    (HolidayKind, HolidayKind.WORKDAY.value): "调休上班",
     # 推荐
     (SuggestionStatus, SuggestionStatus.PENDING.value): "待确认",
     (SuggestionStatus, SuggestionStatus.ACCEPTED.value): "已采纳",

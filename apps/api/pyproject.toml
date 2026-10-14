@@ -22,6 +22,11 @@ dependencies = [
     "python-multipart>=0.0.32",
     # Excel 批量导入（20 道菜的配方靠界面逐条敲要几个小时）
     "openpyxl>=3.1.5",
+    # 菜单推荐的整数规划。**上界卡在 3 以下**：PuLP 4.x 不再自带求解器
+    # （装完 listSolvers 是空的），参数名也换了一套；需求要的是「自带 CBC」的那一版。
+    "pulp>=2.9,<3",
+    # 周报月报导出 PDF。选它是纯 Python 实现、Windows 上不需要额外系统库。
+    "reportlab>=4.4",
     "tzdata>=2026.1",
 ]
 

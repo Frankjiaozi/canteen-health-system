@@ -12,6 +12,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Date,
     ForeignKey,
@@ -25,7 +26,31 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.db.types import enum_check, enum_type
-from app.shared.enums import MealType
+from app.shared.enums import HolidayKind, MealType
+
+
+class Holiday(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """法定节假日日历。
+
+    预测的修正依据只有一条：**放假当天下调、调休上班的周末按工作日算**。
+    之所以做成表而不是写死常量，是因为调休年年不同、且必须以国务院办公厅通知为准，
+    所以还要能被核对与修正——`is_verified` 就是为此存在，界面上会把未核对的条目标出来。
+    """
+
+    __tablename__ = "holidays"
+
+    date: Mapped[date] = mapped_column(Date, nullable=False, unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(32), nullable=False)
+    kind: Mapped[HolidayKind] = mapped_column(enum_type(HolidayKind), nullable=False)
+
+    #: 是否已对照国务院办公厅通知核对过。内置的 2026 年日历全部是「待核对」
+    is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    source_note: Mapped[str | None] = mapped_column(String(255))
+
+    __table_args__ = (enum_check("kind", HolidayKind),)
+
+    def __repr__(self) -> str:
+        return f"<Holiday {self.date} {self.name}>"
 
 
 class Forecast(UUIDPrimaryKeyMixin, TimestampMixin, Base):

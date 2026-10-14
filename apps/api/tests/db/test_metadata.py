@@ -35,6 +35,8 @@ EXPECTED_TABLES = {
     # 预测与推荐
     "forecasts",
     "menu_suggestions",
+    # 法定节假日日历：预测的修正依据
+    "holidays",
 }
 
 

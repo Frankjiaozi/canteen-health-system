@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import os
 import random
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any, NamedTuple
 from uuid import UUID, uuid5
@@ -36,6 +36,7 @@ from app.db.session import get_session_factory
 from app.modules.auth.models import User
 from app.modules.collection.models import DailyLog, DailyLogItem
 from app.modules.dish.models import Dish, RecipeItem, RecipeSeasoning
+from app.modules.forecast.models import Holiday
 from app.modules.ingredient.models import Ingredient
 from app.modules.menu.models import MenuDay, MenuDayItem
 from app.modules.nutrition.models import DishNutrition, NutritionStandard
@@ -43,6 +44,7 @@ from app.modules.seasoning.models import Seasoning
 from app.shared.enums import (
     CookingMethod,
     DishCategory,
+    HolidayKind,
     IngredientCategory,
     MealType,
     SeasoningCategory,
@@ -1145,6 +1147,52 @@ def seed_nutrition_standards(session: Session, tally: _Tally) -> None:
 
 
 # ---------------------------------------------------------------------------
+# 法定节假日日历
+# ---------------------------------------------------------------------------
+#: 2026 年七个法定节日的**公历日期**。农历节日的公历日期由历法决定，可以确定；
+#: 但**放假区间与调休上班日由国务院办公厅通知决定**，我没有可靠来源，
+#: 所以这里只放节日当天，并把每一条都标成「待核对」，界面上给出核对入口。
+#: 在那之前：节日当天会被下调，而节前节后的连休与调休周末仍按普通日子算——
+#: 这是已知的偏差，不藏着。
+_HOLIDAYS_2026 = (
+    (date(2026, 1, 1), "元旦"),
+    (date(2026, 2, 17), "春节"),
+    (date(2026, 4, 5), "清明节"),
+    (date(2026, 5, 1), "劳动节"),
+    (date(2026, 6, 19), "端午节"),
+    (date(2026, 9, 25), "中秋节"),
+    (date(2026, 10, 1), "国庆节"),
+)
+
+_HOLIDAY_SOURCE = (
+    "待核对：放假区间与调休上班日须以国务院办公厅《关于2026年部分节假日安排的通知》为准"
+)
+
+#: 节假日当天的在校人数折减，与 `forecast.strategy.HOLIDAY_FACTOR` 同口径：
+#: 历史数据与预测用的日历必须是一套，否则回测测的是两者的差，不是模型的准头。
+_HOLIDAY_DINER_FACTOR: dict[date, float] = {day: 0.45 for day, _ in _HOLIDAYS_2026}
+
+
+def seed_holidays(session: Session, tally: _Tally) -> None:
+    """内置一份日历，逐条标注「待核对」。"""
+    for day, name in _HOLIDAYS_2026:
+        tally.add(
+            "节假日",
+            _upsert(
+                session,
+                Holiday,
+                _stable_id("holiday", day.isoformat()),
+                date=day,
+                name=name,
+                kind=HolidayKind.HOLIDAY,
+                is_verified=False,
+                source_note=_HOLIDAY_SOURCE,
+            ),
+        )
+    session.flush()
+
+
+# ---------------------------------------------------------------------------
 # 两周历史数据
 # ---------------------------------------------------------------------------
 # 每餐的供应结构：一道主食、一道汤、一道荤菜、一道半荤、一道素菜。
@@ -1250,8 +1298,14 @@ def seed_history(
             pool[(day_index * step + start) % len(pool)] for pool, step, start in _MENU_ROTATION
         ]
 
+        # 节假日当天的在校人数确实会掉下来。种子里必须体现这一点，
+        # 否则「历史按普通日子生成、预测却按节假日折减」，回测会平白多出一大截误差——
+        # 那不是模型的错，是演示数据自相矛盾。
+        holiday_factor = _HOLIDAY_DINER_FACTOR.get(day, 1.0)
         weekday_factor = _WEEKEND_DINER_FACTOR if day.weekday() >= 5 else 1.0
-        diner_count = max(1, round((950 + rng.randrange(-120, 121)) * weekday_factor))
+        diner_count = max(
+            1, round((950 + rng.randrange(-120, 121)) * weekday_factor * holiday_factor)
+        )
         menu_day_id = _stable_id("menu_day", f"{day.isoformat()}:LUNCH")
         tally.add(
             "菜单日",
@@ -1377,6 +1431,7 @@ def run(session: Session, *, history_days: int = HISTORY_DAYS) -> _Tally:
     seasoning_ids = seed_seasonings(session, tally)
     dish_ids = seed_dishes(session, tally, ingredient_ids, seasoning_ids)
     seed_nutrition_standards(session, tally)
+    seed_holidays(session, tally)
     seed_history(session, tally, dish_ids, user_ids["recorder"], days=history_days)
     session.commit()
     return tally

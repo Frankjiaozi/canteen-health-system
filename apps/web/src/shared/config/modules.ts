@@ -68,7 +68,7 @@ export const SYSTEM_MODULES: SystemModule[] = [
     title: '采购预测',
     description: '按同星期历史与校历事件预测次日份数与食材需求',
     requiresAuth: true,
-    status: 'planned',
+    status: 'ready',
   },
   {
     path: '/admin/recommendation',

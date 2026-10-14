@@ -294,6 +294,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/forecast/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 生成某天某一餐的份数预测 */
+        post: operations["run_forecast_api_v1_forecast_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/forecast/backtest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 回测：与历史实际份数比 MAPE */
+        get: operations["backtest_api_v1_forecast_backtest_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/forecast/holidays": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 法定节假日日历 */
+        get: operations["list_holidays_api_v1_forecast_holidays_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/forecast/holidays/{holiday_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** 核对与修正日历条目 */
+        patch: operations["update_holiday_api_v1_forecast_holidays__holiday_id__patch"];
+        trace?: never;
+    };
     "/api/v1/collection/logs": {
         parameters: {
             query?: never;
@@ -561,6 +629,47 @@ export interface components {
             role: components["schemas"]["UserRole"];
             /** Role Label */
             role_label: string;
+        };
+        /** BacktestPoint */
+        BacktestPoint: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Dish Count */
+            dish_count: number;
+            /** Mape */
+            mape: string | null;
+        };
+        /** BacktestResult */
+        BacktestResult: {
+            /** Model Version */
+            model_version: string;
+            /** Days */
+            days: number;
+            /** Usable Days */
+            usable_days: number;
+            /** Mape */
+            mape: string | null;
+            /** Target Mape */
+            target_mape: string;
+            /** Passed */
+            passed: boolean;
+            /** Points */
+            points: components["schemas"]["BacktestPoint"][];
+            /** Note */
+            note: string;
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
         };
         /** Body_import_dishes_api_v1_import_dishes_post */
         Body_import_dishes_api_v1_import_dishes_post: {
@@ -1054,6 +1163,35 @@ export interface components {
             updated_at: string;
             recipe: components["schemas"]["RecipeRead"];
         };
+        /** DishForecast */
+        DishForecast: {
+            /** Dish Id */
+            dish_id: string;
+            /** Dish Name */
+            dish_name: string;
+            /** Category Label */
+            category_label: string;
+            /** Cooking Method Label */
+            cooking_method_label: string;
+            /** Predicted Servings */
+            predicted_servings: string;
+            /** Ci Lower */
+            ci_lower: string;
+            /** Ci Upper */
+            ci_upper: string;
+            /** Baseline */
+            baseline: string;
+            /** Adjustment */
+            adjustment: string;
+            /** Basis */
+            basis: string;
+            /** Basis Label */
+            basis_label: string;
+            /** Samples */
+            samples: components["schemas"]["ForecastSample"][];
+            /** Planned */
+            planned: boolean;
+        };
         /** DishPage */
         DishPage: {
             /** Items */
@@ -1168,6 +1306,53 @@ export interface components {
             /** Manual Anomaly Flag */
             manual_anomaly_flag: components["schemas"]["EnumOption"][];
         };
+        /** ForecastRunResult */
+        ForecastRunResult: {
+            meal_type: components["schemas"]["MealType"];
+            /** Meal Type Label */
+            meal_type_label: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Basis Date
+             * Format: date
+             */
+            basis_date: string;
+            /** Basis */
+            basis: string;
+            /** Basis Label */
+            basis_label: string;
+            /** Dishes */
+            dishes: components["schemas"]["DishForecast"][];
+            /** Requirements */
+            requirements: components["schemas"]["IngredientRequirement"][];
+            /** Total Cost */
+            total_cost: string | null;
+            /** Calendar Notes */
+            calendar_notes: string[];
+            /** Skipped */
+            skipped: string[];
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Note */
+            note: string;
+        };
+        /**
+         * ForecastSample
+         * @description 参与计算的一次历史样本。
+         */
+        ForecastSample: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Servings */
+            servings: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1210,6 +1395,58 @@ export interface components {
              * @description 服务器当前时间（带时区）
              */
             server_time: string;
+        };
+        /**
+         * HolidayKind
+         * @description 日历上的两种日子。
+         *
+         *     放假日在校人数骤降、份数要下调；**调休上班的周末反过来按工作日处理**——
+         *     只标放假不标调休，预测会在每个调休周末高估一大截。
+         * @enum {string}
+         */
+        HolidayKind: "HOLIDAY" | "WORKDAY";
+        /** HolidayPage */
+        HolidayPage: {
+            /** Year */
+            year: number;
+            /** Items */
+            items: components["schemas"]["HolidayRead"][];
+            /** Unverified Count */
+            unverified_count: number;
+            /** Note */
+            note: string;
+        };
+        /** HolidayRead */
+        HolidayRead: {
+            /** Id */
+            id: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Name */
+            name: string;
+            kind: components["schemas"]["HolidayKind"];
+            /** Kind Label */
+            kind_label: string;
+            /** Is Verified */
+            is_verified: boolean;
+            /** Source Note */
+            source_note?: string | null;
+        };
+        /**
+         * HolidayWrite
+         * @description 核对入口：确认日期无误，或改掉名称与类型。
+         */
+        HolidayWrite: {
+            /** Name */
+            name?: string | null;
+            kind?: components["schemas"]["HolidayKind"] | null;
+            /** Is Verified */
+            is_verified?: boolean | null;
+            /** Source Note */
+            source_note?: string | null;
         };
         /** ImportCounts */
         ImportCounts: {
@@ -1435,6 +1672,25 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** IngredientRequirement */
+        IngredientRequirement: {
+            /** Name */
+            name: string;
+            /** Unit */
+            unit: string;
+            /** Quantity */
+            quantity: string;
+            /**
+             * Unit Price
+             * @description 单价，可能尚未录入
+             */
+            unit_price?: string | null;
+            /**
+             * Estimated Cost
+             * @description 预计金额，缺单价时为空
+             */
+            estimated_cost?: string | null;
         };
         /**
          * IngredientUpdate
@@ -2362,6 +2618,8 @@ export interface components {
 export type SchemaAnomalyFlag = components['schemas']['AnomalyFlag'];
 export type SchemaAnomalyRead = components['schemas']['AnomalyRead'];
 export type SchemaAuthUser = components['schemas']['AuthUser'];
+export type SchemaBacktestPoint = components['schemas']['BacktestPoint'];
+export type SchemaBacktestResult = components['schemas']['BacktestResult'];
 export type SchemaBodyImportDishesApiV1ImportDishesPost = components['schemas']['Body_import_dishes_api_v1_import_dishes_post'];
 export type SchemaCalibrationFactorRead = components['schemas']['CalibrationFactorRead'];
 export type SchemaCalibrationSource = components['schemas']['CalibrationSource'];
@@ -2382,13 +2640,20 @@ export type SchemaDatabaseHealthResponse = components['schemas']['DatabaseHealth
 export type SchemaDishCategory = components['schemas']['DishCategory'];
 export type SchemaDishCreate = components['schemas']['DishCreate'];
 export type SchemaDishDetail = components['schemas']['DishDetail'];
+export type SchemaDishForecast = components['schemas']['DishForecast'];
 export type SchemaDishPage = components['schemas']['DishPage'];
 export type SchemaDishRead = components['schemas']['DishRead'];
 export type SchemaDishUpdate = components['schemas']['DishUpdate'];
 export type SchemaEnumOption = components['schemas']['EnumOption'];
 export type SchemaEnumOptions = components['schemas']['EnumOptions'];
+export type SchemaForecastRunResult = components['schemas']['ForecastRunResult'];
+export type SchemaForecastSample = components['schemas']['ForecastSample'];
 export type SchemaHttpValidationError = components['schemas']['HTTPValidationError'];
 export type SchemaHealthResponse = components['schemas']['HealthResponse'];
+export type SchemaHolidayKind = components['schemas']['HolidayKind'];
+export type SchemaHolidayPage = components['schemas']['HolidayPage'];
+export type SchemaHolidayRead = components['schemas']['HolidayRead'];
+export type SchemaHolidayWrite = components['schemas']['HolidayWrite'];
 export type SchemaImportCounts = components['schemas']['ImportCounts'];
 export type SchemaImportIssue = components['schemas']['ImportIssue'];
 export type SchemaImportReport = components['schemas']['ImportReport'];
@@ -2396,6 +2661,7 @@ export type SchemaIngredientCategory = components['schemas']['IngredientCategory
 export type SchemaIngredientCreate = components['schemas']['IngredientCreate'];
 export type SchemaIngredientPage = components['schemas']['IngredientPage'];
 export type SchemaIngredientRead = components['schemas']['IngredientRead'];
+export type SchemaIngredientRequirement = components['schemas']['IngredientRequirement'];
 export type SchemaIngredientUpdate = components['schemas']['IngredientUpdate'];
 export type SchemaLoggedDish = components['schemas']['LoggedDish'];
 export type SchemaLoggedDishWrite = components['schemas']['LoggedDishWrite'];
@@ -3189,6 +3455,138 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImportReport"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_forecast_api_v1_forecast_run_post: {
+        parameters: {
+            query: {
+                /** @description 要预测的日期 */
+                on_date: string;
+                meal_type?: components["schemas"]["MealType"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastRunResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    backtest_api_v1_forecast_backtest_get: {
+        parameters: {
+            query?: {
+                /** @description 回测天数 */
+                days?: number;
+                meal_type?: components["schemas"]["MealType"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BacktestResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_holidays_api_v1_forecast_holidays_get: {
+        parameters: {
+            query?: {
+                year?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HolidayPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_holiday_api_v1_forecast_holidays__holiday_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                holiday_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HolidayWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HolidayRead"];
                 };
             };
             /** @description Validation Error */
