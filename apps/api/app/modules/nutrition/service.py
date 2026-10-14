@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -15,15 +16,33 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.core.errors import BusinessRuleError
 from app.core.logging import get_logger
 from app.modules.nutrition import engine, repository
 from app.modules.nutrition.engine import NutrientVector
-from app.shared.enums import MealType, NutrientCaliber, NutritionValueType
+from app.shared.enums import (
+    CalibrationSource,
+    CookingMethod,
+    MealType,
+    NutrientCaliber,
+    NutritionValueType,
+    SeasoningCategory,
+)
+from app.shared.standards import quantize
 
 logger = get_logger(__name__)
 
 SOURCE_NOTE_PER_SERVING = "按标准配方推算的单份营养（三层校准第一层）"
 SOURCE_NOTE_PER_CAPITA = "按标准配方推算的该菜人均摄入（三层校准第一层）"
+SOURCE_NOTE_CALIBRATED = "用当日油盐糖实际用量闭环校准后的单份营养（三层校准第二层）"
+SOURCE_NOTE_CALIBRATED_CAPITA = "闭环校准后的该菜人均摄入（三层校准第二层）"
+
+#: 每日采集里能拿到实际用量的调味料类别 → daily_logs 上的字段
+CLOSURE_ACTUAL_FIELD: dict[SeasoningCategory, str] = {
+    SeasoningCategory.EDIBLE_OIL: "oil_total_g",
+    SeasoningCategory.SALT: "salt_total_g",
+    SeasoningCategory.SUGAR: "sugar_total_g",
+}
 
 
 @dataclass
@@ -154,6 +173,211 @@ def recompute_dish_nutrition(session: Session, dish_id: UUID) -> ComputeReport:
     return total
 
 
+@dataclass
+class ClosureFactorRow:
+    """一种烹饪方式下，油盐糖各自的校准系数与它算出来的依据。"""
+
+    cooking_method: CookingMethod
+    #: 类别代码 → 系数
+    coefficients: dict[str, str]
+    #: 类别代码 → 当日该烹饪方式按配方推算的用量（克）
+    theoretical_g: dict[str, str]
+    #: 类别代码 → 当日实际用量（克）；拿不到实际值的类别为空
+    actual_g: dict[str, str | None]
+
+
+@dataclass
+class ClosureReport:
+    date: date
+    meal_type: MealType
+    factors: list[ClosureFactorRow]
+    calibrated_rows: int
+    note: str
+
+    def describe(self) -> str:
+        return f"{self.date} {self.meal_type.label}：{len(self.factors)} 类烹饪方式，校准结果 {self.calibrated_rows} 条"
+
+
+def compute_daily_closure(session: Session, *, on_date: date, meal_type: MealType) -> ClosureReport:
+    """第二层 当日闭环：用当天实际油盐糖总量校正配方推算值。
+
+    按烹饪方式分组、油盐糖各算各的：蒸菜压根不加油，拿炒菜的系数去缩放它没有意义；
+    而多放油很常见、多放糖不常见，两者偏差幅度本来就不一样，合成一个系数需要一个
+    加权方式，任何一种加权都没有客观依据。
+
+    系数最终**只作用在调味料贡献上**，食材部分原样保留——理由见 engine.apply_calibration。
+    """
+    menu_day = repository.load_menu_day(session, on_date, meal_type)
+    daily_log = repository.load_daily_log(session, on_date, meal_type)
+    if menu_day is None:
+        raise BusinessRuleError("当天没有菜单，先确认供应的菜品再校准")
+    if daily_log is None:
+        raise BusinessRuleError("当天没有每日记录，先采集油盐糖实际用量再校准")
+
+    recipes = repository.load_recipes(session, repository.load_menu_dish_ids(session, menu_day.id))
+    log_items = repository.load_daily_log_items(session, daily_log.id)
+
+    # 按配方推算：每种烹饪方式下，各调味料类别一共该用多少克
+    computed: dict[CookingMethod, dict[SeasoningCategory, Decimal]] = defaultdict(
+        lambda: defaultdict(lambda: Decimal("0"))
+    )
+    for dish_id, recipe in recipes.items():
+        item = log_items.get(dish_id)
+        servings = item.servings_produced if item is not None else Decimal("0")
+        if servings <= 0:
+            continue
+        for line in recipe.seasonings:
+            computed[recipe.cooking_method][line.seasoning.category] += line.quantity_g * servings
+
+    # 当天出现过的每种烹饪方式都要有系数。蒸菜压根不放油盐糖，配方推算总量为 0、
+    # 系数自然全是 1，但**仍然要给出校准结果**——否则「当天校准后的完整结果」里
+    # 会缺几道菜，界面上看着像校准失败，而不是「这道菜不需要校准」。
+    for recipe in recipes.values():
+        computed.setdefault(recipe.cooking_method, {})
+
+    rows: list[ClosureFactorRow] = []
+    factors_by_method: dict[CookingMethod, engine.CalibrationFactors] = {}
+    for method, by_category in computed.items():
+        coefficients: dict[str, Decimal] = {}
+        for category, theoretical_g in by_category.items():
+            field_name = CLOSURE_ACTUAL_FIELD.get(category)
+            actual = getattr(daily_log, field_name) if field_name else None
+            if actual is None or theoretical_g <= 0:
+                # 拿不到实际值的类别不缩放（例如酱油、淀粉这类不逐日采集的）
+                coefficients[category.value] = Decimal("1")
+                continue
+            coefficients[category.value] = quantize(actual / theoretical_g, 4)
+
+        factors_by_method[method] = engine.CalibrationFactors(
+            by_category={SeasoningCategory(code): value for code, value in coefficients.items()},
+            source_note=f"当日闭环：{method.label}",
+        )
+        encoded: dict[str, Any] = {code: str(value) for code, value in coefficients.items()}
+        rows.append(
+            ClosureFactorRow(
+                cooking_method=method,
+                coefficients=encoded,
+                theoretical_g={
+                    category.value: str(quantize(theoretical_g, 2))
+                    for category, theoretical_g in by_category.items()
+                },
+                actual_g={
+                    category.value: (
+                        None
+                        if CLOSURE_ACTUAL_FIELD.get(category) is None
+                        else str(getattr(daily_log, CLOSURE_ACTUAL_FIELD[category]))
+                    )
+                    for category in by_category
+                },
+            )
+        )
+        repository.replace_calibration_factors(
+            session,
+            on_date=on_date,
+            meal_type=meal_type,
+            cooking_method=method,
+            source=CalibrationSource.DAILY_CLOSURE,
+            coefficients=encoded,
+            basis_note=(
+                f"当日实际用量 ÷ 配方推算用量；"
+                f"{method.label}："
+                + "、".join(
+                    f"{category.label} {quantize(theoretical_g, 1)}g"
+                    for category, theoretical_g in by_category.items()
+                )
+            ),
+        )
+
+    calibrated_rows = _store_calibrated_day(
+        session,
+        on_date=on_date,
+        meal_type=meal_type,
+        recipes=recipes,
+        log_items=log_items,
+        diner_count=daily_log.diner_count,
+        factors_by_method=factors_by_method,
+    )
+    session.commit()
+    logger.info("当日闭环校准完成：%s", rows and f"{len(rows)} 类烹饪方式")
+    return ClosureReport(
+        date=on_date,
+        meal_type=meal_type,
+        factors=rows,
+        calibrated_rows=calibrated_rows,
+        note=(
+            "系数 = 当日实际用量 ÷ 按配方推算的用量，只作用在调味料贡献上；"
+            "食材部分保持不变。酱油、淀粉等不逐日采集的调味料不参与校准。"
+        ),
+    )
+
+
+def _store_calibrated_day(
+    session: Session,
+    *,
+    on_date: date,
+    meal_type: MealType,
+    recipes: dict[UUID, engine.DishRecipe],
+    log_items: dict[UUID, Any],
+    diner_count: int,
+    factors_by_method: dict[CookingMethod, engine.CalibrationFactors],
+) -> int:
+    """把校准后的单份与人均结果落库，逐条与理论值并存，便于对比。"""
+    rows = 0
+    for dish_id, recipe in recipes.items():
+        base = engine.compute_theoretical_per_serving(recipe)
+        factors = factors_by_method.get(recipe.cooking_method)
+        if factors is None:
+            continue
+        per_serving = engine.apply_calibration(base, factors)
+        uncertainty = _uncertainty_payload(per_serving, missing_nutrients=base.missing_nutrients)
+        trace = {
+            **base.trace,
+            "layer": "当日闭环校准",
+            "calibration": {
+                "source": CalibrationSource.DAILY_CLOSURE.value,
+                "coefficients": {
+                    category.value: str(value) for category, value in factors.by_category.items()
+                },
+                "applies_to": "调味料贡献；食材部分不变",
+                "theoretical_per_serving": base.per_serving.as_trace(),
+            },
+        }
+        repository.upsert_dish_nutrition(
+            session,
+            dish_id=dish_id,
+            on_date=on_date,
+            meal_type=meal_type,
+            caliber=NutrientCaliber.PER_SERVING,
+            value_type=NutritionValueType.CALIBRATED,
+            nutrients=per_serving,
+            uncertainty=uncertainty,
+            trace=trace,
+            source_note=SOURCE_NOTE_CALIBRATED,
+        )
+        rows += 1
+
+        item = log_items.get(dish_id)
+        if item is None:
+            continue
+        rows += 1
+        _store_per_capita(
+            session,
+            on_date=on_date,
+            meal_type=meal_type,
+            dish_id=dish_id,
+            per_serving=per_serving,
+            source_trace=trace,
+            missing_nutrients=base.missing_nutrients,
+            servings_produced=item.servings_produced,
+            leftover_ratio=item.leftover_ratio,
+            diner_count=diner_count,
+            value_type=NutritionValueType.CALIBRATED,
+            source_note=SOURCE_NOTE_CALIBRATED_CAPITA,
+        )
+    session.flush()
+    return rows
+
+
 def preview_per_serving(session: Session, dish_ids: Sequence[UUID]) -> dict[UUID, NutrientVector]:
     """按当前配方现算单份营养，**不落库**。
 
@@ -183,6 +407,8 @@ def _store_per_capita(
     servings_produced: Decimal,
     leftover_ratio: Decimal | None,
     diner_count: int,
+    value_type: NutritionValueType = NutritionValueType.THEORETICAL,
+    source_note: str = SOURCE_NOTE_PER_CAPITA,
 ) -> str:
     per_capita = engine.compute_theoretical_per_capita(
         per_serving,
@@ -214,13 +440,13 @@ def _store_per_capita(
         on_date=on_date,
         meal_type=meal_type,
         caliber=NutrientCaliber.PER_CAPITA,
-        value_type=NutritionValueType.THEORETICAL,
+        value_type=value_type,
         nutrients=per_capita,
         uncertainty=_uncertainty_payload(
             per_capita, missing_nutrients=missing_nutrients, extra_tolerance=extra
         ),
         trace=trace,
-        source_note=SOURCE_NOTE_PER_CAPITA,
+        source_note=source_note,
     )
 
 

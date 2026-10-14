@@ -16,10 +16,11 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Sequence
 from datetime import date
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.modules.collection.models import DailyLog, DailyLogItem
@@ -34,9 +35,15 @@ from app.modules.nutrition.engine import (
     RecipeSeasoningLine,
     SeasoningInput,
 )
-from app.modules.nutrition.models import DishNutrition
+from app.modules.nutrition.models import CalibrationFactor, DishNutrition
 from app.modules.seasoning.models import Seasoning
-from app.shared.enums import MealType, NutrientCaliber, NutritionValueType
+from app.shared.enums import (
+    CalibrationSource,
+    CookingMethod,
+    MealType,
+    NutrientCaliber,
+    NutritionValueType,
+)
 
 
 def _to_ingredient_input(ingredient: Ingredient) -> IngredientInput:
@@ -231,5 +238,74 @@ def count_nutritions(
                 DishNutrition.caliber == caliber,
                 DishNutrition.value_type == value_type,
             )
+        ).all()
+    )
+
+
+def replace_calibration_factors(
+    session: Session,
+    *,
+    on_date: date,
+    meal_type: MealType,
+    cooking_method: CookingMethod,
+    source: CalibrationSource,
+    coefficients: dict[str, Decimal],
+    dish_id: UUID | None = None,
+    basis_note: str | None = None,
+    created_by: UUID | None = None,
+) -> None:
+    """写入一组系数。
+
+    同一 (日期, 餐次, 烹饪方式, 来源, 菜品) 只保留一行——**替换语义由这里保证**，
+    而不是靠数据库唯一约束：抽样那天可能测同一烹饪方式的几道菜，各带自己的
+    `dish_id`，用唯一约束反而卡住了正当用法。
+    """
+    conditions = [
+        CalibrationFactor.date == on_date,
+        CalibrationFactor.meal_type == meal_type,
+        CalibrationFactor.cooking_method == cooking_method,
+        CalibrationFactor.source == source,
+        CalibrationFactor.dish_id.is_(None)
+        if dish_id is None
+        else CalibrationFactor.dish_id == dish_id,
+    ]
+    session.execute(delete(CalibrationFactor).where(*conditions))
+    session.add(
+        CalibrationFactor(
+            date=on_date,
+            meal_type=meal_type,
+            cooking_method=cooking_method,
+            source=source,
+            coefficients=coefficients,
+            dish_id=dish_id,
+            basis_note=basis_note,
+            created_by=created_by,
+        )
+    )
+    session.flush()
+
+
+def load_calibration_factors(
+    session: Session, *, on_date: date, meal_type: MealType
+) -> list[CalibrationFactor]:
+    return list(
+        session.scalars(
+            select(CalibrationFactor)
+            .where(
+                CalibrationFactor.date == on_date,
+                CalibrationFactor.meal_type == meal_type,
+            )
+            .order_by(CalibrationFactor.source, CalibrationFactor.cooking_method)
+        ).all()
+    )
+
+
+def latest_calibration_factors(session: Session, *, dish_id: UUID) -> list[CalibrationFactor]:
+    """某道菜身上最新的抽样纠偏系数（含只针对烹饪方式的那些）。"""
+    return list(
+        session.scalars(
+            select(CalibrationFactor)
+            .where(CalibrationFactor.dish_id == dish_id)
+            .order_by(CalibrationFactor.date.desc())
         ).all()
     )
