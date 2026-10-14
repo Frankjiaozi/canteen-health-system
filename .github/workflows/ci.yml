@@ -49,11 +49,14 @@ jobs:
       - name: 类型检查
         working-directory: apps/api
         run: python -m mypy app
-      - name: 应用迁移并校验模型与迁移一致
+      - name: 准备数据库
         working-directory: apps/api
         run: |
           python -m alembic upgrade head
           python -m alembic check
+          # 公开大屏、看板与营养结果的用例依赖算好的结果，这一步不能省
+          python -m app.db.seed
+          python -m app.modules.nutrition.compute
       - name: 测试
         working-directory: apps/api
         run: python -m pytest
@@ -154,6 +157,8 @@ jobs:
         run: |
           python -m alembic upgrade head
           python -m app.db.seed
+          # 公开大屏要读 dish_nutritions，缺了这步大屏上没有任何菜品
+          python -m app.modules.nutrition.compute
       - name: 安装浏览器
         run: pnpm --filter @canteen/web exec playwright install --with-deps chromium
       - name: 运行端到端测试

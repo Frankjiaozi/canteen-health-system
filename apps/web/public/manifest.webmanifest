@@ -1,0 +1,12 @@
+{
+  "name": "知味 · 校园智慧膳食平台",
+  "short_name": "知味",
+  "description": "营养核算、采购预测与决策支持",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a1a33",
+  "theme_color": "#1677ff",
+  "lang": "zh-CN",
+  "scope": "/",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
