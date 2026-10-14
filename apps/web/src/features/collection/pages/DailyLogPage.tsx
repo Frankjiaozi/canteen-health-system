@@ -3,6 +3,7 @@ import dayjs from 'dayjs';
 import { useEnumOptions } from '@/shared/hooks/useEnumOptions';
 import { useDateMealSelection } from '@/shared/hooks/useDateMealSelection';
 import { DailyLogForm } from '../components/DailyLogForm';
+import { PendingQueue } from '../components/PendingQueue';
 import { RecentLogs } from '../components/RecentLogs';
 import { useDailyLogSheet } from '../hooks/useCollection';
 import type { MealType } from '../types';
@@ -15,6 +16,7 @@ export function DailyLogPage() {
 
   return (
     <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+      <PendingQueue />
       <Card
         title="每日采集"
         extra={

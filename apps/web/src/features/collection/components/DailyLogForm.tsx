@@ -41,7 +41,7 @@ export function DailyLogForm({ onDate, sheet }: DailyLogFormProps) {
   const [rows, setRows] = useState<SheetRow[]>(() => initialRows(sheet));
   const { data: user } = useCurrentUser();
   const { data: enumOptions } = useEnumOptions();
-  const saveMutation = useSaveSheet(onDate);
+  const saveMutation = useSaveSheet(onDate, sheet.meal_type);
   const canWrite = canWriteBusinessData(user);
 
   const patchRow = (dishId: string, patch: Partial<SheetRow>) => {
@@ -51,7 +51,13 @@ export function DailyLogForm({ onDate, sheet }: DailyLogFormProps) {
   };
 
   const handleSubmit = async () => {
-    const values = await form.validateFields();
+    let values: SheetFormValues;
+    try {
+      values = await form.validateFields();
+    } catch {
+      // 校验不通过时 AntD 已经把错误渲染在对应字段下面了，这里不必再提示一遍
+      return;
+    }
     const problem = validateSheet(values, rows);
     if (problem) {
       // 校验失败不静默：直接在表单顶部给出能照做的提示
@@ -59,7 +65,12 @@ export function DailyLogForm({ onDate, sheet }: DailyLogFormProps) {
       form.setFields([{ name: 'dinerCount', errors: [problem] }]);
       return;
     }
-    await saveMutation.mutateAsync(buildSavePayload(values, rows));
+    try {
+      await saveMutation.mutateAsync(buildSavePayload(values, rows));
+    } catch {
+      // 失败提示与「存入本地队列」都在 mutation 的 onError 里完成；
+      // 这里只是别让这个 rejection 漏到控制台，看着像出了别的问题
+    }
   };
 
   const selectedCount = rows.filter((row) => row.selected).length;

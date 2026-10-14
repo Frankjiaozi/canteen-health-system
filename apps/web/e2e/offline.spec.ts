@@ -10,8 +10,9 @@ test('断网时给出明确提示，恢复后提示消失', async ({ page, conte
 
   await context.setOffline(true);
   await expect(page.getByText('网络已断开')).toBeVisible();
-  // 如实说明「提交不了」，而不是假装成功
-  await expect(page.getByText(/暂时无法提交/)).toBeVisible();
+  // 如实说明两件事：采集页的录入不会丢（会进本地队列），其他页面的修改确实提交不了
+  await expect(page.getByText(/采集页可以继续录入/)).toBeVisible();
+  await expect(page.getByText(/其他页面的修改暂时提交不了/)).toBeVisible();
 
   await context.setOffline(false);
   await expect(page.getByText('网络已断开')).toHaveCount(0);

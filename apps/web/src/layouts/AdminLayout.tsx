@@ -15,6 +15,7 @@ import { App, Avatar, Button, Layout, Menu, Space, Tag, Tooltip, Typography } fr
 import type { ReactNode } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useCurrentUser, useLogout } from '@/features/auth/hooks/useAuth';
+import { usePendingCount, useSyncOfflineQueue } from '@/features/collection/hooks/useOfflineQueue';
 import { OfflineNotice } from '@/shared/components/OfflineNotice';
 import { SYSTEM_MODULES } from '@/shared/config/modules';
 import { ApiError } from '@/shared/api/errors';
@@ -39,6 +40,9 @@ export function AdminLayout() {
   const location = useLocation();
   const { data: user } = useCurrentUser();
   const logoutMutation = useLogout();
+  // 待同步的采集单挂在应用外壳上补交：录入员停在任何管理页都会自动补上
+  useSyncOfflineQueue();
+  const pendingCount = usePendingCount();
 
   const menuItems = SYSTEM_MODULES.filter((module) => module.requiresAuth).map((module) => ({
     key: module.path,
@@ -113,7 +117,7 @@ export function AdminLayout() {
         </Header>
 
         <Content style={{ padding: 16 }}>
-          <OfflineNotice />
+          <OfflineNotice pendingCount={pendingCount} />
           <Outlet />
         </Content>
       </Layout>
