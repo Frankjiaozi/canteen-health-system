@@ -33,9 +33,10 @@ from app.modules.dish.schemas import (
     RecipeUpdateResult,
 )
 from app.modules.nutrition import service as nutrition_service
+from app.modules.nutrition.engine import NutrientVector
 from app.modules.nutrition.models import DishNutrition
 from app.shared.decimals import scale_field, snapshot
-from app.shared.enums import AuditAction, DishCategory
+from app.shared.enums import AuditAction, DishCategory, NutritionValueType
 
 logger = get_logger(__name__)
 
@@ -82,9 +83,9 @@ def list_dishes(
         page=page,
         page_size=page_size,
     )
-    nutrition = repository.latest_per_serving_nutrition(session, [row.id for row in rows])
+    summaries = _summaries(session, rows)
     return DishPage(
-        items=[to_read(row, _summary(nutrition.get(row.id))) for row in rows],
+        items=[to_read(row, summaries.get(row.id)) for row in rows],
         total=total,
         page=page,
         page_size=page_size,
@@ -100,14 +101,31 @@ def get_dish(session: Session, dish_id: UUID) -> Dish:
 
 def get_dish_detail(session: Session, dish_id: UUID) -> DishDetail:
     dish = get_dish(session, dish_id)
-    nutrition = repository.latest_per_serving_nutrition(session, [dish.id])
-    base = to_read(dish, _summary(nutrition.get(dish.id)))
+    base = to_read(dish, _summaries(session, [dish]).get(dish.id))
     return DishDetail(**base.model_dump(), recipe=_read_recipe(session, [dish.id])[dish.id])
 
 
-def _summary(row: DishNutrition | None) -> NutritionSummary | None:
-    if row is None:
-        return None
+def _summaries(session: Session, dishes: Sequence[Dish]) -> dict[UUID, NutritionSummary]:
+    """批量装配列表里的单份营养摘要。
+
+    优先读落库的快照——那才是可追溯的正式结果。菜品要是从没被排进过菜单，
+    就没有快照可读，这时按当前配方现算一份预览：配方录完就能看到数值，
+    不必等到第一次供应之后。两者都不成立（没有配方明细）时返回空，
+    界面显示「无配方」，而不是一个看起来像 0 的假值。
+    """
+    if not dishes:
+        return {}
+
+    stored = repository.latest_per_serving_nutrition(session, [dish.id for dish in dishes])
+    summaries = {dish_id: _stored_summary(row) for dish_id, row in stored.items()}
+
+    missing = [dish.id for dish in dishes if dish.id not in stored]
+    for dish_id, nutrients in nutrition_service.preview_per_serving(session, missing).items():
+        summaries[dish_id] = _preview_summary(nutrients)
+    return summaries
+
+
+def _stored_summary(row: DishNutrition) -> NutritionSummary:
     return NutritionSummary(
         date=row.date,
         value_type=row.value_type.value,
@@ -116,6 +134,18 @@ def _summary(row: DishNutrition | None) -> NutritionSummary | None:
         fat_g=str(row.fat_g),
         carb_g=str(row.carb_g),
         sodium_mg=str(row.sodium_mg),
+    )
+
+
+def _preview_summary(nutrients: NutrientVector) -> NutritionSummary:
+    return NutritionSummary(
+        date=None,
+        value_type=NutritionValueType.THEORETICAL.value,
+        energy_kcal=str(nutrients.energy_kcal),
+        protein_g=str(nutrients.protein_g),
+        fat_g=str(nutrients.fat_g),
+        carb_g=str(nutrients.carb_g),
+        sodium_mg=str(nutrients.sodium_mg),
     )
 
 

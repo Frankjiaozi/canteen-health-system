@@ -1080,14 +1080,17 @@ export interface components {
         };
         /**
          * NutritionSummary
-         * @description 列表里展示的单份营养摘要，取自最近一次计算结果。
+         * @description 列表里展示的单份营养摘要。
+         *
+         *     `date` 有值表示读的是落库快照，它属于某一餐；这道菜要是从没被排进过菜单，
+         *     数值就是按当前配方现算的预览，不属于任何一天，因此 `date` 为空。
          */
         NutritionSummary: {
             /**
              * Date
-             * Format: date
+             * @description 所属日期；按当前配方现算的预览为空
              */
-            date: string;
+            date?: string | null;
             /** Value Type */
             value_type: string;
             /** Energy Kcal */

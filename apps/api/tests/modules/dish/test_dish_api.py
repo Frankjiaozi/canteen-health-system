@@ -65,6 +65,10 @@ def test_create_without_recipe_has_no_nutrition(as_recorder: TestClient) -> None
     assert body["recipe_version"] == 1
     assert body["recipe"]["ingredients"] == []
 
+    # 没有配方明细就没有可算的东西：列表里也应当是空，而不是一个像 0 的假值
+    listed = as_recorder.get(BASE, params={"keyword": body["name"]}).json()["items"][0]
+    assert listed["nutrition"] is None
+
 
 def test_create_with_recipe_computes_nutrition(as_recorder: TestClient) -> None:
     name = f"测试菜品-{uuid4().hex[:8]}"
@@ -85,6 +89,19 @@ def test_create_with_recipe_computes_nutrition(as_recorder: TestClient) -> None:
 
     assert body["recipe"]["ingredients"][0]["ingredient_name"] == "大米"
     assert body["recipe_version"] == 1
+    # 大米 80 克、无调味料 → 0.8 × 346；种子里的米饭是同一个配方，两个值必须一致
+    rice = as_recorder.get(BASE, params={"keyword": "米饭"}).json()["items"][0]
+    assert rice["nutrition"]["date"] is not None, "米饭在演示历史里供应过，读的是落库快照"
+    assert body["nutrition"]["energy_kcal"] == rice["nutrition"]["energy_kcal"] == "276.80"
+    # 现算的预览不属于任何一天，所以没有日期——它只用于列表摘要，不是可追溯的正式结果
+    assert body["nutrition"]["date"] is None
+
+    # 列表里同样要看得到：建库的人录完配方就要能核对数值，
+    # 而不是等到这道菜第一次被排进菜单
+    listed = as_recorder.get(BASE, params={"keyword": name}).json()
+    assert listed["total"] == 1
+    assert listed["items"][0]["nutrition"]["energy_kcal"] == "276.80"
+    assert listed["items"][0]["nutrition"]["date"] is None
 
 
 def test_recipe_requires_at_least_one_ingredient(as_recorder: TestClient) -> None:

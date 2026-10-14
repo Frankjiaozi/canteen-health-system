@@ -10,6 +10,12 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.shared.enums import CookingMethod, DishCategory
 
+#: 字段名与类型同名时，Pydantic 解析注解用的是「模块全局 + 类命名空间」，
+#: 于是 `date: date | None = Field(...)` 会读到类里那个默认值，报 FieldInfo | None。
+#: 这里给日期类型留一个别名，绕开同名冲突（`datetime.date` 也不行：
+#: 在类 `datetime` 上取 `.date` 拿到的是同名方法）。
+DateType = date
+
 
 class RecipeIngredientLine(BaseModel):
     """配方里的一行食材。"""
@@ -121,9 +127,13 @@ class RecipeRead(BaseModel):
 
 
 class NutritionSummary(BaseModel):
-    """列表里展示的单份营养摘要，取自最近一次计算结果。"""
+    """列表里展示的单份营养摘要。
 
-    date: date
+    `date` 有值表示读的是落库快照，它属于某一餐；这道菜要是从没被排进过菜单，
+    数值就是按当前配方现算的预览，不属于任何一天，因此 `date` 为空。
+    """
+
+    date: DateType | None = Field(default=None, description="所属日期；按当前配方现算的预览为空")
     value_type: str
     energy_kcal: str
     protein_g: str

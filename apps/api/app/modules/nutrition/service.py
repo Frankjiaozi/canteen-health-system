@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -151,6 +152,23 @@ def recompute_dish_nutrition(session: Session, dish_id: UUID) -> ComputeReport:
         )
     session.commit()
     return total
+
+
+def preview_per_serving(session: Session, dish_ids: Sequence[UUID]) -> dict[UUID, NutrientVector]:
+    """按当前配方现算单份营养，**不落库**。
+
+    服务的是「还没被排进过菜单」的菜品：它没有 `dish_nutritions` 快照可读，
+    但配方已经能算出营养值。单份理论值只取决于配方本身，与「哪天供应」无关，
+    所以这里算出来的与将来落库的结果一致；区别只在于没有日期，也就不可追溯，
+    因此只用于列表摘要这种即时展示，不作为正式结果。
+    """
+    previews: dict[UUID, NutrientVector] = {}
+    for dish_id, recipe in repository.load_recipes(session, dish_ids).items():
+        if not recipe.ingredients and not recipe.seasonings:
+            # 没有配方明细就没有可算的东西，交给上层显示「无配方」
+            continue
+        previews[dish_id] = engine.compute_theoretical_per_serving(recipe).per_serving
+    return previews
 
 
 def _store_per_capita(

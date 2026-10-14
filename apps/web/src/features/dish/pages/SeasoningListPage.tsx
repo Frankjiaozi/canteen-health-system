@@ -43,8 +43,16 @@ interface SeasoningFormValues {
   note: string | null;
 }
 
-function toDecimalString(value: number | null, digits: number): string | null {
-  if (value === null || Number.isNaN(value)) return null;
+/**
+ * 数值转字符串时固定小数位，避免 25.5 与 25.50 两种写法混进库里。
+ *
+ * 表单里没填过的数字字段给到的是 `undefined` 而不是 `null`：漏判它会在
+ * 「只填了名称与类别」这种最常见的用法上直接抛异常，整条提交静默失败。
+ */
+function toDecimalString(value: number | null | undefined, digits: number): string | null {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return null;
+  }
   return value.toFixed(digits);
 }
 
