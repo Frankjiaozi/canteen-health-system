@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.core.errors import ForbiddenError
 from app.core.security import create_access_token
 from app.db.session import get_session
 from app.modules.auth import service
@@ -44,6 +45,9 @@ def register(
     response: Response,
     session: Session = Depends(get_session),
 ) -> AuthUser:
+    if not get_settings().allow_open_registration:
+        # 关掉时给一句能照做的话，而不是干巴巴的 403
+        raise ForbiddenError("系统已关闭自助注册，请找管理员开通账号")
     user = service.register(session, payload)
     service.record_login(session, user)
     session.commit()

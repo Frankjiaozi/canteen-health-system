@@ -74,7 +74,30 @@ COOKIE_SECURE=true
 
 否则浏览器不会在加密连接上回传登录凭证，表现为「登录成功但一刷新就掉线」。
 
-## 五、日常运维
+## 五、自助注册开关
+
+系统支持访客自行注册账号，但**学校内网正式部署必须关掉**。
+
+```dotenv
+# infra/.env
+# false = 关闭自助注册，账号一律由管理员开通（内网正式部署用这个）
+# true  = 开放注册，访客可自行注册「食堂录入员」账号（演示用）
+ALLOW_OPEN_REGISTRATION=false
+```
+
+关闭时 `POST /api/v1/auth/register` 返回 403，并明确提示「系统已关闭自助注册，请找管理员开通账号」——注册页面在页面上把这句原样显示给使用者，不会只剩一个看不懂的报错。
+
+**为什么默认关。** 自助注册出来的账号角色是「食堂录入员」，而这个角色能写食材库、菜品配方、调味料库，还能批量导入 Excel。也就是说，只要拿到网址，任何人都能给自己开一个能改**配方库**的账号——而配方库是全系统最需要人工投入、也最不能出错的数据。所以这一项的默认值是 `false`（fail-closed）：忘了配，也不会把写权限敞出去。
+
+**演示时怎么开。** 把上面那个值改成 `true`，或者启动时直接给容器传环境变量：
+
+```bash
+ALLOW_OPEN_REGISTRATION=true docker compose -f infra/docker-compose.yml up -d
+```
+
+改完不需要重建镜像，重启 `api` 容器即可生效。
+
+## 六、日常运维
 
 ```bash
 pnpm docker:logs                       # 看日志
@@ -90,7 +113,7 @@ docker run --rm -v canteen-pg:/data -v "$PWD:/backup" alpine \
   tar czf /backup/canteen-pg-$(date +%F).tar.gz -C /data .
 ```
 
-## 六、演示环境与生产环境的差异
+## 七、演示环境与生产环境的差异
 
 | 项 | 演示 | 生产 |
 | --- | --- | --- |
@@ -98,6 +121,7 @@ docker run --rm -v canteen-pg:/data -v "$PWD:/backup" alpine \
 | `DEBUG` | `true`（打印 SQL 与详细日志） | `false` |
 | `POSTGRES_PASSWORD` / `JWT_SECRET` | 内置默认值 | 必须替换 |
 | `COOKIE_SECURE` | `false` | 有 HTTPS 时必须为 `true` |
+| `ALLOW_OPEN_REGISTRATION` | `true`（方便现场注册试用） | **必须为 `false`**，账号由管理员开通 |
 | 种子脚本 | 可直接执行 | 需要 `ALLOW_DEMO_SEED=true` 显式放行 |
 
 种子脚本会写入口令已知的演示账号，因此生产环境默认拒绝执行；

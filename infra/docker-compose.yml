@@ -45,6 +45,8 @@ services:
       JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-480}
       # 通过 HTTPS 部署时置为 true，让浏览器只在加密连接上回传登录 Cookie
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      # 内网正式部署默认关闭自助注册，账号由管理员开通
+      ALLOW_OPEN_REGISTRATION: ${ALLOW_OPEN_REGISTRATION:-false}
     # 先跑迁移再起服务：单机自部署场景下，这样最不容易漏步骤
     command:
       - sh

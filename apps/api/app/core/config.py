@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 480
     cookie_name: str = "canteen_token"
     cookie_secure: bool = False
+    #: 自助注册开关。演示环境开着（访客可自行注册录入员账号），
+    #: 学校内网正式部署时应当关掉，账号一律由管理员开通。
+    #: 默认关（fail-closed）：忘了配也不会把写权限敞给拿到网址的人。
+    allow_open_registration: bool = False
 
     # ---- 跨域 ----
     # 开发期前端走 Vite 代理访问后端，同源即可；生产由 nginx 反代，通常留空

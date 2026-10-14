@@ -34,6 +34,7 @@ jobs:
       DATABASE_URL: postgresql+psycopg://canteen:canteen@127.0.0.1:5432/canteen
       JWT_SECRET: ci-only-secret
       APP_ENV: test
+      ALLOW_OPEN_REGISTRATION: 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -137,6 +138,7 @@ jobs:
       DATABASE_URL: postgresql+psycopg://canteen:canteen@127.0.0.1:5432/canteen
       JWT_SECRET: ci-only-secret
       APP_ENV: test
+      ALLOW_OPEN_REGISTRATION: 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
