@@ -49,17 +49,53 @@ def test_same_weekday_average_ignores_other_weekdays() -> None:
     assert baseline == Decimal(400)
 
 
-def test_holiday_and_makeup_workday_adjustments() -> None:
+def test_holiday_and_makeup_workday_are_handled_differently() -> None:
+    """放假是整体下调；调休上班不是乘系数，而是**换一套基线**。
+
+    调休那天多半落在周末，而周末的基线本身就是错的——调休的周日是要上班的，
+    拿其它周日的历史去估会低一大截。
+    """
     day = date(2026, 10, 1)
     holidays = {day: HolidayKind.HOLIDAY, date(2026, 10, 10): HolidayKind.WORKDAY}
 
-    down, note = strategy.day_adjustment(day, holidays)
-    up, workday_note = strategy.day_adjustment(date(2026, 10, 10), holidays)
-    flat, none_note = strategy.day_adjustment(date(2026, 10, 7), holidays)
+    holiday = strategy.day_context(day, holidays)
+    workday = strategy.day_context(date(2026, 10, 10), holidays)
+    normal = strategy.day_context(date(2026, 10, 13), holidays)
 
-    assert down < Decimal("1") and "法定假日" in (note or "")
-    assert up > Decimal("1") and "调休" in (workday_note or "")
-    assert flat == Decimal("1") and none_note is None
+    assert holiday.factor < Decimal("1") and "法定假日" in (holiday.note or "")
+    assert holiday.use_workday_baseline is False
+    assert workday.use_workday_baseline is True and "调休" in (workday.note or "")
+    assert workday.factor == Decimal("1"), "调休上班日就是工作日，不该再乘周末折减"
+    assert normal.factor == Decimal("1") and normal.note is None
+
+
+def test_makeup_workday_uses_a_workday_baseline() -> None:
+    """2026-10-10 是调休上班的周六：必须按工作日的量级估，而不是按周六。
+
+    这一天按普通周六算会低一半——调休那天人是来上班的。
+    """
+    start = date(2026, 8, 3)  # 周一
+    history: list[strategy.HistoryPoint] = []
+    for day_offset in range(70):
+        day = start + timedelta(days=day_offset)
+        if day.weekday() >= 5:
+            continue  # 只放工作日的历史：工作日 900，与演示数据里周末低、工作日高一致
+        history.append(strategy.HistoryPoint(day, Decimal("900")))
+    # 星期六一向只有工作日的一半
+    profile = {index: (Decimal("1") if index < 5 else Decimal("0.5")) for index in range(7)}
+
+    target = date(2026, 10, 10)  # 周六，但国务院通知里是调休上班日
+    calendar = {target: HolidayKind.WORKDAY}
+
+    plain = strategy.forecast_dish(history, target=target, profile=profile)
+    adjusted = strategy.forecast_dish(
+        history, target=target, context=strategy.day_context(target, calendar), profile=profile
+    )
+
+    assert plain is not None and adjusted is not None
+    assert Decimal("850") < adjusted.predicted < Decimal("950"), "调休上班日应当按工作日的量级"
+    assert adjusted.predicted > plain.predicted * Decimal("1.5"), "不能按普通周六估"
+    assert adjusted.calendar_note is not None and "调休" in adjusted.calendar_note
 
 
 def test_short_history_yields_no_prediction() -> None:
@@ -176,13 +212,22 @@ def test_backtest_only_uses_history_before_the_day(
     assert body["start"] < body["end"]
 
 
-def test_holidays_are_listed_as_unverified(as_recorder: TestClient) -> None:
+def test_calendar_matches_the_official_notice(as_recorder: TestClient) -> None:
+    """日历逐条取自国务院办公厅 2026 年放假安排通知，且放假与调休都在。"""
     body = as_recorder.get(f"{BASE}/holidays", params={"year": 2026}).json()
 
-    assert len(body["items"]) == 7
-    assert body["unverified_count"] == 7
-    assert all(item["is_verified"] is False for item in body["items"])
-    assert "国务院办公厅" in body["note"], "必须说清以什么为准"
+    holidays = [item for item in body["items"] if item["kind"] == "HOLIDAY"]
+    workdays = [item for item in body["items"] if item["kind"] == "WORKDAY"]
+    # 通知原文：3+9+3+5+3+3+7 = 33 天放假；1+2+1+2 = 6 天调休上班
+    assert len(holidays) == 33
+    assert len(workdays) == 6
+    assert body["unverified_count"] == 0, "已经按通知核对过，不该再有待核对条目"
+    assert "国办发明电" in body["items"][0]["source_note"]
+
+    # 抽查通知里的原话：元旦 1/1 起放假、1/4 上班；国庆 10/10 上班
+    dates = {item["date"] for item in body["items"]}
+    assert {"2026-01-01", "2026-01-03", "2026-01-04", "2026-10-10", "2026-02-23"} <= dates
+    assert "2026-01-04" in {item["date"] for item in workdays}
 
 
 def test_holiday_can_be_verified_and_a_makeup_day_added(

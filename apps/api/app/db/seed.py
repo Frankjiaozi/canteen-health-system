@@ -1250,10 +1250,7 @@ def seed_history(
     today = datetime.now(settings.timezone).date()
     # 日历从库里读，种子不再自己抄一份：两处各写一份迟早会对不上，
     # 而一旦对不上，回测测出来的是两者的差，不是模型的准头。
-    holiday_days = {
-        row.date
-        for row in session.scalars(select(Holiday).where(Holiday.kind == HolidayKind.HOLIDAY)).all()
-    }
+    calendar = {row.date: row.kind for row in session.scalars(select(Holiday)).all()}
 
     for offset in range(days - 1, -1, -1):
         day = today - timedelta(days=offset)
@@ -1266,8 +1263,11 @@ def seed_history(
         # 节假日当天的在校人数确实会掉下来。种子里必须体现这一点，
         # 否则「历史按普通日子生成、预测却按节假日折减」，回测会平白多出一大截误差——
         # 那不是模型的错，是演示数据自相矛盾。
-        holiday_factor = _HOLIDAY_DINER_FACTOR if day in holiday_days else 1.0
-        weekday_factor = _WEEKEND_DINER_FACTOR if day.weekday() >= 5 else 1.0
+        kind = calendar.get(day)
+        holiday_factor = _HOLIDAY_DINER_FACTOR if kind is HolidayKind.HOLIDAY else 1.0
+        # 调休上班的周末要按工作日算：那天是要上班的，不能套周末的折减
+        is_weekend = day.weekday() >= 5 and kind is not HolidayKind.WORKDAY
+        weekday_factor = _WEEKEND_DINER_FACTOR if is_weekend else 1.0
         diner_count = max(
             1, round((950 + rng.randrange(-120, 121)) * weekday_factor * holiday_factor)
         )

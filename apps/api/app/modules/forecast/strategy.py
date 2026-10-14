@@ -31,9 +31,6 @@ MIN_INTERVAL_RATIO = Decimal("0.10")
 #: 放假日的份数折减。假期留校人数通常只剩一小部分，但食堂仍要开餐，所以不是 0。
 HOLIDAY_FACTOR = Decimal("0.45")
 
-#: 调休上班的周末：人在校，但周末的用餐习惯仍与工作日不同，取一个略高于 1 的系数。
-WORKDAY_FACTOR = Decimal("1.05")
-
 #: 置信区间取几倍标准差。约 95% 对应的 1.96 在样本只有 6 个时偏乐观，取 1.5 更诚实。
 INTERVAL_SIGMA = Decimal("1.5")
 
@@ -61,19 +58,39 @@ class ForecastResult:
     basis: str
 
 
-def day_adjustment(target: date, holidays: dict[date, HolidayKind]) -> tuple[Decimal, str | None]:
-    """日历修正系数。
+@dataclass(frozen=True, slots=True)
+class DayContext:
+    """当天该按什么口径算。
 
-    放假当天下调、调休上班的周末按工作日处理，其余日子不做修正。
-    系数取的是经验值而不是拟合出来的——第一版不做需求里明确划到范围外的
+    放假与调休不是「乘一个系数」那么简单：
+
+    - **放假日**：人还在校的那部分只是少了很多，所以基线照旧、整体下调。
+    - **调休上班日**：这一天多半落在周末，而**周末的基线本身就是错的**——
+      调休的周日是要上班的，按其它周日的历史去估会低一大截。所以这一天要换成
+      「按工作日的历史算基线」，而不是拿周末基线乘个系数。
+
+    系数取的是经验值而不是拟合出来的：第一版不做需求里明确划到范围外的
     考试周、军训、运动会，也不做天气与季节，这两处都没有稳定数据源。
     """
+
+    factor: Decimal = Decimal("1")
+    note: str | None = None
+    #: 真 = 按工作日的历史算基线（调休上班日）
+    use_workday_baseline: bool = False
+
+
+def day_context(target: date, holidays: dict[date, HolidayKind]) -> DayContext:
     kind = holidays.get(target)
     if kind is HolidayKind.HOLIDAY:
-        return HOLIDAY_FACTOR, f"{target.isoformat()} 为法定假日，在校人数下降"
+        return DayContext(
+            factor=HOLIDAY_FACTOR, note=f"{target.isoformat()} 为法定假日，在校人数下降"
+        )
     if kind is HolidayKind.WORKDAY:
-        return WORKDAY_FACTOR, f"{target.isoformat()} 为调休上班日，按工作日处理"
-    return Decimal("1"), None
+        return DayContext(
+            note=f"{target.isoformat()} 为调休上班日，按工作日的历史估算",
+            use_workday_baseline=True,
+        )
+    return DayContext()
 
 
 def same_weekday_baseline(
@@ -129,8 +146,7 @@ def forecast_dish(
     history: Sequence[HistoryPoint],
     *,
     target: date,
-    adjustment: Decimal = Decimal("1"),
-    calendar_note: str | None = None,
+    context: DayContext | None = None,
     window: int = DEFAULT_WINDOW,
     profile: dict[int, Decimal] | None = None,
 ) -> ForecastResult | None:
@@ -140,29 +156,39 @@ def forecast_dish(
     每隔四五天才出现一次，严格只认同星期几的话，一多半的菜都会因为「同一个星期几
     只出现过一两次」而没有预测。退化这件事会随结果一起报出去，不隐瞒。
     """
+    day = context or DayContext()
     earlier = [point for point in history if point.date < target]
-    exact = [point for point in earlier if point.date.weekday() == target.weekday()]
+    # 调休上班日按工作日的历史估：这一天多半是周末，而周末的基线根本不适用
+    pool = (
+        [point for point in earlier if point.date.weekday() < 5]
+        if day.use_workday_baseline
+        else earlier
+    )
+    exact = [point for point in pool if point.date.weekday() == target.weekday()]
     exact.sort(key=lambda point: point.date)
     samples = tuple(exact[-window:])
     basis = "SAME_WEEKDAY"
     if len(samples) < MIN_SAMPLES:
-        earlier_subject = sorted(earlier, key=lambda point: point.date)[-(window * 2) :]
+        earlier_subject = sorted(pool, key=lambda point: point.date)[-(window * 2) :]
         if len(earlier_subject) < MIN_SAMPLES:
             return None
         samples = tuple(earlier_subject)
         basis = "WEEKDAY_PROFILE"
         fallback = (profile or {}).get(target.weekday(), Decimal("1"))
+        # 调休上班日不需要周末那份折减：它过的就是工作日
+        if day.use_workday_baseline:
+            fallback = Decimal("1")
         baseline = Decimal(str(fmean([float(point.servings) for point in samples]))) * fallback
 
     if basis == "SAME_WEEKDAY":
         baseline = Decimal(str(fmean([float(point.servings) for point in samples])))
 
-    predicted = (baseline * adjustment).quantize(Decimal("0.01"))
+    predicted = (baseline * day.factor).quantize(Decimal("0.01"))
     # 区间来自历史本身的离散程度，外加一个下限：样本一模一样时也不该说「误差为零」
     values = [float(point.servings) for point in samples]
     spread = Decimal(str(pstdev(values))) if len(values) > 1 else Decimal("0")
     half_width = max(
-        (spread * adjustment * INTERVAL_SIGMA).quantize(Decimal("0.01")),
+        (spread * day.factor * INTERVAL_SIGMA).quantize(Decimal("0.01")),
         (predicted * MIN_INTERVAL_RATIO).quantize(Decimal("0.01")),
     )
     return ForecastResult(
@@ -171,8 +197,8 @@ def forecast_dish(
         upper=(predicted + half_width).quantize(Decimal("0.01")),
         samples=samples,
         baseline=baseline.quantize(Decimal("0.01")),
-        adjustment=adjustment,
-        calendar_note=calendar_note,
+        adjustment=day.factor,
+        calendar_note=day.note,
         basis=basis,
     )
 

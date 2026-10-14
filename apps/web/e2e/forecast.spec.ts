@@ -51,7 +51,7 @@ test('回测给出 MAPE 与覆盖天数，并说明为什么天数少于回测�
   await expect(page.getByText(/有足够历史可参照/)).toBeVisible();
 });
 
-test('内置日历逐条标出待核对，并能被标记为已核对', async ({ page }) => {
+test('日历逐条来自国务院办公厅通知，放假与调休都在', async ({ page }) => {
   await page.goto('/login');
   await page.getByLabel('登录名').fill('recorder');
   await page.getByLabel('口令').fill(DEMO_PASSWORD);
@@ -60,14 +60,22 @@ test('内置日历逐条标出待核对，并能被标记为已核对', async ({
 
   await page.goto('/admin/forecast?date=2026-10-15&meal=LUNCH');
 
-  await expect(page.getByText(/条日历未核对/)).toBeVisible();
+  await expect(page.getByText(/全部已核对/)).toBeVisible();
   await expect(page.getByText(/以国务院办公厅通知为唯一依据/)).toBeVisible();
 
-  // 核对一条之后，剩余的未核对条数要跟着减少
-  const before = await page.getByText(/还有 (\d+) 条日历未核对/).innerText();
-  await page.getByRole('button', { name: '标记为已核对' }).first().click();
-  await expect(page.getByText('日历条目已更新')).toBeVisible();
-  await expect(page.getByText(/还有 (\d+) 条日历未核对/)).not.toHaveText(before, {
-    timeout: 10000,
-  });
+  // 通知原文里的两大块都要在：国庆放假（10/1 起）与调休上班（10/10）
+  await expect(page.getByRole('cell', { name: '国庆节放假' }).first()).toBeVisible();
+  await expect(page.getByRole('cell', { name: '国庆节调休上班' }).first()).toBeVisible();
+
+  // 与服务端对账：日历条数与类型分布必须与接口一致
+  const calendar = await (await page.request.get('/api/v1/forecast/holidays?year=2026')).json();
+  const holidays = calendar.items.filter(
+    (item: { kind: string }) => item.kind === 'HOLIDAY',
+  ).length;
+  const workdays = calendar.items.filter(
+    (item: { kind: string }) => item.kind === 'WORKDAY',
+  ).length;
+  expect(holidays).toBe(33);
+  expect(workdays).toBe(6);
+  expect(calendar.unverified_count).toBe(0);
 });

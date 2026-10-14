@@ -53,7 +53,8 @@ def run_forecast(
     """预测某天某一餐每道菜的份数，并汇总出采购建议单。"""
     start = on_date - timedelta(weeks=HISTORY_WEEKS)
     holidays = repository.load_holidays(session, start=start, end=on_date)
-    adjustment, calendar_note = strategy.day_adjustment(on_date, holidays)
+    context = strategy.day_context(on_date, holidays)
+    calendar_note = context.note
 
     history = repository.load_dish_history(session, start=start, end=on_date - timedelta(days=1))
     dishes = repository.load_active_dishes(session)
@@ -77,8 +78,7 @@ def run_forecast(
         result = strategy.forecast_dish(
             [strategy.HistoryPoint(day, servings) for day, servings in points],
             target=on_date,
-            adjustment=adjustment,
-            calendar_note=calendar_note,
+            context=context,
             profile=profile,
         )
         if result is None:
@@ -249,7 +249,7 @@ def backtest(
     all_pairs: list[tuple[Decimal, Decimal]] = []
     for offset in range(days):
         day = start + timedelta(days=offset)
-        adjustment, _ = strategy.day_adjustment(day, holidays)
+        context = strategy.day_context(day, holidays)
         pairs: list[tuple[Decimal, Decimal]] = []
         for dish_history in history.values():
             actual = next((value for when, value in dish_history if when == day), None)
@@ -258,9 +258,7 @@ def backtest(
             earlier = [
                 strategy.HistoryPoint(when, value) for when, value in dish_history if when < day
             ]
-            result = strategy.forecast_dish(
-                earlier, target=day, adjustment=adjustment, profile=profile
-            )
+            result = strategy.forecast_dish(earlier, target=day, context=context, profile=profile)
             if result is not None:
                 pairs.append((actual, result.predicted))
         all_pairs.extend(pairs)
