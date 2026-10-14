@@ -61,6 +61,7 @@ def energy_targets(meal_type: MealType) -> tuple[PlanTarget, tuple[PlanTarget, .
         unit="千卡",
         lower=(full_min * share).quantize(Decimal("1"), rounding=ROUND_HALF_UP),
         upper=(full_max * share).quantize(Decimal("1"), rounding=ROUND_HALF_UP),
+        # 营养区间是**目标**不是硬约束，理由见 PlanTarget 的说明
     )
     macro_targets = tuple(
         _macro_target(field, full_min, full_max, share) for field in ENERGY_RATIOS
@@ -114,6 +115,8 @@ def seasoning_targets(standards: list[NutritionStandard]) -> tuple[PlanTarget, .
                 unit=standard.unit,
                 lower=None,
                 upper=Decimal(standard.target_max),
+                # 油盐糖是**必须卡住的上限**：它们不是「建议比例」，超了就是超了
+                hard=True,
             )
         )
     return tuple(targets)

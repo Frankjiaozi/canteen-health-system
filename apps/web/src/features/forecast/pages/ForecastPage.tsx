@@ -167,7 +167,7 @@ export function ForecastPage() {
                     render: (_, row) => `${formatQuantity(row.quantity)} ${row.unit}`,
                   },
                   {
-                    title: '单价（元/公斤）',
+                    title: '单价（元/公斤市品）',
                     width: 150,
                     align: 'right',
                     render: (_, row) =>

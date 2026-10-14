@@ -67,13 +67,25 @@ class CandidateDish:
 
 @dataclass(frozen=True, slots=True)
 class PlanTarget:
-    """一项指标的区间。`lower` 为空表示只考核上限。"""
+    """一项指标的区间。`lower` 为空表示只考核上限。
+
+    `hard` 决定它是**必须满足的约束**还是**尽量逼近的目标**，两者在模型里的地位完全不同：
+
+    - 硬约束：写进约束条件，越界就是无解。
+    - 目标：进目标函数，按偏离区间中点的相对量罚一笔分；满足不了也不会无解。
+
+    营养区间默认走「目标」而不是硬约束，是实测逼出来的：这套菜谱的蛋白质供能比约 18%，
+    高于指南的 10–15%，于是「能量够到 720」与「蛋白质不超 30 克」互相排斥——
+    两者都当硬约束就是无解。指南的供能比是**建议目标**不是安全上限，
+    而钠、油、糖才是必须卡住的东西，所以后者保持硬约束。
+    """
 
     code: str
     label: str
     unit: str
     lower: Decimal | None
     upper: Decimal | None
+    hard: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,7 +105,10 @@ class PlanConstraints:
     #: 营养上挑不出毛病，但不是一餐饭。
     category_min: dict[DishCategory, int]
     category_max: dict[DishCategory, int]
-    excluded_dish_ids: frozenset[UUID]
+    #: 逐菜份数由外部给定（例如预测份数）。给了就不再由推荐决定份量——
+    #: 份数该由「这道菜明天实际会出多少」决定，那是预测的活，不是配餐的活。
+    fixed_servings: dict[UUID, Decimal] = field(default_factory=dict)
+    excluded_dish_ids: frozenset[UUID] = frozenset()
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,6 +174,15 @@ def solve_menu(
     portions: dict[UUID, pulp.LpVariable] = {}
     for index, dish in enumerate(usable):
         pick[dish.dish_id] = pulp.LpVariable(f"x_{index}", cat="Binary")
+        fixed = constraints.fixed_servings.get(dish.dish_id)
+        if fixed is not None:
+            # 份数已经给定：选了就按这个份数做，不选就是 0。它不再是决策变量，
+            # 于是模型只剩「选哪些菜」这一件事——这正是推荐该回答的问题。
+            portions[dish.dish_id] = pulp.LpVariable(
+                f"s_{index}", lowBound=0, upBound=float(fixed)
+            )
+            problem += portions[dish.dish_id] == float(fixed) * pick[dish.dish_id]
+            continue
         portions[dish.dish_id] = pulp.LpVariable(
             f"s_{index}", lowBound=0, upBound=float(upper_servings)
         )
@@ -178,12 +202,22 @@ def solve_menu(
             continue
         expression = per_capita(field_name)
         scale = float(_scale_of(target))
-        # 区间是**硬约束**：需求要求「生成的菜单满足全部硬约束」，那就不能在解不出来时
-        # 让它悄悄越界。真解不出来时报不可行并指出卡在哪条，比给一份越界的菜单诚实。
-        if target.lower is not None:
-            problem += expression >= float(target.lower)
-        if target.upper is not None:
-            problem += expression <= float(target.upper)
+        if target.hard:
+            # 硬约束：越界即无解，并指出卡在哪条（比悄悄给一份越界的菜单诚实）
+            if target.lower is not None:
+                problem += expression >= float(target.lower)
+            if target.upper is not None:
+                problem += expression <= float(target.upper)
+        else:
+            # 目标：偏离区间多远就罚多少（区间内不罚）。没有区间的单边指标按边界罚。
+            shortfall = pulp.LpVariable(f"lo_{target.code}", lowBound=0)
+            excess = pulp.LpVariable(f"hi_{target.code}", lowBound=0)
+            if target.lower is not None:
+                problem += expression + shortfall >= float(target.lower)
+                slacks.append(shortfall * (float(weight.nutrition) / scale))
+            if target.upper is not None:
+                problem += expression - excess <= float(target.upper)
+                slacks.append(excess * (float(weight.nutrition) / scale))
         # 区间取中而不是贴着下限：只要求「落在区间内」时，求解器会一路踩到边界，
         # 交出一份「刚刚好达标」的菜单。这一项把它拉向区间中间。
         midpoint = _midpoint(target)

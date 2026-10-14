@@ -43,6 +43,9 @@ class Ingredient(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     edible_ratio: Mapped[Decimal] = mapped_column(
         Numeric(5, 4), nullable=False, server_default=text("1.0")
     )
+    #: 单价按**市品重量**计（元 / 公斤），不是可食部单价。
+    #: 买菜按市品付钱、做菜按可食部算营养，两者口径不同不能混：
+    #: 用可食部重量乘市品单价会把成本算低（西兰花低 17%、鲈鱼低 42%）。
     unit_price: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
 
     # 数据来源必须逐条可追溯

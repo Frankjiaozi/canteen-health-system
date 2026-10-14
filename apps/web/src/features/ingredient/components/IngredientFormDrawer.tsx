@@ -169,7 +169,7 @@ export function IngredientFormDrawer({ open, ingredient, onClose }: IngredientFo
           <InputNumber min={0} max={100} precision={2} style={{ width: '100%' }} />
         </Form.Item>
 
-        <Form.Item name="unit_price" label="单价（元/千克）">
+        <Form.Item name="unit_price" label="单价（元/公斤，按市品）">
           <InputNumber min={0} precision={2} style={{ width: '100%' }} />
         </Form.Item>
 

@@ -45,7 +45,11 @@ class MaterialUsage:
 
 
 def load_materials(session: Session) -> dict[UUID, MaterialUsage]:
-    """每道菜的单份用料账。单价是「元 / 公斤」，用量是克，因此算钱时除以 1000。"""
+    """每道菜的单份用料账。
+
+    单价是「元 / 公斤**市品**」，配方用量也是市品重量（克），因此算钱时直接除以 1000——
+    **不乘可食部比例**。可食部只影响营养计算（吃进去的那部分），不影响买菜花的钱。
+    """
     usage: dict[UUID, MaterialUsage] = {}
 
     rows = session.execute(
@@ -55,19 +59,16 @@ def load_materials(session: Session) -> dict[UUID, MaterialUsage]:
             Ingredient.name,
             Ingredient.unit_price,
             RecipeItem.quantity_per_serving_g,
-            RecipeItem.edible_ratio_override,
-            Ingredient.edible_ratio,
         ).join(Ingredient, Ingredient.id == RecipeItem.ingredient_id)
     ).all()
-    for dish_id, ingredient_id, name, price, quantity, override, default_ratio in rows:
+    for dish_id, ingredient_id, name, price, quantity in rows:
         entry = usage.setdefault(dish_id, MaterialUsage())
-        edible = Decimal(quantity) * Decimal(override if override is not None else default_ratio)
         entry.ingredient_ids.add(ingredient_id)
         entry.ingredient_names.append(name)
         if price is None:
             entry.missing_price = True
         else:
-            entry.cost_per_serving += edible / Decimal("1000") * Decimal(price)
+            entry.cost_per_serving += Decimal(quantity) / Decimal("1000") * Decimal(price)
 
     seasoning_rows = session.execute(
         select(
