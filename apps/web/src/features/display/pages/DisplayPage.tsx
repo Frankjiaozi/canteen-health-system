@@ -96,7 +96,9 @@ function Header({ date, mealLabel, dinerCount, loading }: HeaderProps) {
   return (
     <header style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
       <div>
-        <div style={{ fontSize: 30, fontWeight: 600, letterSpacing: 2 }}>食堂健康管理系统</div>
+        <div style={{ fontSize: 30, fontWeight: 600, letterSpacing: 2 }}>
+          知味 · 校园智慧膳食平台
+        </div>
         <div style={{ fontSize: 52, fontWeight: 700, marginTop: 8, lineHeight: 1.1 }}>
           今日菜单与营养
         </div>

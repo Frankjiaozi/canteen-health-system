@@ -10,12 +10,13 @@ import {
   LineChartOutlined,
   LogoutOutlined,
 } from '@ant-design/icons';
-import { Avatar, Button, Layout, Menu, Space, Tag, Tooltip, Typography } from 'antd';
+import { App, Avatar, Button, Layout, Menu, Space, Tag, Tooltip, Typography } from 'antd';
 import type { ReactNode } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useCurrentUser, useLogout } from '@/features/auth/hooks/useAuth';
 import { OfflineNotice } from '@/shared/components/OfflineNotice';
 import { SYSTEM_MODULES } from '@/shared/config/modules';
+import { ApiError } from '@/shared/api/errors';
 
 const { Header, Sider, Content } = Layout;
 
@@ -31,6 +32,7 @@ const MODULE_ICONS: Record<string, ReactNode> = {
 };
 
 export function AdminLayout() {
+  const { message } = App.useApp();
   const navigate = useNavigate();
   const location = useLocation();
   const { data: user } = useCurrentUser();
@@ -43,15 +45,19 @@ export function AdminLayout() {
   }));
 
   const handleLogout = async () => {
-    await logoutMutation.mutateAsync();
-    void navigate('/login', { replace: true });
+    try {
+      await logoutMutation.mutateAsync();
+      void navigate('/login', { replace: true });
+    } catch (error) {
+      void message.error(error instanceof ApiError ? error.message : '退出失败，请稍后重试');
+    }
   };
 
   return (
     <Layout style={{ minHeight: '100%' }}>
       <Sider breakpoint="lg" collapsedWidth={0} theme="light">
         <div style={{ padding: '20px 16px 12px' }}>
-          <Typography.Text strong>食堂健康管理系统</Typography.Text>
+          <Typography.Text strong>知味 · 校园智慧膳食平台</Typography.Text>
         </div>
         <Menu
           mode="inline"
@@ -94,7 +100,11 @@ export function AdminLayout() {
             ) : (
               <Tag icon={<ClockCircleOutlined />}>加载中</Tag>
             )}
-            <Button icon={<LogoutOutlined />} onClick={() => void handleLogout()}>
+            <Button
+              icon={<LogoutOutlined />}
+              loading={logoutMutation.isPending}
+              onClick={() => void handleLogout()}
+            >
               退出
             </Button>
           </Space>

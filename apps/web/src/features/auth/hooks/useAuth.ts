@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchCurrentUser, login, logout } from '../api/authApi';
-import type { AuthUser, LoginPayload } from '../types';
+import { fetchCurrentUser, login, logout, register } from '../api/authApi';
+import type { AuthUser, LoginPayload, RegisterPayload } from '../types';
 
 export const authKeys = {
   me: ['auth', 'me'] as const,
@@ -26,6 +26,18 @@ export function useLogin() {
   return useMutation({
     mutationFn: (payload: LoginPayload) => login(payload),
     onSuccess: (user: AuthUser) => {
+      queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== 'auth' });
+      queryClient.setQueryData(authKeys.me, user);
+    },
+  });
+}
+
+export function useRegister() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: RegisterPayload) => register(payload),
+    onSuccess: (user: AuthUser) => {
+      queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== 'auth' });
       queryClient.setQueryData(authKeys.me, user);
     },
   });

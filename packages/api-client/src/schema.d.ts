@@ -44,6 +44,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 注册录入员账号并登录 */
+        post: operations["register_api_v1_auth_register_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -1334,6 +1351,27 @@ export interface components {
             recomputed_rows: number;
         };
         /**
+         * RegisterRequest
+         * @description 开放注册仅接收基本资料，角色由服务端指定。
+         */
+        RegisterRequest: {
+            /**
+             * Username
+             * @description 登录名，3–32 位字母、数字或下划线，不区分大小写
+             */
+            username: string;
+            /**
+             * Display Name
+             * @description 显示名称
+             */
+            display_name: string;
+            /**
+             * Password
+             * @description 密码，包含字母和数字
+             */
+            password: string;
+        };
+        /**
          * SeasoningCategory
          * @enum {string}
          */
@@ -1655,6 +1693,7 @@ export type SchemaRecipeRead = components['schemas']['RecipeRead'];
 export type SchemaRecipeSeasoningLine = components['schemas']['RecipeSeasoningLine'];
 export type SchemaRecipeSeasoningRead = components['schemas']['RecipeSeasoningRead'];
 export type SchemaRecipeUpdateResult = components['schemas']['RecipeUpdateResult'];
+export type SchemaRegisterRequest = components['schemas']['RegisterRequest'];
 export type SchemaSeasoningCategory = components['schemas']['SeasoningCategory'];
 export type SchemaSeasoningCreate = components['schemas']['SeasoningCreate'];
 export type SchemaSeasoningPage = components['schemas']['SeasoningPage'];
@@ -1714,6 +1753,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    register_api_v1_auth_register_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthUser"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };

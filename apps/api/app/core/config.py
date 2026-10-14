@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     )
 
     # ---- 应用 ----
-    app_name: str = "食堂健康管理系统"
+    app_name: str = "知味 · 校园智慧膳食平台"
     app_env: Literal["development", "test", "production"] = "development"
     debug: bool = False
     # 全系统业务日期与时间戳统一使用该时区

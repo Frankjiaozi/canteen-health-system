@@ -22,7 +22,7 @@ test('PWA 清单可被浏览器获取', async ({ request }) => {
 
   expect(response.status()).toBe(200);
   const manifest = await response.json();
-  expect(manifest.name).toBe('食堂健康管理系统');
+  expect(manifest.name).toBe('知味 · 校园智慧膳食平台');
   expect(manifest.lang).toBe('zh-CN');
   expect(manifest.icons.length).toBeGreaterThan(0);
 });

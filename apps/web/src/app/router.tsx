@@ -21,6 +21,9 @@ const PlaceholderPage = lazy(() =>
 const LoginPage = lazy(() =>
   import('@/features/auth/pages/LoginPage').then((m) => ({ default: m.LoginPage })),
 );
+const RegisterPage = lazy(() =>
+  import('@/features/auth/pages/RegisterPage').then((m) => ({ default: m.RegisterPage })),
+);
 
 // 路由级懒加载的兜底：业务代码按页面分包，首屏不加载全部模块
 function lazyElement(node: ReactNode) {
@@ -43,6 +46,10 @@ const router = createBrowserRouter([
   {
     path: '/login',
     element: lazyElement(<LoginPage />),
+  },
+  {
+    path: '/register',
+    element: lazyElement(<RegisterPage />),
   },
   {
     // 公开大屏：全系统唯一的免登录页面
