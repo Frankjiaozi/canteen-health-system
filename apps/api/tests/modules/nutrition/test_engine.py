@@ -21,7 +21,7 @@ from app.modules.nutrition.engine import (
     compute_theoretical_per_capita,
     compute_theoretical_per_serving,
 )
-from app.shared.enums import CookingMethod
+from app.shared.enums import CookingMethod, SeasoningCategory
 
 
 def _ingredient(
@@ -70,6 +70,7 @@ NORI = _ingredient(
 SOYBEAN_OIL = SeasoningInput(
     id=uuid4(),
     name="大豆油",
+    category=SeasoningCategory.EDIBLE_OIL,
     energy_kcal=Decimal("899.0"),
     protein_g=Decimal("0.0"),
     fat_g=Decimal("99.9"),
@@ -80,6 +81,7 @@ SOYBEAN_OIL = SeasoningInput(
 SALT = SeasoningInput(
     id=uuid4(),
     name="食盐",
+    category=SeasoningCategory.SALT,
     energy_kcal=Decimal("0.0"),
     protein_g=Decimal("0.0"),
     fat_g=Decimal("0.0"),
@@ -90,6 +92,7 @@ SALT = SeasoningInput(
 SUGAR = SeasoningInput(
     id=uuid4(),
     name="白砂糖",
+    category=SeasoningCategory.SUGAR,
     energy_kcal=Decimal("400.0"),
     protein_g=Decimal("0.0"),
     fat_g=Decimal("0.0"),

@@ -13,11 +13,12 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 from uuid import UUID
 
-from app.shared.enums import CookingMethod
+from app.shared.enums import CookingMethod, SeasoningCategory
 from app.shared.nutrients import (
     FIELD_TO_NUTRIENT_CODE,
     NUTRIENT_FIELDS,
@@ -125,6 +126,7 @@ class RecipeIngredientLine:
 class SeasoningInput:
     id: UUID
     name: str
+    category: SeasoningCategory
     energy_kcal: Decimal | None
     protein_g: Decimal | None
     fat_g: Decimal | None
@@ -156,6 +158,10 @@ class NutritionResult:
     """一次计算的全部产出：数值、误差区间与可追溯快照。"""
 
     per_serving: NutrientVector
+    #: 食材部分合计。校准只缩放调味料，因此这一块要单独留出来。
+    ingredient_part: NutrientVector
+    #: 调味料部分**按类别**合计。油、盐、糖的偏差幅度各不相同，必须分开放。
+    seasoning_by_category: dict[SeasoningCategory, NutrientVector]
     uncertainty: dict[str, Interval]
     missing_nutrients: tuple[str, ...]
     trace: dict[str, Any]
@@ -184,6 +190,9 @@ def compute_theoretical_per_serving(recipe: DishRecipe) -> NutritionResult:
     totals = dict.fromkeys(NUTRIENT_FIELDS, Decimal("0"))
     missing: set[str] = set()
 
+    ingredient_totals = dict.fromkeys(NUTRIENT_FIELDS, Decimal("0"))
+    seasoning_totals: dict[SeasoningCategory, dict[str, Decimal]] = {}
+
     ingredient_trace: list[dict[str, Any]] = []
     for line in recipe.ingredients:
         ingredient = line.ingredient
@@ -192,7 +201,9 @@ def compute_theoretical_per_serving(recipe: DishRecipe) -> NutritionResult:
             per_100g = getattr(ingredient, field)
             if per_100g is None:
                 missing.add(field)
-            totals[field] += _contribution(per_100g, edible_g)
+            amount = _contribution(per_100g, edible_g)
+            totals[field] += amount
+            ingredient_totals[field] += amount
         ingredient_trace.append(
             {
                 "name": ingredient.name,
@@ -209,11 +220,17 @@ def compute_theoretical_per_serving(recipe: DishRecipe) -> NutritionResult:
     seasoning_trace: list[dict[str, Any]] = []
     for seasoning_line in recipe.seasonings:
         seasoning = seasoning_line.seasoning
+        # 按调味料类别分开累计：油、盐、糖各有各的校准系数
+        bucket = seasoning_totals.setdefault(
+            seasoning.category, dict.fromkeys(NUTRIENT_FIELDS, Decimal("0"))
+        )
         for field in NUTRIENT_FIELDS:
             per_100g = getattr(seasoning, field)
             if per_100g is None:
                 missing.add(field)
-            totals[field] += _contribution(per_100g, seasoning_line.quantity_g)
+            amount = _contribution(per_100g, seasoning_line.quantity_g)
+            totals[field] += amount
+            bucket[field] += amount
         seasoning_trace.append(
             {
                 "name": seasoning.name,
@@ -223,6 +240,11 @@ def compute_theoretical_per_serving(recipe: DishRecipe) -> NutritionResult:
         )
 
     per_serving = NutrientVector(**totals).rounded()
+    ingredient_part = NutrientVector(**ingredient_totals).rounded()
+    seasoning_part = {
+        category: NutrientVector(**values).rounded()
+        for category, values in seasoning_totals.items()
+    }
 
     missing_codes = tuple(sorted({FIELD_TO_NUTRIENT_CODE[field].value for field in missing}))
     applied_tolerance = tolerance_for(len(missing_codes))
@@ -230,6 +252,8 @@ def compute_theoretical_per_serving(recipe: DishRecipe) -> NutritionResult:
 
     return NutritionResult(
         per_serving=per_serving,
+        ingredient_part=ingredient_part,
+        seasoning_by_category=seasoning_part,
         uncertainty=uncertainty,
         missing_nutrients=missing_codes,
         trace={
@@ -242,6 +266,12 @@ def compute_theoretical_per_serving(recipe: DishRecipe) -> NutritionResult:
             "recipe_version": recipe.recipe_version,
             "ingredients": ingredient_trace,
             "seasonings": seasoning_trace,
+            # 拆开记录食材与调味料各占多少：校准只动调味料那一块，
+            # 快照里必须能看出这一刀切在哪里
+            "ingredient_part": ingredient_part.as_trace(),
+            "seasoning_part": {
+                category.value: vector.as_trace() for category, vector in seasoning_part.items()
+            },
             "missing_nutrients": list(missing_codes),
             "tolerance": {
                 "base": str(BASE_TOLERANCE),
@@ -254,6 +284,49 @@ def compute_theoretical_per_serving(recipe: DishRecipe) -> NutritionResult:
             },
         },
     )
+
+
+@dataclass(frozen=True, slots=True)
+class CalibrationFactors:
+    """要施加到一道菜上的校准系数。
+
+    - `by_category`：第二层当日闭环算出的「按烹饪方式分组、油盐糖各算各的」系数；
+    - `overall`：第三层抽样纠偏得到的整体修正比，作用在整块调味料贡献上；
+    - `source_note`：写进快照，说清这组系数是怎么来的。
+    """
+
+    by_category: dict[SeasoningCategory, Decimal] = dataclass_field(default_factory=dict)
+    overall: Decimal = Decimal("1")
+    source_note: str = ""
+
+
+CALIBRATED_TOLERANCE = Decimal("0.10")
+
+
+def apply_calibration(result: NutritionResult, factors: CalibrationFactors) -> NutrientVector:
+    """把校准系数作用到**调味料贡献**上，食材部分原样保留。
+
+    这是「只缩放调味料」这条决定的落点。整道菜乘一个系数看起来更简单，但会把
+    「这个食堂连番茄都多放了 10%」这种不存在的偏差算进去，还会把配方本身的录入
+    错误一起校准掉、埋起来。
+    """
+    values: dict[str, Decimal] = {}
+    for field_name in NUTRIENT_FIELDS:
+        total = getattr(result.ingredient_part, field_name)
+        for category, contribution in result.seasoning_by_category.items():
+            factor = factors.by_category.get(category, Decimal("1")) * factors.overall
+            total += getattr(contribution, field_name) * factor
+        values[field_name] = total
+    return NutrientVector(**values).rounded()
+
+
+def calibration_tolerance(*, has_sampling: bool) -> Decimal:
+    """校准后适用的相对误差半径。
+
+    有抽样实测撑腰时收紧到 ±10%，只有当日闭环时保持第一层的基准 ±15%——
+    闭环修正的是系统性偏差，并不提供「到底准不准」的直接证据。
+    """
+    return CALIBRATED_TOLERANCE if has_sampling else BASE_TOLERANCE
 
 
 def compute_theoretical_per_capita(

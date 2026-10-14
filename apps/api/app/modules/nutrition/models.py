@@ -19,6 +19,7 @@ from sqlalchemy import (
     CheckConstraint,
     Date,
     ForeignKey,
+    Index,
     Numeric,
     String,
     UniqueConstraint,
@@ -92,7 +93,14 @@ class CalibrationFactor(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """校准系数。
 
     第二层（当日闭环）按烹饪方式分组缩放；第三层（抽样纠偏）修正单道菜或
-    某类烹饪方式的长期漂移。本次只建表，两层算法在后续模块实现。
+    某类烹饪方式的长期漂移。
+
+    系数**按类别分开存**（`coefficients`）：油、盐、糖的偏差幅度本来就不一样
+    （多放油很常见，多放糖不常见），合成一个系数需要一个加权方式，而任何一种
+    加权都没有客观依据。抽样纠偏得到的是整体修正比，存在 `OVERALL` 键下。
+
+    同一 (日期, 餐次, 烹饪方式, 来源) 可以有多行：抽样那天可能测了同一烹饪方式的
+    好几道菜，各自带 `dish_id`。替换语义由 service 负责，不靠唯一约束去卡。
     """
 
     __tablename__ = "calibration_factors"
@@ -100,7 +108,13 @@ class CalibrationFactor(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     meal_type: Mapped[MealType] = mapped_column(enum_type(MealType), nullable=False)
     cooking_method: Mapped[CookingMethod] = mapped_column(enum_type(CookingMethod), nullable=False)
-    coefficient: Mapped[Decimal] = mapped_column(Numeric(8, 4), nullable=False)
+    #: 第二层给 {"EDIBLE_OIL": 1.18, "SALT": 1.09, "SUGAR": 1.02}；
+    #: 第三层给 {"OVERALL": 1.07}
+    coefficients: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    #: 抽样纠偏针对单道菜时填写；针对整类烹饪方式时为空
+    dish_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("dishes.id", ondelete="SET NULL"))
     source: Mapped[CalibrationSource] = mapped_column(enum_type(CalibrationSource), nullable=False)
     basis_note: Mapped[str | None] = mapped_column(String(255))
     created_by: Mapped[uuid.UUID | None] = mapped_column(
@@ -108,11 +122,11 @@ class CalibrationFactor(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("date", "meal_type", "cooking_method", "source"),
+        # 查系数时的固定条件组合；唯一性由 service 的替换语义保证
+        Index("ix_calibration_factors_lookup", "date", "meal_type", "cooking_method", "source"),
         enum_check("meal_type", MealType),
         enum_check("cooking_method", CookingMethod),
         enum_check("source", CalibrationSource),
-        CheckConstraint("coefficient > 0", name="coefficient_positive"),
     )
 
 

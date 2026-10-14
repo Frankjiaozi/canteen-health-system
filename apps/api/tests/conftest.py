@@ -118,9 +118,7 @@ def _delete_rows_outside_baseline(session: Session, baseline: dict[type, set[UUI
         # 基线为空表示这张表测试前本来就没有数据，那么现在里面的全要清掉。
         # 注意不能写成 id.not_in([])：SQLAlchemy 会把它渲染成恒真条件。
         statement = (
-            delete(model)
-            if not known
-            else delete(model).where(model.id.not_in(known))  # type: ignore[attr-defined]
+            delete(model) if not known else delete(model).where(model.id.not_in(known))  # type: ignore[attr-defined]
         )
         removed += session.execute(statement).rowcount or 0
     session.commit()

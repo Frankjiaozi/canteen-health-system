@@ -58,6 +58,7 @@ def _to_seasoning_input(seasoning: Seasoning) -> SeasoningInput:
     return SeasoningInput(
         id=seasoning.id,
         name=seasoning.name,
+        category=seasoning.category,
         energy_kcal=seasoning.energy_kcal,
         protein_g=seasoning.protein_g,
         fat_g=seasoning.fat_g,
