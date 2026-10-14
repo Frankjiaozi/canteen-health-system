@@ -12,6 +12,8 @@ from pydantic import BaseModel, Field
 from app.modules.auth.dependencies import require_roles
 from app.modules.auth.schemas import AuthUser
 from app.shared.enums import (
+    MANUAL_ANOMALY_FLAGS,
+    AnomalyFlag,
     CookingMethod,
     DishCategory,
     IngredientCategory,
@@ -38,6 +40,10 @@ class EnumOptions(BaseModel):
     seasoning_category: list[EnumOption]
     user_role: list[EnumOption]
     standard_code: list[EnumOption]
+    #: 全部异常标记，用于把库里存下的代码渲染成中文
+    anomaly_flag: list[EnumOption]
+    #: 其中由录入员勾选的那三个；系统回写的不在列
+    manual_anomaly_flag: list[EnumOption]
 
 
 def _options(enum_cls: type[LabelledStrEnum]) -> list[EnumOption]:
@@ -58,4 +64,8 @@ def list_enum_options(
         seasoning_category=_options(SeasoningCategory),
         user_role=_options(UserRole),
         standard_code=_options(StandardCode),
+        anomaly_flag=_options(AnomalyFlag),
+        manual_anomaly_flag=[
+            EnumOption(value=member.value, label=member.label) for member in MANUAL_ANOMALY_FLAGS
+        ],
     )

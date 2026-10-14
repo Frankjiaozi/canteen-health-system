@@ -47,7 +47,14 @@ export const SYSTEM_MODULES: SystemModule[] = [
     title: '每日采集',
     description: '每天只填几个数字：份数、人次、油盐糖总量、剩餐量',
     requiresAuth: true,
-    status: 'planned',
+    status: 'ready',
+  },
+  {
+    path: '/admin/calibration',
+    title: '抽样纠偏',
+    description: '每周挑几道菜称重实测，用实测与推算的差额修正调味料系数',
+    requiresAuth: true,
+    status: 'ready',
   },
   {
     path: '/admin/dashboard',

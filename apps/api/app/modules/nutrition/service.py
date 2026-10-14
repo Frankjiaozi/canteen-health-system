@@ -18,8 +18,14 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.errors import BusinessRuleError, NotFoundError
 from app.core.logging import get_logger
+from app.modules.collection import service as collection_service
 from app.modules.nutrition import engine, repository
 from app.modules.nutrition.engine import NutrientVector
+from app.modules.nutrition.schemas import (
+    SamplingCandidate,
+    SamplingCandidates,
+    SamplingCorrectionRead,
+)
 from app.shared.enums import (
     CalibrationSource,
     CookingMethod,
@@ -28,6 +34,7 @@ from app.shared.enums import (
     NutritionValueType,
     SeasoningCategory,
 )
+from app.shared.nutrients import NUTRIENT_FIELDS
 from app.shared.standards import quantize
 
 logger = get_logger(__name__)
@@ -350,6 +357,12 @@ def compute_daily_closure(session: Session, *, on_date: date, meal_type: MealTyp
         )
 
     checks = _closure_checks(daily_log, scaled)
+    # 校验结论回写到当天记录：偏差过大说明这一天的数据不可信，
+    # 应当被排除在预测的历史序列之外（采集域负责实现，见它的 service）
+    flagged = any(row.status != "ok" for row in checks)
+    collection_service.apply_calibration_residual_flag(
+        session, on_date=on_date, meal_type=meal_type, flagged=flagged
+    )
 
     # 第三层抽样纠偏留下的整体系数：把它叠到第二层的系数上，三层的成果才真的汇到一处。
     # 每类烹饪方式只查一次库，避免逐道菜重复查询。
@@ -524,6 +537,92 @@ def _closure_checks(
             )
         )
     return checks
+
+
+def build_sampling_candidates(
+    session: Session, *, on_date: date, meal_type: MealType
+) -> SamplingCandidates:
+    """抽样页要的内容：这一餐有哪些菜、各自的三个值分别是多少。
+
+    一次取全而不是逐道菜查一遍：抽样是「今天挑三五道菜称一称」的批量动作，
+    逐道菜的往返会让页面在切换日期时明显卡顿。
+    """
+    menu_day = repository.load_menu_day(session, on_date, meal_type)
+    dishes = repository.load_menu_dishes(session, menu_day.id) if menu_day else []
+    rows = repository.load_per_serving_rows(session, on_date=on_date, meal_type=meal_type)
+
+    by_dish: dict[UUID, dict[NutritionValueType, Any]] = defaultdict(dict)
+    for row in rows:
+        by_dish[row.dish_id][row.value_type] = row
+
+    candidates: list[SamplingCandidate] = []
+    for dish in dishes:
+        values = by_dish.get(dish.id, {})
+        sampled = values.get(NutritionValueType.SAMPLED)
+        candidates.append(
+            SamplingCandidate(
+                dish_id=dish.id,
+                dish_name=dish.name,
+                category_label=dish.category.label,
+                cooking_method_label=dish.cooking_method.label,
+                theoretical=_trace_values(values.get(NutritionValueType.THEORETICAL)),
+                calibrated=_trace_values(values.get(NutritionValueType.CALIBRATED)),
+                sampled=_trace_values(sampled),
+                applied=None
+                if sampled is None
+                else not bool(sampled.computation_trace.get("suspect_recipe")),
+                suspect_recipe=(
+                    None
+                    if sampled is None
+                    else bool(sampled.computation_trace.get("suspect_recipe"))
+                ),
+            )
+        )
+
+    corrections: list[SamplingCorrectionRead] = []
+    for dish in dishes:
+        per_dish, per_method = repository.latest_sampling_corrections(
+            session, cooking_method=dish.cooking_method, on_or_before=on_date
+        )
+        if dish.id in per_dish:
+            correction, scope = per_dish[dish.id], "DISH"
+        elif per_method is not None:
+            correction, scope = per_method, "COOKING_METHOD"
+        else:
+            continue
+        corrections.append(
+            SamplingCorrectionRead(
+                dish_id=dish.id,
+                dish_name=dish.name,
+                overall=str(correction),
+                scope=scope,
+                scope_label="这道菜" if scope == "DISH" else "整类烹饪方式",
+            )
+        )
+
+    return SamplingCandidates(
+        date=on_date,
+        meal_type=meal_type,
+        meal_type_label=meal_type.label,
+        menu_confirmed=bool(dishes),
+        dishes=candidates,
+        recent_corrections=corrections,
+    )
+
+
+def _trace_values(row: Any | None) -> dict[str, str] | None:
+    if row is None:
+        return None
+    return {field: str(getattr(row, field)) for field in NUTRIENT_FIELDS}
+
+
+def load_per_serving_rows(session: Session, *, on_date: date, meal_type: MealType) -> list[Any]:
+    """当餐全部菜品的单份营养结果（三种数值类型都取回，由调用方按优先级挑）。
+
+    采集页要在录入时显示「这道菜折算出来是多少能量」，看板与菜品库也要按同一套
+    优先级选取，所以读取口放在营养域，避免各自写一条查询。
+    """
+    return repository.load_per_serving_rows(session, on_date=on_date, meal_type=meal_type)
 
 
 def preview_per_serving(session: Session, dish_ids: Sequence[UUID]) -> dict[UUID, NutrientVector]:

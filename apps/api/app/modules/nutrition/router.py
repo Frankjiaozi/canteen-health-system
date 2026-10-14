@@ -31,6 +31,7 @@ from app.modules.nutrition.schemas import (
     NutritionComparison,
     SampleCreate,
     SampleResult,
+    SamplingCandidates,
     SamplingCorrectionRead,
 )
 from app.shared.enums import (
@@ -171,6 +172,16 @@ def create_sample(
         suspect_recipe=report.suspect_recipe,
         note=report.note,
     )
+
+
+@router.get("/candidates", response_model=SamplingCandidates, summary="抽样候选清单与三值对照")
+def list_candidates(
+    on_date: date = Query(description="业务日期"),
+    meal_type: MealType = Query(default=MealType.LUNCH),
+    session: Session = Depends(get_session),
+    _: AuthUser = Depends(require_roles(*VIEW_ROLES)),
+) -> SamplingCandidates:
+    return service.build_sampling_candidates(session, on_date=on_date, meal_type=meal_type)
 
 
 @router.get("/comparison", response_model=NutritionComparison, summary="理论值/校准值/抽样值对比")

@@ -18,12 +18,14 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from tests.helpers import today_local
+
 BASE = "/api/v1/public/board/today"
 
 
 def _today_menu(session: Session) -> MenuDay:
-    menu_day = session.scalar(select(MenuDay).order_by(MenuDay.date.desc()).limit(1))
-    assert menu_day is not None, "需要先执行 pnpm db:seed 准备菜单数据"
+    menu_day = session.scalar(select(MenuDay).where(MenuDay.date == today_local()))
+    assert menu_day is not None, "需要先执行 pnpm db:seed 准备今天的数据"
     return menu_day
 
 

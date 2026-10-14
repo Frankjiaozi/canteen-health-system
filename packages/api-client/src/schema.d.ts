@@ -294,6 +294,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/collection/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 分页查询采集记录 */
+        get: operations["list_logs_api_v1_collection_logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/collection/logs/{on_date}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 取某天某一餐的采集单 */
+        get: operations["get_sheet_api_v1_collection_logs__on_date__get"];
+        /** 保存采集单 */
+        put: operations["save_sheet_api_v1_collection_logs__on_date__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/board/today": {
         parameters: {
             query?: never;
@@ -447,6 +482,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/calibration/candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 抽样候选清单与三值对照 */
+        get: operations["list_candidates_api_v1_calibration_candidates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/calibration/comparison": {
         parameters: {
             query?: never;
@@ -468,6 +520,27 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AnomalyFlag
+         * @description 采集当天的异常标记。
+         *
+         *     它们的作用只有一个：**把这些日子从预测的历史序列里排除**。临时接待让份数虚高，
+         *     停供与设备故障让份数虚低，任何一种进了移动平均都会把预测带偏。
+         *
+         *     `CALIBRATION_RESIDUAL` 与另外三个不同：它不由人勾选，而是校准算完之后**系统回写**的——
+         *     当天总量与拟合预测的偏差过大，通常意味着漏记了一道菜或总量抄错，这一天同样不可信。
+         * @enum {string}
+         */
+        AnomalyFlag: "RECEPTION" | "SUSPENDED" | "EQUIPMENT_FAILURE" | "CALIBRATION_RESIDUAL";
+        /** AnomalyRead */
+        AnomalyRead: {
+            /** Value */
+            value: string;
+            /** Label */
+            label: string;
+            /** System */
+            system: boolean;
+        };
         /**
          * AuthUser
          * @description 对外暴露的当前用户。
@@ -685,6 +758,150 @@ export interface components {
          * @enum {string}
          */
         CookingMethod: "STEAM" | "BOIL" | "STIR_FRY" | "DEEP_FRY" | "STEW" | "COLD_DRESS";
+        /** DailyLogPage */
+        DailyLogPage: {
+            /** Items */
+            items: components["schemas"]["DailyLogSummary"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+        };
+        /**
+         * DailyLogSaved
+         * @description 保存结果。
+         */
+        DailyLogSaved: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            meal_type: components["schemas"]["MealType"];
+            /** Meal Type Label */
+            meal_type_label: string;
+            /** Dish Count */
+            dish_count: number;
+            /** Nutrition Rows */
+            nutrition_rows: number;
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            /** Calibration Note */
+            calibration_note?: string | null;
+        };
+        /**
+         * DailyLogSheet
+         * @description 某个日期 + 餐次的采集单。没保存过时除菜品清单外都是空值。
+         */
+        DailyLogSheet: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            meal_type: components["schemas"]["MealType"];
+            /** Meal Type Label */
+            meal_type_label: string;
+            /** Saved */
+            saved: boolean;
+            /** Submitted At */
+            submitted_at?: string | null;
+            /** Diner Count */
+            diner_count?: number | null;
+            /** Oil Total G */
+            oil_total_g?: string | null;
+            /** Salt Total G */
+            salt_total_g?: string | null;
+            /** Sugar Total G */
+            sugar_total_g?: string | null;
+            /** Leftover Weight G */
+            leftover_weight_g?: string | null;
+            /** Note */
+            note?: string | null;
+            /** Anomaly Flags */
+            anomaly_flags: components["schemas"]["AnomalyRead"][];
+            /** Dishes */
+            dishes: components["schemas"]["LoggedDish"][];
+            /** Menu Confirmed */
+            menu_confirmed: boolean;
+            /**
+             * Warning
+             * @description 提示语，例如当天没有可勾选的菜品
+             */
+            warning?: string | null;
+        };
+        /**
+         * DailyLogSummary
+         * @description 列表页用的摘要。
+         */
+        DailyLogSummary: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            meal_type: components["schemas"]["MealType"];
+            /** Meal Type Label */
+            meal_type_label: string;
+            /** Diner Count */
+            diner_count: number;
+            /** Oil Total G */
+            oil_total_g: string;
+            /** Salt Total G */
+            salt_total_g: string;
+            /** Sugar Total G */
+            sugar_total_g: string;
+            /** Leftover Weight G */
+            leftover_weight_g?: string | null;
+            /** Dish Count */
+            dish_count: number;
+            /** Waste Ratio */
+            waste_ratio?: string | null;
+            /** Anomaly Flags */
+            anomaly_flags: components["schemas"]["AnomalyRead"][];
+            /** Submitted At */
+            submitted_at?: string | null;
+            /** Submitted By Name */
+            submitted_by_name?: string | null;
+        };
+        /**
+         * DailyLogWrite
+         * @description 保存一天的采集单。整份提交，缺的字段按未填处理。
+         */
+        DailyLogWrite: {
+            /** @default LUNCH */
+            meal_type: components["schemas"]["MealType"];
+            /** Diner Count */
+            diner_count: number;
+            /**
+             * Oil Total G
+             * @default 0
+             */
+            oil_total_g: number | string;
+            /**
+             * Salt Total G
+             * @default 0
+             */
+            salt_total_g: number | string;
+            /**
+             * Sugar Total G
+             * @default 0
+             */
+            sugar_total_g: number | string;
+            /** Leftover Weight G */
+            leftover_weight_g?: number | string | null;
+            /** Note */
+            note?: string | null;
+            /** Anomaly Flags */
+            anomaly_flags?: components["schemas"]["AnomalyFlag"][];
+            /** Dishes */
+            dishes?: components["schemas"]["LoggedDishWrite"][];
+        };
         /** DashboardSummary */
         DashboardSummary: {
             /** Days */
@@ -946,6 +1163,10 @@ export interface components {
             user_role: components["schemas"]["EnumOption"][];
             /** Standard Code */
             standard_code: components["schemas"]["EnumOption"][];
+            /** Anomaly Flag */
+            anomaly_flag: components["schemas"]["EnumOption"][];
+            /** Manual Anomaly Flag */
+            manual_anomaly_flag: components["schemas"]["EnumOption"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1241,6 +1462,71 @@ export interface components {
             data_source?: string | null;
             /** Source Version */
             source_version?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /**
+         * LoggedDish
+         * @description 采集单里的一道菜。
+         */
+        LoggedDish: {
+            /** Dish Id */
+            dish_id: string;
+            /** Name */
+            name: string;
+            /** Category Label */
+            category_label: string;
+            /** Cooking Method Label */
+            cooking_method_label: string;
+            /**
+             * Selected
+             * @default false
+             */
+            selected: boolean;
+            /** Servings Produced */
+            servings_produced?: string | null;
+            /**
+             * Leftover Ratio
+             * @description 剩余比例 0~1
+             */
+            leftover_ratio?: string | null;
+            /** Leftover Weight G */
+            leftover_weight_g?: string | null;
+            /**
+             * Is Substituted
+             * @default false
+             */
+            is_substituted: boolean;
+            /** Substitution Note */
+            substitution_note?: string | null;
+            /** Energy Kcal */
+            energy_kcal?: string | null;
+            /**
+             * Nutrition Source
+             * @description 数值来自哪一层
+             */
+            nutrition_source?: string | null;
+        };
+        /** LoggedDishWrite */
+        LoggedDishWrite: {
+            /**
+             * Dish Id
+             * Format: uuid
+             */
+            dish_id: string;
+            /** Servings Produced */
+            servings_produced: number | string;
+            /** Leftover Ratio */
+            leftover_ratio?: number | string | null;
+            /** Leftover Weight G */
+            leftover_weight_g?: number | string | null;
+            /**
+             * Is Substituted
+             * @default false
+             */
+            is_substituted: boolean;
+            /** Substitution Note */
+            substitution_note?: string | null;
             /** Note */
             note?: string | null;
         };
@@ -1716,6 +2002,59 @@ export interface components {
             note: string;
         };
         /**
+         * SamplingCandidate
+         * @description 抽样页上的一道候选菜：理论值、校准值、已录的实测值并排。
+         */
+        SamplingCandidate: {
+            /**
+             * Dish Id
+             * Format: uuid
+             */
+            dish_id: string;
+            /** Dish Name */
+            dish_name: string;
+            /** Category Label */
+            category_label: string;
+            /** Cooking Method Label */
+            cooking_method_label: string;
+            /** Theoretical */
+            theoretical?: {
+                [key: string]: string;
+            } | null;
+            /** Calibrated */
+            calibrated?: {
+                [key: string]: string;
+            } | null;
+            /** Sampled */
+            sampled?: {
+                [key: string]: string;
+            } | null;
+            /** Applied */
+            applied?: boolean | null;
+            /** Suspect Recipe */
+            suspect_recipe?: boolean | null;
+        };
+        /**
+         * SamplingCandidates
+         * @description 某天某一餐全部候选菜。
+         */
+        SamplingCandidates: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            meal_type: components["schemas"]["MealType"];
+            /** Meal Type Label */
+            meal_type_label: string;
+            /** Menu Confirmed */
+            menu_confirmed: boolean;
+            /** Dishes */
+            dishes: components["schemas"]["SamplingCandidate"][];
+            /** Recent Corrections */
+            recent_corrections: components["schemas"]["SamplingCorrectionRead"][];
+        };
+        /**
          * SamplingCorrectionRead
          * @description 第三层抽样纠偏作用到某道菜上的整体修正比。
          */
@@ -2020,6 +2359,8 @@ export interface components {
     headers: never;
     pathItems: never;
 }
+export type SchemaAnomalyFlag = components['schemas']['AnomalyFlag'];
+export type SchemaAnomalyRead = components['schemas']['AnomalyRead'];
 export type SchemaAuthUser = components['schemas']['AuthUser'];
 export type SchemaBodyImportDishesApiV1ImportDishesPost = components['schemas']['Body_import_dishes_api_v1_import_dishes_post'];
 export type SchemaCalibrationFactorRead = components['schemas']['CalibrationFactorRead'];
@@ -2031,6 +2372,11 @@ export type SchemaClosureWindowRead = components['schemas']['ClosureWindowRead']
 export type SchemaCompliancePoint = components['schemas']['CompliancePoint'];
 export type SchemaComplianceResponse = components['schemas']['ComplianceResponse'];
 export type SchemaCookingMethod = components['schemas']['CookingMethod'];
+export type SchemaDailyLogPage = components['schemas']['DailyLogPage'];
+export type SchemaDailyLogSaved = components['schemas']['DailyLogSaved'];
+export type SchemaDailyLogSheet = components['schemas']['DailyLogSheet'];
+export type SchemaDailyLogSummary = components['schemas']['DailyLogSummary'];
+export type SchemaDailyLogWrite = components['schemas']['DailyLogWrite'];
 export type SchemaDashboardSummary = components['schemas']['DashboardSummary'];
 export type SchemaDatabaseHealthResponse = components['schemas']['DatabaseHealthResponse'];
 export type SchemaDishCategory = components['schemas']['DishCategory'];
@@ -2051,6 +2397,8 @@ export type SchemaIngredientCreate = components['schemas']['IngredientCreate'];
 export type SchemaIngredientPage = components['schemas']['IngredientPage'];
 export type SchemaIngredientRead = components['schemas']['IngredientRead'];
 export type SchemaIngredientUpdate = components['schemas']['IngredientUpdate'];
+export type SchemaLoggedDish = components['schemas']['LoggedDish'];
+export type SchemaLoggedDishWrite = components['schemas']['LoggedDishWrite'];
 export type SchemaLoginRequest = components['schemas']['LoginRequest'];
 export type SchemaMealType = components['schemas']['MealType'];
 export type SchemaNutrientAmount = components['schemas']['NutrientAmount'];
@@ -2070,6 +2418,8 @@ export type SchemaRecipeUpdateResult = components['schemas']['RecipeUpdateResult
 export type SchemaRegisterRequest = components['schemas']['RegisterRequest'];
 export type SchemaSampleCreate = components['schemas']['SampleCreate'];
 export type SchemaSampleResult = components['schemas']['SampleResult'];
+export type SchemaSamplingCandidate = components['schemas']['SamplingCandidate'];
+export type SchemaSamplingCandidates = components['schemas']['SamplingCandidates'];
 export type SchemaSamplingCorrectionRead = components['schemas']['SamplingCorrectionRead'];
 export type SchemaSeasoningCategory = components['schemas']['SeasoningCategory'];
 export type SchemaSeasoningCreate = components['schemas']['SeasoningCreate'];
@@ -2852,6 +3202,110 @@ export interface operations {
             };
         };
     };
+    list_logs_api_v1_collection_logs_get: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+                /** @description 起始日期（含） */
+                start?: string | null;
+                /** @description 结束日期（含） */
+                end?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyLogPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_sheet_api_v1_collection_logs__on_date__get: {
+        parameters: {
+            query?: {
+                meal_type?: components["schemas"]["MealType"];
+            };
+            header?: never;
+            path: {
+                on_date: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyLogSheet"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_sheet_api_v1_collection_logs__on_date__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                on_date: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DailyLogWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyLogSaved"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     read_board_api_v1_public_board_today_get: {
         parameters: {
             query?: {
@@ -3130,6 +3584,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SampleResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_candidates_api_v1_calibration_candidates_get: {
+        parameters: {
+            query: {
+                /** @description 业务日期 */
+                on_date: string;
+                meal_type?: components["schemas"]["MealType"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SamplingCandidates"];
                 };
             };
             /** @description Validation Error */

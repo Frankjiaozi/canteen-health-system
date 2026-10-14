@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date
+from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
 from app.modules.collection.models import DailyLog
@@ -17,7 +17,12 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from tests.helpers import today_local
+
 BASE = "/api/v1/dashboard"
+
+#: 演示历史覆盖 8 周，接口的 days 参数与用例的统计窗口都取这个长度
+SEEDED_WINDOW_DAYS = 56
 
 
 def test_dashboard_requires_login(client: TestClient) -> None:
@@ -34,7 +39,13 @@ def test_summary_average_salt_matches_manual_calculation(
 ) -> None:
     """人均食盐是「各餐各自除以本餐人次再按天取平均」，这里独立算一遍核对。"""
     by_day: dict[object, list[DailyLog]] = defaultdict(list)
-    for log in db_session.scalars(select(DailyLog)):
+    # 与接口用同一个统计窗口：接口按「最近 N 天」取，库里的记录却可能超出这个范围
+    # （例如端到端用例造的未来日期），不加界就会算成两件事
+    today = today_local()
+    window_start = today - timedelta(days=SEEDED_WINDOW_DAYS - 1)
+    for log in db_session.scalars(
+        select(DailyLog).where(DailyLog.date >= window_start, DailyLog.date <= today)
+    ):
         by_day[log.date].append(log)
     per_day = [
         sum((log.salt_total_g / Decimal(log.diner_count) for log in logs), Decimal("0"))
@@ -46,7 +57,7 @@ def test_summary_average_salt_matches_manual_calculation(
     )
 
     # 演示历史是 8 周，因此显式按 8 周取，让统计窗口与库里的数据范围一致
-    body = as_recorder.get(f"{BASE}/summary", params={"days": 56}).json()
+    body = as_recorder.get(f"{BASE}/summary", params={"days": SEEDED_WINDOW_DAYS}).json()
 
     assert body["avg_salt_per_capita_g"] == str(expected)
     assert body["days_with_records"] == len(per_day)
@@ -161,7 +172,12 @@ def test_per_capita_sums_one_row_per_dish(as_recorder: TestClient, db_session: S
     """
     # 先跑一次当日闭环，保证每天至少有两份人均结果（理论 + 校准）可挑，
     # 否则这条测试在干净库上什么也没验到
-    latest_log = db_session.scalar(select(DailyLog).order_by(DailyLog.date.desc()).limit(1))
+    latest_log = db_session.scalar(
+        select(DailyLog)
+        .where(DailyLog.date <= today_local())
+        .order_by(DailyLog.date.desc())
+        .limit(1)
+    )
     assert latest_log is not None
     as_recorder.post(
         "/api/v1/calibration/daily-closure",

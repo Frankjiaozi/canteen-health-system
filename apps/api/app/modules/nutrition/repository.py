@@ -46,6 +46,7 @@ from app.shared.enums import (
     NutritionValueType,
     SeasoningCategory,
 )
+from app.shared.nutrition_values import VALUE_TYPES
 
 
 def _to_ingredient_input(ingredient: Ingredient) -> IngredientInput:
@@ -137,6 +138,42 @@ def load_menu_day(session: Session, on_date: date, meal_type: MealType) -> MenuD
 def load_menu_dish_ids(session: Session, menu_day_id: UUID) -> list[UUID]:
     return list(
         session.scalars(select(MenuDayItem.dish_id).where(MenuDayItem.menu_day_id == menu_day_id))
+    )
+
+
+def load_menu_dishes(session: Session, menu_day_id: UUID) -> list[Dish]:
+    """当餐的菜品实体，按菜单里的排列顺序。
+
+    抽样页要展示菜名与烹饪方式，而这些字段不在营养结果里，需要回菜品表取。
+    放在本模块的仓储层，是为了把「跨域读模型」这件事关在同一个文件里。
+    """
+    return list(
+        session.scalars(
+            select(Dish)
+            .join(MenuDayItem, MenuDayItem.dish_id == Dish.id)
+            .where(MenuDayItem.menu_day_id == menu_day_id)
+            .order_by(MenuDayItem.created_at)
+        ).all()
+    )
+
+
+def load_per_serving_rows(
+    session: Session, *, on_date: date, meal_type: MealType
+) -> list[DishNutrition]:
+    """当餐全部菜品的单份口径结果，三种数值类型都返回。
+
+    这里刻意**不替调用方挑一份**：挑选规则是展示层的决定（抽样 > 校准 > 理论），
+    统一放在 `app.shared.nutrition_values`，查询层只负责把候选行取全。
+    """
+    return list(
+        session.scalars(
+            select(DishNutrition).where(
+                DishNutrition.date == on_date,
+                DishNutrition.meal_type == meal_type,
+                DishNutrition.caliber == NutrientCaliber.PER_SERVING,
+                DishNutrition.value_type.in_(VALUE_TYPES),
+            )
+        ).all()
     )
 
 

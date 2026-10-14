@@ -155,6 +155,33 @@ class NutritionComparison(BaseModel):
     sampled: dict[str, str] | None = None
 
 
+class SamplingCandidate(BaseModel):
+    """抽样页上的一道候选菜：理论值、校准值、已录的实测值并排。"""
+
+    dish_id: UUID
+    dish_name: str
+    category_label: str
+    cooking_method_label: str
+    theoretical: dict[str, str] | None = None
+    calibrated: dict[str, str] | None = None
+    sampled: dict[str, str] | None = None
+    #: 已经有实测值时，顺带把当时的结论带回来（是否套用了系数、是否疑似配方有误）
+    applied: bool | None = None
+    suspect_recipe: bool | None = None
+
+
+class SamplingCandidates(BaseModel):
+    """某天某一餐全部候选菜。"""
+
+    date: date
+    meal_type: MealType
+    meal_type_label: str
+    menu_confirmed: bool
+    dishes: list[SamplingCandidate]
+    #: 最近一次抽样纠偏留下的系数，便于判断当前脚下踩的是什么
+    recent_corrections: list[SamplingCorrectionRead]
+
+
 def to_comparison(
     *,
     code: str,

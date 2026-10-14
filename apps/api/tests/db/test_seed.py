@@ -16,6 +16,8 @@ from app.modules.nutrition.models import NutritionStandard
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from tests.helpers import today_local
+
 
 def _run_seed() -> dict[str, dict[str, int]]:
     with get_session_factory()() as session:
@@ -46,8 +48,17 @@ def test_seed_covers_required_demo_scope(db_session: Session) -> None:
     assert db_session.scalar(select(func.count()).select_from(Dish)) >= 20
     assert db_session.scalar(select(func.count()).select_from(NutritionStandard)) == 4
     # 8 周历史：同星期移动平均的每个星期几有 8 个样本，回测才有意义
-    assert db_session.scalar(select(func.count()).select_from(MenuDay)) == HISTORY_DAYS
-    assert db_session.scalar(select(func.count()).select_from(DailyLog)) == HISTORY_DAYS
+    # 以当天为界：开发库里可能留着端到端用例造的未来日期的菜单与采集记录，
+    # 它们不属于种子历史，也不该让这条断言跟着变
+    today = today_local()
+    assert (
+        db_session.scalar(select(func.count()).select_from(MenuDay).where(MenuDay.date <= today))
+        == HISTORY_DAYS
+    )
+    assert (
+        db_session.scalar(select(func.count()).select_from(DailyLog).where(DailyLog.date <= today))
+        == HISTORY_DAYS
+    )
 
 
 def test_every_dish_has_at_least_one_recipe_item(db_session: Session) -> None:

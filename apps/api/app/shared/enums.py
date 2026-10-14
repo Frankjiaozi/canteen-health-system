@@ -124,6 +124,30 @@ class FeedbackSource(LabelledStrEnum):
     STUDENT = "STUDENT"
 
 
+class AnomalyFlag(LabelledStrEnum):
+    """采集当天的异常标记。
+
+    它们的作用只有一个：**把这些日子从预测的历史序列里排除**。临时接待让份数虚高，
+    停供与设备故障让份数虚低，任何一种进了移动平均都会把预测带偏。
+
+    `CALIBRATION_RESIDUAL` 与另外三个不同：它不由人勾选，而是校准算完之后**系统回写**的——
+    当天总量与拟合预测的偏差过大，通常意味着漏记了一道菜或总量抄错，这一天同样不可信。
+    """
+
+    RECEPTION = "RECEPTION"
+    SUSPENDED = "SUSPENDED"
+    EQUIPMENT_FAILURE = "EQUIPMENT_FAILURE"
+    CALIBRATION_RESIDUAL = "CALIBRATION_RESIDUAL"
+
+
+#: 由录入员勾选的异常标记；系统回写的那一个不在其中
+MANUAL_ANOMALY_FLAGS: tuple[AnomalyFlag, ...] = (
+    AnomalyFlag.RECEPTION,
+    AnomalyFlag.SUSPENDED,
+    AnomalyFlag.EQUIPMENT_FAILURE,
+)
+
+
 class SuggestionStatus(LabelledStrEnum):
     PENDING = "PENDING"
     ACCEPTED = "ACCEPTED"
@@ -227,6 +251,11 @@ ENUM_LABELS: dict[tuple[type[LabelledStrEnum], str], str] = {
     # 反馈
     (FeedbackSource, FeedbackSource.RECORDER.value): "录入员代录",
     (FeedbackSource, FeedbackSource.STUDENT.value): "学生反馈",
+    # 采集异常标记
+    (AnomalyFlag, AnomalyFlag.RECEPTION.value): "临时接待",
+    (AnomalyFlag, AnomalyFlag.SUSPENDED.value): "菜品停供",
+    (AnomalyFlag, AnomalyFlag.EQUIPMENT_FAILURE.value): "设备故障",
+    (AnomalyFlag, AnomalyFlag.CALIBRATION_RESIDUAL.value): "用量对不上（系统判定）",
     # 推荐
     (SuggestionStatus, SuggestionStatus.PENDING.value): "待确认",
     (SuggestionStatus, SuggestionStatus.ACCEPTED.value): "已采纳",

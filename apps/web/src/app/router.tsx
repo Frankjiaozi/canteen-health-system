@@ -2,6 +2,8 @@ import { Skeleton } from 'antd';
 import { Suspense, lazy, type ReactNode } from 'react';
 import { Navigate, RouterProvider, createBrowserRouter } from 'react-router-dom';
 import { RequireAuth } from '@/features/auth/components/RequireAuth';
+import { SamplingPage } from '@/features/calibration/routes';
+import { DailyLogPage } from '@/features/collection/routes';
 import { DisplayPage } from '@/features/display/routes';
 import { DashboardPage } from '@/features/dashboard/routes';
 import { DishListPage, SeasoningListPage } from '@/features/dish/routes';
@@ -68,7 +70,8 @@ const router = createBrowserRouter([
       { path: 'ingredients', element: lazyElement(<IngredientListPage />) },
       { path: 'dishes', element: lazyElement(<DishListPage />) },
       { path: 'seasonings', element: lazyElement(<SeasoningListPage />) },
-      { path: 'collection', element: placeholderElement('/admin/collection') },
+      { path: 'collection', element: lazyElement(<DailyLogPage />) },
+      { path: 'calibration', element: lazyElement(<SamplingPage />) },
       { path: 'dashboard', element: lazyElement(<DashboardPage />) },
       { path: 'forecast', element: placeholderElement('/admin/forecast') },
       { path: 'recommendation', element: placeholderElement('/admin/recommendation') },

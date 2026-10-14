@@ -34,9 +34,12 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
+from tests.helpers import today_local
+
 SAMPLES = "/api/v1/calibration/samples"
 COMPARISON = "/api/v1/calibration/comparison"
 DAILY_CLOSURE = "/api/v1/calibration/daily-closure"
+CANDIDATES = "/api/v1/calibration/candidates"
 
 #: 演示种子里配方较完整、含四类调味料的一道菜
 DISH = "土豆炖牛肉"
@@ -59,7 +62,13 @@ def _served_day(session: Session, dish_name: str) -> MenuDay:
         select(MenuDay)
         .join(MenuDayItem, MenuDayItem.menu_day_id == MenuDay.id)
         .join(Dish, Dish.id == MenuDayItem.dish_id)
-        .where(Dish.name == dish_name, MenuDay.meal_type == MealType.LUNCH)
+        # 限定在今天及以前：开发库里可能留着端到端用例造的未来日期，
+        # 那些日子的采集记录是另一套数，拿它做基准会得出错误的结论
+        .where(
+            Dish.name == dish_name,
+            MenuDay.meal_type == MealType.LUNCH,
+            MenuDay.date <= today_local(),
+        )
         .order_by(MenuDay.date.desc())
         .limit(1)
     )
@@ -486,6 +495,64 @@ def test_repeated_sample_does_not_duplicate_rows(
         )
     )
     assert count == 1
+
+
+def test_candidates_list_the_meal_with_its_three_values(
+    as_recorder: TestClient, db_session: Session
+) -> None:
+    """抽样页要一次拿到「这一餐有哪些菜、三个值各是多少」，不必逐道菜查一遍。"""
+    dish = _dish(db_session, DISH)
+    menu_day = _served_day(db_session, DISH)
+    theoretical = _theoretical(db_session, dish_id=dish.id, on_date=menu_day.date)
+
+    as_recorder.post(
+        DAILY_CLOSURE, params={"on_date": menu_day.date.isoformat(), "meal_type": "LUNCH"}
+    )
+    as_recorder.post(
+        SAMPLES,
+        json={
+            "dish_id": str(dish.id),
+            "date": menu_day.date.isoformat(),
+            "meal_type": "LUNCH",
+            "measured_energy_kcal": str(theoretical.energy_kcal),
+            "measured_protein_g": str(theoretical.protein_g),
+            "measured_fat_g": str(theoretical.fat_g),
+            "measured_carb_g": str(theoretical.carb_g),
+            "measured_sodium_mg": str(theoretical.sodium_mg),
+            "scope": "DISH",
+        },
+    )
+
+    body = as_recorder.get(
+        CANDIDATES, params={"on_date": menu_day.date.isoformat(), "meal_type": "LUNCH"}
+    ).json()
+
+    assert body["menu_confirmed"] is True
+    assert len(body["dishes"]) >= 5, "当餐的菜都应当列出来"
+    row = next(item for item in body["dishes"] if item["dish_id"] == str(dish.id))
+    assert row["theoretical"] is not None
+    assert row["calibrated"] is not None
+    assert row["sampled"] is not None
+    assert row["applied"] is True
+    assert row["suspect_recipe"] is False
+    assert row["cooking_method_label"]
+
+    # 抽样留下的修正比要在清单里说明当前脚下踩的是什么
+    correction = next(
+        item for item in body["recent_corrections"] if item["dish_id"] == str(dish.id)
+    )
+    assert correction["scope"] == "DISH"
+    assert Decimal(correction["overall"]) > 0
+
+
+def test_candidates_report_an_empty_meal(as_recorder: TestClient) -> None:
+    """没排菜单的日子要给一句能照做的提示，而不是空列表让人猜。"""
+    body = as_recorder.get(
+        CANDIDATES, params={"on_date": "2020-01-01", "meal_type": "LUNCH"}
+    ).json()
+
+    assert body["menu_confirmed"] is False
+    assert body["dishes"] == []
 
 
 def test_daily_closure_compounds_the_sampling_correction(
