@@ -12,13 +12,20 @@ from __future__ import annotations
 
 from decimal import ROUND_HALF_UP, Decimal
 
-from app.modules.collection.models import DailyLog
+from app.db import seed as seed_module
 from app.modules.dish.models import Dish
 from app.modules.menu.models import MenuDay, MenuDayItem
+from app.modules.nutrition import engine
 from app.modules.nutrition.models import DishNutrition
-from app.shared.enums import MealType, NutrientCaliber, NutritionValueType
+from app.shared.enums import (
+    CookingMethod,
+    MealType,
+    NutrientCaliber,
+    NutritionValueType,
+    SeasoningCategory,
+)
 from fastapi.testclient import TestClient
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 DAILY_CLOSURE = "/api/v1/calibration/daily-closure"
@@ -92,60 +99,73 @@ def test_closure_runs_and_stores_both_calibers(
 def test_coefficient_matches_independent_hand_calculation(
     as_recorder: TestClient, db_session: Session
 ) -> None:
-    """系数 = 当日实际用量 ÷ 按配方推算的用量，这里用一条独立 SQL 重算一遍。"""
+    """系数必须还原出种子数据里那套**已知偏置**。
+
+    这是整个营养模块里唯一一条「真值已知」的检验。种子按「炒 1.18 / 炖 1.06 / 煮 0.95 /
+    蒸 0 / 凉拌 1.0」的乘数生成每天的用油量，盐、糖各用一个统一乘数（见 `seed.py`），
+    因此窗口拟合的结果可以直接和这套真值逐项对照。
+
+    这里刻意**从种子模块读真值**而不是把数字抄进测试：抄一遍的话，哪天种子改了偏置，
+    测试还拿着旧数字绿灯，那就成了摆设。
+
+    也说清以前那条测试错在哪：它用「当日实际 ÷ 当日推算」重算了一遍——那是实现本身的
+    公式，公式错了它跟着错，只能证明实现自洽，证明不了公式对。而那个公式在数学上根本
+    无解（一天只有一个总量，却有多种烹饪方式同时在用同一种调料）。
+    """
     menu_day = _latest_menu_day(db_session)
-    daily_log = db_session.scalar(
-        select(DailyLog).where(
-            DailyLog.date == menu_day.date, DailyLog.meal_type == menu_day.meal_type
-        )
-    )
-    assert daily_log is not None
 
     body = as_recorder.post(
         DAILY_CLOSURE, params={"on_date": menu_day.date.isoformat(), "meal_type": "LUNCH"}
     ).json()
 
-    for row in body["factors"]:
-        method = row["cooking_method"]
-        for code, coefficient in row["coefficients"].items():
-            theoretical = Decimal(row["theoretical_g"][code])
-            actual = row["actual_g"][code]
-            if actual is None or theoretical <= 0:
-                assert Decimal(coefficient) == Decimal("1"), "拿不到实际用量的类别不该被缩放"
+    assert body["window"]["samples"] >= 21, "演示历史应当够做一次按方法的分组拟合"
+    assert body["window"]["fallback_reason"] is None
+
+    by_method = {row["cooking_method"]: row for row in body["factors"]}
+    for method, coefficients in by_method.items():
+        expected_oil = Decimal(str(seed_module._OIL_BIAS_BY_METHOD[CookingMethod(method)]))
+        if "EDIBLE_OIL" in coefficients["coefficients"]:
+            got = Decimal(coefficients["coefficients"]["EDIBLE_OIL"])
+            assert abs(got - expected_oil) <= Decimal("0.01"), (
+                f"{method} 用油系数拟合为 {got}，种子真值 {expected_oil}"
+            )
+        for code, truth in (("SALT", seed_module._SALT_BIAS), ("SUGAR", seed_module._SUGAR_BIAS)):
+            if code not in coefficients["coefficients"]:
                 continue
-
-            # 独立重算：直接查「配方用量 × 出餐份数」，不经过服务层
-            recomputed = db_session.scalar(
-                text(
-                    """
-                    SELECT COALESCE(SUM(rs.quantity_per_serving_g * dli.servings_produced), 0)
-                    FROM recipe_seasonings rs
-                    JOIN seasonings s ON s.id = rs.seasoning_id
-                    JOIN dishes d ON d.id = rs.dish_id
-                    JOIN daily_log_items dli ON dli.dish_id = d.id
-                    JOIN daily_logs dl ON dl.id = dli.daily_log_id
-                    WHERE dl.date = :day
-                      AND dl.meal_type = :meal
-                      AND d.cooking_method = :method
-                      AND s.category = :category
-                    """
-                ),
-                {
-                    "day": menu_day.date,
-                    "meal": menu_day.meal_type.value,
-                    "method": method,
-                    "category": code,
-                },
+            got = Decimal(coefficients["coefficients"][code])
+            assert abs(got - Decimal(str(truth))) <= Decimal("0.01"), (
+                f"{method} 的 {code} 拟合为 {got}，种子真值 {truth}"
             )
 
-            assert theoretical == Decimal(str(recomputed)).quantize(
-                Decimal("0.01"), rounding=ROUND_HALF_UP
-            ), f"{method} 的 {code} 推算用量与独立重算不一致"
 
-            expected = (Decimal(actual) / theoretical).quantize(
-                Decimal("0.0001"), rounding=ROUND_HALF_UP
-            )
-            assert Decimal(coefficient) == expected
+def test_daily_totals_are_a_check_not_a_multiplier(
+    as_recorder: TestClient, db_session: Session
+) -> None:
+    """当天总量改成校验项：拿拟合系数预测当天用量，偏差写进 checks。
+
+    这条守住的是「当天总量不再充当乘数」——那正是把系数算成三倍、十三倍的根源。
+    """
+    menu_day = _latest_menu_day(db_session)
+
+    body = as_recorder.post(
+        DAILY_CLOSURE, params={"on_date": menu_day.date.isoformat(), "meal_type": "LUNCH"}
+    ).json()
+
+    checks = {row["code"]: row for row in body["checks"]}
+    assert set(checks) == {"EDIBLE_OIL", "SALT", "SUGAR"}
+    for row in checks.values():
+        actual = Decimal(row["actual_g"])
+        predicted = Decimal(row["predicted_g"])
+        assert actual > 0 and predicted > 0
+        expected = ((actual - predicted) / predicted).quantize(
+            Decimal("0.0001"), rounding=ROUND_HALF_UP
+        )
+        assert Decimal(row["deviation"]) == expected
+        assert row["status"] in {"ok", "warn"}
+
+    # 种子数据是按同一套偏置生成的，预测应当贴得很紧
+    assert all(row["status"] == "ok" for row in checks.values()), body["checks"]
+    assert Decimal(body["window"]["residual_mape"]) <= Decimal("0.01")
 
 
 def test_only_seasoning_contribution_is_scaled(
@@ -220,3 +240,112 @@ def test_day_without_menu_is_reported_clearly(as_recorder: TestClient) -> None:
     assert response.status_code == 422
     assert response.json()["code"] == "business_rule_violated"
     assert "菜单" in response.json()["message"]
+
+
+# ---------------------------------------------------------------------------
+# 拟合算法本身（纯函数，不碰数据库）
+# ---------------------------------------------------------------------------
+def _samples(rows: list[tuple[float, float, float]]) -> list[engine.CalibrationSample]:
+    """每行 = (炒菜推算油量, 炖菜推算油量, 当天实际油量)。"""
+    return [
+        engine.CalibrationSample(
+            actual={SeasoningCategory.EDIBLE_OIL: Decimal(str(actual))},
+            implied={
+                CookingMethod.STIR_FRY: {SeasoningCategory.EDIBLE_OIL: Decimal(str(stir))},
+                CookingMethod.STEW: {SeasoningCategory.EDIBLE_OIL: Decimal(str(stew))},
+            },
+        )
+        for stir, stew, actual in rows
+    ]
+
+
+def test_fit_recovers_known_coefficients() -> None:
+    """造一组「炒 1.2、炖 0.8」的数据，拟合必须把它们解出来。"""
+    rows = [
+        (100.0, 200.0, 100 * 1.2 + 200 * 0.8),
+        (300.0, 100.0, 300 * 1.2 + 100 * 0.8),
+        (120.0, 480.0, 120 * 1.2 + 480 * 0.8),
+        (250.0, 350.0, 250 * 1.2 + 350 * 0.8),
+    ] * 6  # 凑够最小样本数
+
+    fitted = engine.fit_calibration_coefficients(_samples(rows))
+
+    assert fitted.fallback_reason is None
+    assert abs(
+        fitted.coefficients[CookingMethod.STIR_FRY][SeasoningCategory.EDIBLE_OIL] - Decimal("1.2")
+    ) <= Decimal("0.01")
+    assert abs(
+        fitted.coefficients[CookingMethod.STEW][SeasoningCategory.EDIBLE_OIL] - Decimal("0.8")
+    ) <= Decimal("0.01")
+    assert fitted.residual_mape <= Decimal("0.01")
+
+
+def test_fit_falls_back_when_history_is_too_short() -> None:
+    """样本不够时退化成整餐一个比值，并如实标注原因，而不是硬解出一组数。"""
+    rows = [(100.0, 200.0, 100 * 1.2 + 200 * 0.8)] * 5  # 只有 5 天
+
+    fitted = engine.fit_calibration_coefficients(_samples(rows))
+
+    assert fitted.fallback_reason is not None
+    assert SeasoningCategory.EDIBLE_OIL in fitted.fallbacks
+    assert "少于" in fitted.fallbacks[SeasoningCategory.EDIBLE_OIL]
+    stir = fitted.coefficients[CookingMethod.STIR_FRY][SeasoningCategory.EDIBLE_OIL]
+    stew = fitted.coefficients[CookingMethod.STEW][SeasoningCategory.EDIBLE_OIL]
+    assert stir == stew, "退化之后各方法应当是同一个比值，而不是各解各的"
+    # 每天实际 280 克，推算 100 + 200 = 300 克，比值 280 ÷ 300
+    assert abs(stir - Decimal("280") / Decimal("300")) <= Decimal("0.001")
+
+
+def test_fit_falls_back_when_only_one_method_uses_the_seasoning() -> None:
+    """只有一种烹饪方式在用这类调料时，按方法分组没有意义。"""
+    samples = [
+        engine.CalibrationSample(
+            actual={SeasoningCategory.EDIBLE_OIL: Decimal("120")},
+            implied={CookingMethod.STIR_FRY: {SeasoningCategory.EDIBLE_OIL: Decimal(str(100 + i))}},
+        )
+        for i in range(30)
+    ]
+
+    fitted = engine.fit_calibration_coefficients(samples)
+
+    assert fitted.fallback_reason is not None
+    assert "只有一种烹饪方式" in fitted.fallbacks[SeasoningCategory.EDIBLE_OIL]
+
+
+def test_fit_never_returns_negative_coefficients() -> None:
+    """某些日子实际用量明显低于推算量时，无约束最小二乘会解出负数；必须被截住。
+
+    负系数会把一道菜的油量算成负的，落库时直接被 CHECK 约束挡下——宁可截到 0，
+    也不要写进去一个物理上不存在的数。
+    """
+    rows = [
+        (100.0, 200.0, 10.0),
+        (300.0, 100.0, 20.0),
+        (120.0, 480.0, 15.0),
+        (250.0, 350.0, 30.0),
+    ] * 6
+
+    fitted = engine.fit_calibration_coefficients(_samples(rows))
+
+    for by_category in fitted.coefficients.values():
+        for value in by_category.values():
+            assert value >= 0, "系数不能为负"
+
+
+def test_fit_reports_zero_residual_when_the_model_is_exact() -> None:
+    """每天的账都能被这套系数平掉时，残差应当是 0——否则这条残差指标就失去了意义。"""
+    rows = [
+        (float(stir), float(stew), stir * 1.2 + stew * 0.8)
+        for stir, stew in (
+            (100, 200),
+            (300, 100),
+            (120, 480),
+            (250, 350),
+            (400, 60),
+            (90, 510),
+        )
+    ] * 5
+
+    fitted = engine.fit_calibration_coefficients(_samples(rows))
+
+    assert fitted.residual_mape <= Decimal("0.001")

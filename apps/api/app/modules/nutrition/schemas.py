@@ -31,18 +31,43 @@ class StandardComparison(BaseModel):
 
 
 class ClosureFactorRead(BaseModel):
-    """一种烹饪方式下，油盐糖各自的校准系数与它的依据。"""
+    """一种烹饪方式下，调料各自的校准系数与它的依据。"""
 
     cooking_method: CookingMethod
     cooking_method_label: str
-    #: 类别代码 → 系数
+    #: 类别代码 → 系数（由窗口内历史拟合得出）
     coefficients: dict[str, str]
     #: 类别代码 → 中文名
     coefficient_labels: dict[str, str]
-    #: 类别代码 → 当日按配方推算的用量（克）
-    theoretical_g: dict[str, str]
-    #: 类别代码 → 当日实际用量（克）；不逐日采集的类别为空
-    actual_g: dict[str, str | None]
+    #: 类别代码 → 当日该烹饪方式按配方推算的用量（克）
+    implied_g: dict[str, str]
+    #: 类别代码 → 按系数分摊到该烹饪方式的用量（克）
+    allocated_g: dict[str, str]
+
+
+class ClosureWindowRead(BaseModel):
+    """这次拟合用的是什么窗口、解得稳不稳——系数脱离窗口就没有意义。"""
+
+    days: int
+    samples: int = Field(description="窗口内实际参与拟合的采集次数")
+    start: date | None = None
+    end: date
+    residual_mape: str = Field(description="各次采集相对误差的平均绝对值")
+    ridge: str = Field(description="岭项相对强度，罚向 1 而不是罚向 0")
+    fallback_reason: str | None = Field(
+        default=None, description="退化成整餐统一比值时的原因；正常拟合时为空"
+    )
+
+
+class ClosureCheckRead(BaseModel):
+    """当天实际总量与拟合预测的对照。"""
+
+    code: str
+    label: str
+    actual_g: str
+    predicted_g: str
+    deviation: str
+    status: str = Field(description="ok / warn")
 
 
 class SamplingCorrectionRead(BaseModel):
@@ -62,6 +87,9 @@ class ClosureRunResponse(BaseModel):
     meal_type: MealType
     meal_type_label: str
     factors: list[ClosureFactorRead]
+    window: ClosureWindowRead
+    #: 当天总量与拟合预测的对照；当天总量是校验项，不是乘数
+    checks: list[ClosureCheckRead]
     #: 本次叠加到菜品上的第三层抽样修正；没有抽样记录时为空数组
     sampling_corrections: list[SamplingCorrectionRead]
     calibrated_rows: int = Field(description="本次写入的校准结果条数（单份 + 人均）")

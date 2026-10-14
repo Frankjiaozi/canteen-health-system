@@ -184,15 +184,44 @@ def recompute_dish_nutrition(session: Session, dish_id: UUID) -> ComputeReport:
 
 @dataclass
 class ClosureFactorRow:
-    """一种烹饪方式下，油盐糖各自的校准系数与它算出来的依据。"""
+    """一种烹饪方式下，调料各自的校准系数与它算出来的依据。"""
 
     cooking_method: CookingMethod
-    #: 类别代码 → 系数
+    #: 类别代码 → 系数（由窗口内历史拟合得出，不是当天一个比值）
     coefficients: dict[str, str]
     #: 类别代码 → 当日该烹饪方式按配方推算的用量（克）
-    theoretical_g: dict[str, str]
-    #: 类别代码 → 当日实际用量（克）；拿不到实际值的类别为空
-    actual_g: dict[str, str | None]
+    implied_g: dict[str, str]
+    #: 类别代码 → 按系数分摊到该烹饪方式的用量（克）= 推算量 × 系数
+    allocated_g: dict[str, str]
+
+
+@dataclass
+class ClosureWindowRow:
+    """这次拟合用的是什么窗口、解得稳不稳。系数脱离窗口就没有意义，必须一起交代。"""
+
+    days: int
+    samples: int
+    start: date | None
+    end: date
+    residual_mape: Decimal
+    ridge: Decimal
+    #: 退化成整餐统一比值时的原因；正常拟合时为 None
+    fallback_reason: str | None
+
+
+@dataclass
+class ClosureCheckRow:
+    """当天总量与拟合预测的对照。当天总量是**校验项**，不再充当乘数。"""
+
+    category: SeasoningCategory
+    actual_g: Decimal
+    predicted_g: Decimal
+    deviation: Decimal
+    status: str
+
+
+#: 当天实际总量与拟合预测的偏差超过这个比例时提示核对
+CLOSURE_CHECK_TOLERANCE = Decimal("0.10")
 
 
 @dataclass
@@ -212,6 +241,8 @@ class ClosureReport:
     date: date
     meal_type: MealType
     factors: list[ClosureFactorRow]
+    window: ClosureWindowRow
+    checks: list[ClosureCheckRow]
     calibrated_rows: int
     note: str
     #: 本次实际叠加到菜品上的第三层抽样修正
@@ -222,11 +253,18 @@ class ClosureReport:
 
 
 def compute_daily_closure(session: Session, *, on_date: date, meal_type: MealType) -> ClosureReport:
-    """第二层 当日闭环：用当天实际油盐糖总量校正配方推算值。
+    """第二层 当日闭环：用历史采集到的实际用量校正配方推算值。
 
     按烹饪方式分组、油盐糖各算各的：蒸菜压根不加油，拿炒菜的系数去缩放它没有意义；
     而多放油很常见、多放糖不常见，两者偏差幅度本来就不一样，合成一个系数需要一个
     加权方式，任何一种加权都没有客观依据。
+
+    **系数不是当天的比值**。一天只有一个总量，却有若干种烹饪方式同时在用同一种调料，
+    当天比值在数学上无解——真实情况是「整餐总量 ÷ 某一种方法的推算量」，天数一多必然
+    算出三倍、十三倍这种数。正确做法是把窗口内几十次采集堆成方程组，
+    用带岭项的非负最小二乘解出每种烹饪方式各自的偏置（见 engine.fit_calibration_coefficients）。
+    当天总量因此降级为**校验项**：拿拟合系数预测当天用量，偏差大就提示核对，
+    而不是把它当成乘数。
 
     系数最终**只作用在调味料贡献上**，食材部分原样保留——理由见 engine.apply_calibration。
     """
@@ -240,8 +278,8 @@ def compute_daily_closure(session: Session, *, on_date: date, meal_type: MealTyp
     recipes = repository.load_recipes(session, repository.load_menu_dish_ids(session, menu_day.id))
     log_items = repository.load_daily_log_items(session, daily_log.id)
 
-    # 按配方推算：每种烹饪方式下，各调味料类别一共该用多少克
-    computed: dict[CookingMethod, dict[SeasoningCategory, Decimal]] = defaultdict(
+    # 当餐按配方推算：每种烹饪方式下，各调味料类别一共该用多少克
+    implied_today: dict[CookingMethod, dict[SeasoningCategory, Decimal]] = defaultdict(
         lambda: defaultdict(lambda: Decimal("0"))
     )
     for dish_id, recipe in recipes.items():
@@ -250,50 +288,53 @@ def compute_daily_closure(session: Session, *, on_date: date, meal_type: MealTyp
         if servings <= 0:
             continue
         for line in recipe.seasonings:
-            computed[recipe.cooking_method][line.seasoning.category] += line.quantity_g * servings
+            implied_today[recipe.cooking_method][line.seasoning.category] += (
+                line.quantity_g * servings
+            )
 
     # 当天出现过的每种烹饪方式都要有系数。蒸菜压根不放油盐糖，配方推算总量为 0、
     # 系数自然全是 1，但**仍然要给出校准结果**——否则「当天校准后的完整结果」里
     # 会缺几道菜，界面上看着像校准失败，而不是「这道菜不需要校准」。
     for recipe in recipes.values():
-        computed.setdefault(recipe.cooking_method, {})
+        implied_today.setdefault(recipe.cooking_method, {})
+
+    window_start = on_date - timedelta(days=engine.CALIBRATION_WINDOW_DAYS - 1)
+    samples = repository.load_calibration_samples(session, start=window_start, end=on_date)
+    fitted = engine.fit_calibration_coefficients(samples)
 
     rows: list[ClosureFactorRow] = []
     factors_by_method: dict[CookingMethod, engine.CalibrationFactors] = {}
-    for method, by_category in computed.items():
-        coefficients: dict[str, Decimal] = {}
-        for category, theoretical_g in by_category.items():
-            field_name = CLOSURE_ACTUAL_FIELD.get(category)
-            actual = getattr(daily_log, field_name) if field_name else None
-            if actual is None or theoretical_g <= 0:
-                # 拿不到实际值的类别不缩放（例如酱油、淀粉这类不逐日采集的）
-                coefficients[category.value] = Decimal("1")
-                continue
-            coefficients[category.value] = quantize(actual / theoretical_g, 4)
-
+    scaled: dict[SeasoningCategory, Decimal] = defaultdict(lambda: Decimal("0"))
+    for method, by_category in implied_today.items():
+        # 只有逐日采集的类别（油、盐、糖）才有实际用量可对，酱油、淀粉这类系数恒为 1
+        coefficients = {
+            category.value: fitted.coefficients.get(method, {}).get(category, Decimal("1"))
+            if CLOSURE_ACTUAL_FIELD.get(category) is not None
+            else Decimal("1")
+            for category in by_category
+        }
         factors_by_method[method] = engine.CalibrationFactors(
             by_category={SeasoningCategory(code): value for code, value in coefficients.items()},
-            source_note=f"当日闭环：{method.label}",
+            source_note=f"当日闭环（{fitted.samples} 次采集拟合）：{method.label}",
         )
         encoded: dict[str, Any] = {code: str(value) for code, value in coefficients.items()}
         rows.append(
             ClosureFactorRow(
                 cooking_method=method,
                 coefficients=encoded,
-                theoretical_g={
+                implied_g={
                     category.value: str(quantize(theoretical_g, 2))
                     for category, theoretical_g in by_category.items()
                 },
-                actual_g={
-                    category.value: (
-                        None
-                        if CLOSURE_ACTUAL_FIELD.get(category) is None
-                        else str(getattr(daily_log, CLOSURE_ACTUAL_FIELD[category]))
-                    )
-                    for category in by_category
+                allocated_g={
+                    category.value: str(quantize(theoretical_g * coefficients[category.value], 2))
+                    for category, theoretical_g in by_category.items()
                 },
             )
         )
+        for category, theoretical_g in by_category.items():
+            scaled[category] += theoretical_g * coefficients[category.value]
+
         repository.replace_calibration_factors(
             session,
             on_date=on_date,
@@ -302,14 +343,13 @@ def compute_daily_closure(session: Session, *, on_date: date, meal_type: MealTyp
             source=CalibrationSource.DAILY_CLOSURE,
             coefficients=encoded,
             basis_note=(
-                f"当日实际用量 ÷ 配方推算用量；"
-                f"{method.label}："
-                + "、".join(
-                    f"{category.label} {quantize(theoretical_g, 1)}g"
-                    for category, theoretical_g in by_category.items()
-                )
+                f"{fitted.samples} 次采集 / {engine.CALIBRATION_WINDOW_DAYS} 天窗口拟合；"
+                f"残差 {quantize(fitted.residual_mape * 100, 2)}%"
+                + (f"；{fitted.fallback_reason}" if fitted.fallback_reason else "")
             ),
         )
+
+    checks = _closure_checks(daily_log, scaled)
 
     # 第三层抽样纠偏留下的整体系数：把它叠到第二层的系数上，三层的成果才真的汇到一处。
     # 每类烹饪方式只查一次库，避免逐道菜重复查询。
@@ -355,11 +395,23 @@ def compute_daily_closure(session: Session, *, on_date: date, meal_type: MealTyp
         date=on_date,
         meal_type=meal_type,
         factors=rows,
+        window=ClosureWindowRow(
+            days=engine.CALIBRATION_WINDOW_DAYS,
+            samples=fitted.samples,
+            start=window_start if samples else None,
+            end=on_date,
+            residual_mape=fitted.residual_mape,
+            ridge=engine.CALIBRATION_RIDGE_RATIO,
+            fallback_reason=fitted.fallback_reason,
+        ),
+        checks=checks,
         calibrated_rows=calibrated_rows,
         sampling_corrections=sampling_rows,
         note=(
-            "系数 = 当日实际用量 ÷ 按配方推算的用量，只作用在调味料贡献上；"
-            "食材部分保持不变。酱油、淀粉等不逐日采集的调味料不参与校准。"
+            f"系数由最近 {engine.CALIBRATION_WINDOW_DAYS} 天、{fitted.samples} 次采集"
+            "联合解出（按烹饪方式分组，油盐糖各算各的），只作用在调味料贡献上，"
+            "食材部分保持不变。当天总量用于校验而非缩放，偏差过大时会在 checks 里提示。"
+            "酱油、淀粉等不逐日采集的调味料不参与校准。"
             "已有抽样纠偏的菜品在此基础上再乘一个抽样修正比（第三层）。"
         ),
     )
@@ -442,6 +494,36 @@ def _store_calibrated_day(
         )
     session.flush()
     return rows
+
+
+def _closure_checks(
+    daily_log: Any, scaled: dict[SeasoningCategory, Decimal]
+) -> list[ClosureCheckRow]:
+    """把当天实际总量与拟合预测摆在一起。
+
+    当天总量从「乘数」降级为「校验项」，是因为拿它当乘数在数学上无解（见本函数调用方）。
+    但它仍然是最好的体检手段：偏差大说明要么有菜漏记了、要么总量抄错了——
+    这正是采集环节最该被发现的错误。
+    """
+    checks: list[ClosureCheckRow] = []
+    for category, field_name in CLOSURE_ACTUAL_FIELD.items():
+        actual = getattr(daily_log, field_name)
+        if actual is None:
+            continue
+        predicted = scaled.get(category, Decimal("0"))
+        deviation = (actual - predicted) / predicted if predicted > 0 else Decimal("0")
+        checks.append(
+            ClosureCheckRow(
+                category=category,
+                actual_g=Decimal(actual),
+                predicted_g=quantize(predicted, 2),
+                deviation=quantize(deviation, 4),
+                status=(
+                    "ok" if predicted > 0 and abs(deviation) <= CLOSURE_CHECK_TOLERANCE else "warn"
+                ),
+            )
+        )
+    return checks
 
 
 def preview_per_serving(session: Session, dish_ids: Sequence[UUID]) -> dict[UUID, NutrientVector]:

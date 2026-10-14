@@ -20,7 +20,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.modules.collection.models import DailyLog, DailyLogItem
@@ -28,6 +28,7 @@ from app.modules.dish.models import Dish, RecipeItem, RecipeSeasoning
 from app.modules.ingredient.models import Ingredient
 from app.modules.menu.models import MenuDay, MenuDayItem
 from app.modules.nutrition.engine import (
+    CalibrationSample,
     DishRecipe,
     IngredientInput,
     NutrientVector,
@@ -43,6 +44,7 @@ from app.shared.enums import (
     MealType,
     NutrientCaliber,
     NutritionValueType,
+    SeasoningCategory,
 )
 
 
@@ -149,6 +151,60 @@ def load_daily_log_items(session: Session, daily_log_id: UUID) -> dict[UUID, Dai
         select(DailyLogItem).where(DailyLogItem.daily_log_id == daily_log_id)
     ).all()
     return {item.dish_id: item for item in items}
+
+
+def load_calibration_samples(
+    session: Session, *, start: date, end: date
+) -> list[CalibrationSample]:
+    """把窗口内每一次采集拼成一个方程，供引擎拟合各烹饪方式的调料偏置。
+
+    做法是两次查询后在内存里按餐次归并，而不是逐餐查一次——56 天会产生上百次往返，
+    而这里的数据量本来就小。
+    """
+    logs = list(
+        session.scalars(select(DailyLog).where(DailyLog.date >= start, DailyLog.date <= end)).all()
+    )
+    if not logs:
+        return []
+
+    log_ids = [log.id for log in logs]
+    rows = session.execute(
+        select(
+            DailyLogItem.daily_log_id,
+            Dish.cooking_method,
+            Seasoning.category,
+            func.sum(RecipeSeasoning.quantity_per_serving_g * DailyLogItem.servings_produced),
+        )
+        .join(Dish, Dish.id == DailyLogItem.dish_id)
+        .join(RecipeSeasoning, RecipeSeasoning.dish_id == Dish.id)
+        .join(Seasoning, Seasoning.id == RecipeSeasoning.seasoning_id)
+        .where(DailyLogItem.daily_log_id.in_(log_ids))
+        .group_by(DailyLogItem.daily_log_id, Dish.cooking_method, Seasoning.category)
+    ).all()
+
+    implied: dict[UUID, dict[CookingMethod, dict[SeasoningCategory, Decimal]]] = defaultdict(
+        lambda: defaultdict(dict)
+    )
+    for log_id, method, category, amount in rows:
+        implied[log_id][method][category] = Decimal(amount or 0)
+
+    samples: list[CalibrationSample] = []
+    for log in logs:
+        actual = {
+            SeasoningCategory.EDIBLE_OIL: log.oil_total_g,
+            SeasoningCategory.SALT: log.salt_total_g,
+            SeasoningCategory.SUGAR: log.sugar_total_g,
+        }
+        samples.append(
+            CalibrationSample(
+                actual={category: value for category, value in actual.items() if value is not None},
+                implied={
+                    method: dict(categories)
+                    for method, categories in implied.get(log.id, {}).items()
+                },
+            )
+        )
+    return samples
 
 
 def list_menu_days_between(session: Session, start: date, end: date) -> list[MenuDay]:

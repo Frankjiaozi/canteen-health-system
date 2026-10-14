@@ -24,8 +24,10 @@ from app.modules.nutrition.engine import NutrientVector
 from app.modules.nutrition.models import CalibrationFactor, DishNutrition
 from app.modules.nutrition.schemas import (
     CalibrationFactorRead,
+    ClosureCheckRead,
     ClosureFactorRead,
     ClosureRunResponse,
+    ClosureWindowRead,
     NutritionComparison,
     SampleCreate,
     SampleResult,
@@ -67,10 +69,30 @@ def run_daily_closure(
                 coefficient_labels={
                     code: SeasoningCategory(code).label for code in row.coefficients
                 },
-                theoretical_g=row.theoretical_g,
-                actual_g=row.actual_g,
+                implied_g=row.implied_g,
+                allocated_g=row.allocated_g,
             )
             for row in report.factors
+        ],
+        window=ClosureWindowRead(
+            days=report.window.days,
+            samples=report.window.samples,
+            start=report.window.start,
+            end=report.window.end,
+            residual_mape=str(report.window.residual_mape),
+            ridge=str(report.window.ridge),
+            fallback_reason=report.window.fallback_reason,
+        ),
+        checks=[
+            ClosureCheckRead(
+                code=row.category.value,
+                label=row.category.label,
+                actual_g=str(row.actual_g),
+                predicted_g=str(row.predicted_g),
+                deviation=str(row.deviation),
+                status=row.status,
+            )
+            for row in report.checks
         ],
         sampling_corrections=[
             SamplingCorrectionRead(

@@ -2,17 +2,77 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from decimal import Decimal
 from uuid import uuid4
 
+import pytest
+from app.db.session import get_session_factory
 from app.modules.audit.models import AuditLog
+from app.modules.dish.models import Dish, RecipeItem, RecipeSeasoning
 from app.modules.nutrition.models import DishNutrition
 from app.shared.enums import AuditAction, NutrientCaliber, NutritionValueType
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 BASE = "/api/v1/dishes"
+
+#: 本文件会**改动种子里的这道菜**（把配方整体替换掉）。
+#: 会话级的收尾要等整个测试跑完才把种子灌回去，中间这段时间它一直是残缺的，
+#: 后面的用例（例如校准要拿历史和配方对照）就会读到一个自相矛盾的库——
+#: 历史总量是按原配方生成的，配方却已经变了。所以这道菜用完就地还原。
+SEEDED_DISH = "清炒西兰花"
+
+
+@pytest.fixture(autouse=True)
+def restore_seeded_recipe() -> Iterator[None]:
+    """把这道菜的配方在用例前后各快照、还原一次，避免污染后面的用例。"""
+
+    def snapshot() -> tuple[int, list[dict], list[dict]] | None:
+        with get_session_factory()() as session:
+            dish = session.scalar(select(Dish).where(Dish.name == SEEDED_DISH))
+            if dish is None:
+                return None
+            items = [
+                {
+                    "ingredient_id": row.ingredient_id,
+                    "quantity_per_serving_g": row.quantity_per_serving_g,
+                    "edible_ratio_override": row.edible_ratio_override,
+                }
+                for row in session.scalars(select(RecipeItem).where(RecipeItem.dish_id == dish.id))
+            ]
+            seasonings = [
+                {
+                    "seasoning_id": row.seasoning_id,
+                    "quantity_per_serving_g": row.quantity_per_serving_g,
+                }
+                for row in session.scalars(
+                    select(RecipeSeasoning).where(RecipeSeasoning.dish_id == dish.id)
+                )
+            ]
+            return dish.recipe_version, items, seasonings
+
+    def restore(state: tuple[int, list[dict], list[dict]] | None) -> None:
+        if state is None:
+            return
+        version, items, seasonings = state
+        with get_session_factory()() as session:
+            dish = session.scalar(select(Dish).where(Dish.name == SEEDED_DISH))
+            if dish is None:
+                return
+            session.execute(delete(RecipeItem).where(RecipeItem.dish_id == dish.id))
+            session.execute(delete(RecipeSeasoning).where(RecipeSeasoning.dish_id == dish.id))
+            for row in items:
+                session.add(RecipeItem(dish_id=dish.id, **row))
+            for row in seasonings:
+                session.add(RecipeSeasoning(dish_id=dish.id, **row))
+            dish.recipe_version = version
+            session.commit()
+
+    state = snapshot()
+    yield
+    restore(state)
 
 
 def _id_of(client: TestClient, path: str, name: str) -> str:

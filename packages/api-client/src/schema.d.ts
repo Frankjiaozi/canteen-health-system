@@ -534,8 +534,29 @@ export interface components {
          */
         CalibrationSource: "DAILY_CLOSURE" | "SAMPLING";
         /**
+         * ClosureCheckRead
+         * @description 当天实际总量与拟合预测的对照。
+         */
+        ClosureCheckRead: {
+            /** Code */
+            code: string;
+            /** Label */
+            label: string;
+            /** Actual G */
+            actual_g: string;
+            /** Predicted G */
+            predicted_g: string;
+            /** Deviation */
+            deviation: string;
+            /**
+             * Status
+             * @description ok / warn
+             */
+            status: string;
+        };
+        /**
          * ClosureFactorRead
-         * @description 一种烹饪方式下，油盐糖各自的校准系数与它的依据。
+         * @description 一种烹饪方式下，调料各自的校准系数与它的依据。
          */
         ClosureFactorRead: {
             cooking_method: components["schemas"]["CookingMethod"];
@@ -549,13 +570,13 @@ export interface components {
             coefficient_labels: {
                 [key: string]: string;
             };
-            /** Theoretical G */
-            theoretical_g: {
+            /** Implied G */
+            implied_g: {
                 [key: string]: string;
             };
-            /** Actual G */
-            actual_g: {
-                [key: string]: string | null;
+            /** Allocated G */
+            allocated_g: {
+                [key: string]: string;
             };
         };
         /**
@@ -573,6 +594,9 @@ export interface components {
             meal_type_label: string;
             /** Factors */
             factors: components["schemas"]["ClosureFactorRead"][];
+            window: components["schemas"]["ClosureWindowRead"];
+            /** Checks */
+            checks: components["schemas"]["ClosureCheckRead"][];
             /** Sampling Corrections */
             sampling_corrections: components["schemas"]["SamplingCorrectionRead"][];
             /**
@@ -585,6 +609,41 @@ export interface components {
              * @description 口径说明，避免把校准值当成新一套真值
              */
             note: string;
+        };
+        /**
+         * ClosureWindowRead
+         * @description 这次拟合用的是什么窗口、解得稳不稳——系数脱离窗口就没有意义。
+         */
+        ClosureWindowRead: {
+            /** Days */
+            days: number;
+            /**
+             * Samples
+             * @description 窗口内实际参与拟合的采集次数
+             */
+            samples: number;
+            /** Start */
+            start?: string | null;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /**
+             * Residual Mape
+             * @description 各次采集相对误差的平均绝对值
+             */
+            residual_mape: string;
+            /**
+             * Ridge
+             * @description 岭项相对强度，罚向 1 而不是罚向 0
+             */
+            ridge: string;
+            /**
+             * Fallback Reason
+             * @description 退化成整餐统一比值时的原因；正常拟合时为空
+             */
+            fallback_reason?: string | null;
         };
         /** CompliancePoint */
         CompliancePoint: {
@@ -1965,8 +2024,10 @@ export type SchemaAuthUser = components['schemas']['AuthUser'];
 export type SchemaBodyImportDishesApiV1ImportDishesPost = components['schemas']['Body_import_dishes_api_v1_import_dishes_post'];
 export type SchemaCalibrationFactorRead = components['schemas']['CalibrationFactorRead'];
 export type SchemaCalibrationSource = components['schemas']['CalibrationSource'];
+export type SchemaClosureCheckRead = components['schemas']['ClosureCheckRead'];
 export type SchemaClosureFactorRead = components['schemas']['ClosureFactorRead'];
 export type SchemaClosureRunResponse = components['schemas']['ClosureRunResponse'];
+export type SchemaClosureWindowRead = components['schemas']['ClosureWindowRead'];
 export type SchemaCompliancePoint = components['schemas']['CompliancePoint'];
 export type SchemaComplianceResponse = components['schemas']['ComplianceResponse'];
 export type SchemaCookingMethod = components['schemas']['CookingMethod'];

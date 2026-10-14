@@ -303,6 +303,250 @@ class CalibrationFactors:
 CALIBRATED_TOLERANCE = Decimal("0.10")
 
 
+#: 拟合系数的滚动窗口长度（天）。太短解不稳定，太长会把几个月前的旧习惯算进来。
+CALIBRATION_WINDOW_DAYS = 42
+
+#: 少于这么多个样本时不做按烹饪方式的拟合，退化成整餐一个比值。
+#: 三周的轮换才能让各烹饪方式的占比拉开差距，否则解出来的系数极不稳定。
+CALIBRATION_MIN_SAMPLES = 21
+
+#: 岭项的相对强度，按各列自身的量级缩放，与数据单位无关。
+#: 罚的是「偏离 1」而不是「偏离 0」——没有偏置时系数本来就是 1。
+#:
+#: 取值刻意很小：岭项在这里的作用是消除奇异、把无解的方向钉在 1 上，而不是去调节系数。
+#: 只要大于 0 就能做到这件事，取大了反而会把它不熟悉的系数硬拽向 1——实测把这
+#: 个值提到 0.05，煮菜用油系数会从 0.95 被拽到 1.08，日残差从 0.01% 涨到 0.32%。
+CALIBRATION_RIDGE_RATIO = Decimal("0.001")
+
+
+@dataclass(frozen=True, slots=True)
+class CalibrationSample:
+    """一次采集能提供的方程。
+
+    未知数是「每种烹饪方式的偏置」，一天只有一个总量，所以单日无解；
+    把几十天堆起来，菜单轮换让各烹饪方式的占比不断变化，方程才解得出唯一答案。
+    """
+
+    #: 这一餐各类调料的实际总用量（克）
+    actual: dict[SeasoningCategory, Decimal]
+    #: 这一餐各烹饪方式按配方推算的用量（克）
+    implied: dict[CookingMethod, dict[SeasoningCategory, Decimal]]
+
+
+@dataclass(frozen=True, slots=True)
+class FittedCoefficients:
+    """一次拟合的全部产出。"""
+
+    #: 烹饪方式 → 类别 → 系数
+    coefficients: dict[CookingMethod, dict[SeasoningCategory, Decimal]]
+    #: 各样本相对误差的平均绝对值，用它判断这组系数解得住解不住
+    residual_mape: Decimal
+    samples: int
+    #: 类别 → 退化原因。正常按烹饪方式拟合出来的类别不出现在这里。
+    #: 做成按类别记录，是因为「窗口内没糖的那几天」会让糖这一个类别退化，
+    #: 而油和盐照常按方法拟合——报成一句话就看不出是哪一类出了问题。
+    fallbacks: dict[SeasoningCategory, str] = dataclass_field(default_factory=dict)
+
+    @property
+    def fallback_reason(self) -> str | None:
+        if not self.fallbacks:
+            return None
+        return "；".join(
+            f"{category.label}：{reason}" for category, reason in self.fallbacks.items()
+        )
+
+
+def fit_calibration_coefficients(
+    samples: Sequence[CalibrationSample],
+) -> FittedCoefficients:
+    """用历史数据反推「每种烹饪方式的调料偏置」。
+
+    模型只有一行：`当天某类调料总用量 = Σ_烹饪方式 (该类菜的配方推算量 × 该类菜的偏置)`。
+    每天一个方程，未知数是各烹饪方式的偏置——单日永远解不出，几十天堆起来才可识别，
+    前提是菜单轮换让各方法的占比有变化（食堂轮换天然满足）。
+
+    两个必须说清的边界：
+
+    1. **同一种烹饪方式内部，各道菜的比例只以「和」的形式进入方程**。「A 菜多放、B 菜少放」
+       只要总和不变，观测上完全无法区分——所以总量数据从原理上就分辨不出单道菜错在哪，
+       单道菜只能靠抽样称重。
+    2. **解不出唯一答案时不许硬解**。样本不足、或某类调料只有一种烹饪方式在用（只有一个
+       未知数、一个方程），就退化成整餐一个比值，并如实标注——那种情况下按方法分组纯属
+       把噪声当信号。
+    """
+    if not samples:
+        return FittedCoefficients(
+            coefficients={},
+            residual_mape=Decimal("0"),
+            samples=0,
+            fallbacks=dict.fromkeys(
+                (SeasoningCategory.EDIBLE_OIL, SeasoningCategory.SALT, SeasoningCategory.SUGAR),
+                "窗口内没有任何采集记录",
+            ),
+        )
+
+    categories = sorted(
+        {category for sample in samples for category in sample.actual},
+        key=lambda item: item.value,
+    )
+    coefficients: dict[CookingMethod, dict[SeasoningCategory, Decimal]] = {}
+    residuals: list[Decimal] = []
+    fallbacks: dict[SeasoningCategory, str] = {}
+
+    for category in categories:
+        methods = sorted(
+            {
+                method
+                for sample in samples
+                for method, by_category in sample.implied.items()
+                if by_category.get(category, Decimal("0")) > 0
+            },
+            key=lambda item: item.value,
+        )
+        rows: list[list[float]] = []
+        targets: list[float] = []
+        for sample in samples:
+            actual = sample.actual.get(category)
+            if actual is None:
+                continue
+            row = [
+                float(sample.implied.get(method, {}).get(category, Decimal("0")))
+                for method in methods
+            ]
+            if sum(row) <= 0:
+                # 这一餐压根没用这类调料（例如全天无糖），进方程只会制造 0=0
+                continue
+            rows.append(row)
+            targets.append(float(actual))
+
+        if not rows:
+            continue
+
+        reason = _fallback_reason(len(rows), len(methods))
+        if reason is None:
+            fitted = _solve_penalized_nnls(rows, targets, float(CALIBRATION_RIDGE_RATIO))
+        else:
+            fallbacks[category] = reason
+            fitted = [_single_ratio(rows, targets)] * len(methods)
+
+        for method, value in zip(methods, fitted, strict=True):
+            coefficients.setdefault(method, {})[category] = _to_decimal(value)
+        residuals.append(_mape(rows, targets, fitted))
+
+    overall = sum(residuals, Decimal("0")) / Decimal(len(residuals)) if residuals else Decimal("0")
+    return FittedCoefficients(
+        coefficients=coefficients,
+        residual_mape=overall.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP),
+        samples=len(samples),
+        fallbacks=fallbacks,
+    )
+
+
+def _fallback_reason(sample_count: int, method_count: int) -> str | None:
+    if method_count < 2:
+        return "这类调料只有一种烹饪方式在用，按方法分组没有意义，已退化为整餐一个比值"
+    if sample_count < CALIBRATION_MIN_SAMPLES:
+        return (
+            f"窗口内只有 {sample_count} 次采集，少于 {CALIBRATION_MIN_SAMPLES} 次，"
+            "按烹饪方式拟合不稳，已退化为整餐一个比值"
+        )
+    return None
+
+
+def _single_ratio(rows: list[list[float]], targets: list[float]) -> float:
+    """整餐总量 ÷ 整餐推算量。只有一个未知数时的正确答案。"""
+    total_implied = sum(sum(row) for row in rows)
+    if total_implied <= 0:
+        return 1.0
+    return sum(targets) / total_implied
+
+
+def _solve_penalized_nnls(
+    rows: list[list[float]], targets: list[float], ridge: float
+) -> list[float]:
+    """带岭项的非负最小二乘：min ‖Xβ − y‖² + Σλ_j(β_j−1)²，s.t. β ≥ 0。
+
+    正规方程是 (XᵀX + Λ)β = Xᵀy + Λ·1，规模只有几个未知数，用高斯消元足够，
+    也就不必为此引入 numpy——多一个重依赖，换不来这里任何实际的收益。
+
+    岭项**按各列自身的量级缩放**（λ_j = ρ·Σ_i X_ij²），而不是给对角线统一加一个数。
+    这一条很要紧：某类菜的用量本来就小（例如蒸菜那一点油），统一加罚等于对它下重手，
+    会把这个真实接近 0 的系数硬拽回 1 附近。按列缩放等价于「先把各列标准化再加岭」，
+    换一套单位，结论不变。
+    """
+    count = len(rows[0])
+    matrix = [[sum(row[i] * row[j] for row in rows) for j in range(count)] for i in range(count)]
+    vector = [
+        sum(row[i] * target for row, target in zip(rows, targets, strict=True))
+        for i in range(count)
+    ]
+    for i in range(count):
+        penalty = ridge * matrix[i][i]
+        matrix[i][i] += penalty
+        vector[i] += penalty
+
+    # 活动集法：解一次、把负系数剔出自由集、再解，直到全非负。自由集每轮至少少一个，
+    # 所以最多 n 轮就结束，不会来回震荡。
+    free = list(range(count))
+    while True:
+        solution = _gaussian(
+            [[matrix[i][j] for j in free] for i in free], [vector[i] for i in free]
+        )
+        negative = [slot for slot, value in enumerate(solution) if value < -1e-12]
+        if not negative:
+            full = [0.0] * count
+            for slot, index in enumerate(free):
+                full[index] = max(0.0, solution[slot])
+            return full
+        for slot in reversed(negative):
+            free.pop(slot)
+        if not free:
+            return [0.0] * count
+
+
+def _gaussian(matrix: list[list[float]], vector: list[float]) -> list[float]:
+    """列主元高斯消元。矩阵来自正规方程，正常情况下是对称正定的。"""
+    size = len(vector)
+    for column in range(size):
+        pivot = max(range(column, size), key=lambda row: abs(matrix[row][column]))
+        if abs(matrix[pivot][column]) < 1e-12:
+            # 理论上到不了这里：岭项保证了正定性。留个兜底，免得除以 0 直接炸掉整次校准
+            matrix[pivot][column] = 1e-12
+        matrix[column], matrix[pivot] = matrix[pivot], matrix[column]
+        vector[column], vector[pivot] = vector[pivot], vector[column]
+        for row in range(column + 1, size):
+            factor = matrix[row][column] / matrix[column][column]
+            for index in range(column, size):
+                matrix[row][index] -= factor * matrix[column][index]
+            vector[row] -= factor * vector[column]
+
+    solution = [0.0] * size
+    for row in range(size - 1, -1, -1):
+        rest = sum(matrix[row][index] * solution[index] for index in range(row + 1, size))
+        solution[row] = (vector[row] - rest) / matrix[row][row]
+    return solution
+
+
+def _mape(rows: list[list[float]], targets: list[float], fitted: list[float]) -> Decimal:
+    errors = [
+        abs(
+            sum(value * coefficient for value, coefficient in zip(row, fitted, strict=True))
+            - target
+        )
+        / target
+        for row, target in zip(rows, targets, strict=True)
+        if target > 0
+    ]
+    if not errors:
+        return Decimal("0")
+    return Decimal(str(sum(errors) / len(errors)))
+
+
+def _to_decimal(value: float) -> Decimal:
+    """系数保留四位小数。取整后再落库，免得浮点尾数进入快照与界面。"""
+    return Decimal(str(value)).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+
+
 def apply_calibration(result: NutritionResult, factors: CalibrationFactors) -> NutrientVector:
     """把校准系数作用到**调味料贡献**上，食材部分原样保留。
 
