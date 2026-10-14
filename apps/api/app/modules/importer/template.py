@@ -116,7 +116,7 @@ def build_template() -> bytes:
 def _add_readme(workbook: Workbook) -> None:
     sheet = workbook.create_sheet("填写说明", 0)
     lines = [
-        "食堂健康管理系统 · 批量导入模板",
+        "知味 · 校园智慧膳食平台 —— 批量导入模板",
         "",
         "一、四个 sheet 的含义：",
         "  食材   —— 每 100 克可食部的营养成分。数据来源必填，这是可追溯的硬要求。",
