@@ -196,12 +196,26 @@ class ClosureFactorRow:
 
 
 @dataclass
+class SamplingCorrectionRow:
+    """第三层抽样纠偏作用到某道菜上的整体修正比。"""
+
+    dish_id: UUID
+    dish_name: str
+    #: 修正比本身，例如 1.0738
+    overall: Decimal
+    #: 这条修正来自「只针对这道菜」还是「针对整类烹饪方式」
+    scope: str
+
+
+@dataclass
 class ClosureReport:
     date: date
     meal_type: MealType
     factors: list[ClosureFactorRow]
     calibrated_rows: int
     note: str
+    #: 本次实际叠加到菜品上的第三层抽样修正
+    sampling_corrections: list[SamplingCorrectionRow]
 
     def describe(self) -> str:
         return f"{self.date} {self.meal_type.label}：{len(self.factors)} 类烹饪方式，校准结果 {self.calibrated_rows} 条"
@@ -297,6 +311,34 @@ def compute_daily_closure(session: Session, *, on_date: date, meal_type: MealTyp
             ),
         )
 
+    # 第三层抽样纠偏留下的整体系数：把它叠到第二层的系数上，三层的成果才真的汇到一处。
+    # 每类烹饪方式只查一次库，避免逐道菜重复查询。
+    corrections_by_method = {
+        method: repository.latest_sampling_corrections(
+            session, cooking_method=method, on_or_before=on_date
+        )
+        for method in {recipe.cooking_method for recipe in recipes.values()}
+    }
+    overall_by_dish: dict[UUID, Decimal] = {}
+    sampling_rows: list[SamplingCorrectionRow] = []
+    for dish_id, recipe in recipes.items():
+        per_dish, per_method = corrections_by_method.get(recipe.cooking_method, ({}, None))
+        if dish_id in per_dish:
+            correction, scope = per_dish[dish_id], "DISH"
+        elif per_method is not None:
+            correction, scope = per_method, "COOKING_METHOD"
+        else:
+            continue
+        overall_by_dish[dish_id] = correction
+        sampling_rows.append(
+            SamplingCorrectionRow(
+                dish_id=dish_id,
+                dish_name=recipe.dish_name,
+                overall=correction,
+                scope=scope,
+            )
+        )
+
     calibrated_rows = _store_calibrated_day(
         session,
         on_date=on_date,
@@ -305,6 +347,7 @@ def compute_daily_closure(session: Session, *, on_date: date, meal_type: MealTyp
         log_items=log_items,
         diner_count=daily_log.diner_count,
         factors_by_method=factors_by_method,
+        overall_by_dish=overall_by_dish,
     )
     session.commit()
     logger.info("当日闭环校准完成：%s", rows and f"{len(rows)} 类烹饪方式")
@@ -313,9 +356,11 @@ def compute_daily_closure(session: Session, *, on_date: date, meal_type: MealTyp
         meal_type=meal_type,
         factors=rows,
         calibrated_rows=calibrated_rows,
+        sampling_corrections=sampling_rows,
         note=(
             "系数 = 当日实际用量 ÷ 按配方推算的用量，只作用在调味料贡献上；"
             "食材部分保持不变。酱油、淀粉等不逐日采集的调味料不参与校准。"
+            "已有抽样纠偏的菜品在此基础上再乘一个抽样修正比（第三层）。"
         ),
     )
 
@@ -329,25 +374,37 @@ def _store_calibrated_day(
     log_items: dict[UUID, Any],
     diner_count: int,
     factors_by_method: dict[CookingMethod, engine.CalibrationFactors],
+    overall_by_dish: dict[UUID, Decimal] | None = None,
 ) -> int:
-    """把校准后的单份与人均结果落库，逐条与理论值并存，便于对比。"""
+    """把校准后的单份与人均结果落库，逐条与理论值并存，便于对比。
+
+    缩放分两段乘在调味料贡献上：第二层按烹饪方式给的是「今天这批菜整体比配方多放了多少」，
+    第三层按菜品给的是「这道菜自己长期偏多少」。两者量纲不同，所以是相乘而不是取其一。
+    """
+    per_dish_overall = overall_by_dish or {}
     rows = 0
     for dish_id, recipe in recipes.items():
         base = engine.compute_theoretical_per_serving(recipe)
-        factors = factors_by_method.get(recipe.cooking_method)
-        if factors is None:
+        method_factors = factors_by_method.get(recipe.cooking_method)
+        if method_factors is None:
             continue
+        overall = per_dish_overall.get(dish_id, Decimal("1"))
+        factors = engine.CalibrationFactors(
+            by_category=method_factors.by_category,
+            overall=overall,
+            source_note=method_factors.source_note,
+        )
         per_serving = engine.apply_calibration(base, factors)
         uncertainty = _uncertainty_payload(per_serving, missing_nutrients=base.missing_nutrients)
         trace = {
             **base.trace,
             "layer": "当日闭环校准",
             "calibration": {
-                "source": CalibrationSource.DAILY_CLOSURE.value,
-                "coefficients": {
+                "daily_closure": {
                     category.value: str(value) for category, value in factors.by_category.items()
                 },
-                "applies_to": "调味料贡献；食材部分不变",
+                "sampling_overall": str(overall),
+                "applies_to": ("调味料贡献 = Σ(类别贡献 × 当日闭环系数) × 抽样修正；食材部分不变"),
                 "theoretical_per_serving": base.per_serving.as_trace(),
             },
         }

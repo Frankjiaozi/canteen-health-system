@@ -573,6 +573,8 @@ export interface components {
             meal_type_label: string;
             /** Factors */
             factors: components["schemas"]["ClosureFactorRead"][];
+            /** Sampling Corrections */
+            sampling_corrections: components["schemas"]["SamplingCorrectionRead"][];
             /**
              * Calibrated Rows
              * @description 本次写入的校准结果条数（单份 + 人均）
@@ -1407,6 +1409,16 @@ export interface components {
             /** Recipe Version */
             recipe_version: number;
             /**
+             * Value Type
+             * @description THEORETICAL / CALIBRATED / SAMPLED
+             */
+            value_type: string;
+            /**
+             * Value Type Label
+             * @description 口径来源的中文说明
+             */
+            value_type_label: string;
+            /**
              * Source Note
              * @description 数值来源说明
              */
@@ -1643,6 +1655,28 @@ export interface components {
             suspect_recipe: boolean;
             /** Note */
             note: string;
+        };
+        /**
+         * SamplingCorrectionRead
+         * @description 第三层抽样纠偏作用到某道菜上的整体修正比。
+         */
+        SamplingCorrectionRead: {
+            /**
+             * Dish Id
+             * Format: uuid
+             */
+            dish_id: string;
+            /** Dish Name */
+            dish_name: string;
+            /** Overall */
+            overall: string;
+            /**
+             * Scope
+             * @description DISH = 只针对这道菜；COOKING_METHOD = 针对整类烹饪方式
+             */
+            scope: string;
+            /** Scope Label */
+            scope_label: string;
         };
         /**
          * SeasoningCategory
@@ -1975,6 +2009,7 @@ export type SchemaRecipeUpdateResult = components['schemas']['RecipeUpdateResult
 export type SchemaRegisterRequest = components['schemas']['RegisterRequest'];
 export type SchemaSampleCreate = components['schemas']['SampleCreate'];
 export type SchemaSampleResult = components['schemas']['SampleResult'];
+export type SchemaSamplingCorrectionRead = components['schemas']['SamplingCorrectionRead'];
 export type SchemaSeasoningCategory = components['schemas']['SeasoningCategory'];
 export type SchemaSeasoningCreate = components['schemas']['SeasoningCreate'];
 export type SchemaSeasoningPage = components['schemas']['SeasoningPage'];

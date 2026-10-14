@@ -15,8 +15,9 @@ from app.modules.collection.models import DailyLog, DailyLogItem
 from app.modules.dish.models import Dish, RecipeItem
 from app.modules.menu.models import MenuDay, MenuDayItem
 from app.modules.nutrition.models import DishNutrition, NutritionStandard
-from app.shared.enums import NutrientCaliber, NutritionValueType
+from app.shared.enums import NutrientCaliber
 from app.shared.nutrients import NUTRIENT_FIELDS
+from app.shared.nutrition_values import VALUE_TYPES, priority_expression
 
 
 def load_daily_logs(session: Session, *, start: date, end: date) -> list[DailyLog]:
@@ -59,23 +60,50 @@ def load_day_per_capita_totals(
 
     当日人均摄入 = 当天各道菜人均口径结果之和。单份口径不参与这里，
     两个口径混用会得出完全错误的结论。
+
+    每道菜同一天可能同时有理论、校准、抽样三份人均结果。**必须先按菜品各取一份
+    再相加**：三份都加进去等于把同一道菜算三遍，人均摄入会凭空翻两三倍。
+    取舍顺序与公开大屏一致（抽样 > 校准 > 理论），见 app.shared.nutrition_values。
+
+    分区键必须带上餐次：一道菜午餐、晚餐都供应时是两条独立的结果，按「菜品 + 日期」
+    分区会把晚餐那一条挤掉，等于漏算一餐。
     """
-    columns = [func.sum(getattr(DishNutrition, field)).label(field) for field in NUTRIENT_FIELDS]
-    rows = session.execute(
-        select(DishNutrition.date, *columns)
+    best = (
+        select(
+            DishNutrition.date.label("date"),
+            *[getattr(DishNutrition, field).label(field) for field in NUTRIENT_FIELDS],
+            func.row_number()
+            .over(
+                partition_by=(
+                    DishNutrition.dish_id,
+                    DishNutrition.date,
+                    DishNutrition.meal_type,
+                ),
+                order_by=priority_expression(DishNutrition.value_type),
+            )
+            .label("rank"),
+        )
         .where(
             DishNutrition.date >= start,
             DishNutrition.date <= end,
             DishNutrition.caliber == NutrientCaliber.PER_CAPITA,
-            DishNutrition.value_type == NutritionValueType.THEORETICAL,
+            DishNutrition.value_type.in_(VALUE_TYPES),
         )
-        .group_by(DishNutrition.date)
-        .order_by(DishNutrition.date)
+        .subquery()
+    )
+
+    rows = session.execute(
+        select(
+            best.c.date,
+            *[func.sum(getattr(best.c, field)).label(field) for field in NUTRIENT_FIELDS],
+        )
+        .where(best.c.rank == 1)
+        .group_by(best.c.date)
+        .order_by(best.c.date)
     ).all()
 
     return {
-        row[0]: {field: str(row[index + 1]) for index, field in enumerate(NUTRIENT_FIELDS)}
-        for row in rows
+        row.date: {field: str(getattr(row, field)) for field in NUTRIENT_FIELDS} for row in rows
     }
 
 

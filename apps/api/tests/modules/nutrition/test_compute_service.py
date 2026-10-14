@@ -23,12 +23,29 @@ def _latest_menu_day(session: Session) -> MenuDay:
     return menu_day
 
 
-def _rows_for(session: Session, *, dish_name: str, caliber: NutrientCaliber) -> list[DishNutrition]:
+def _rows_for(
+    session: Session,
+    *,
+    dish_name: str,
+    caliber: NutrientCaliber,
+    value_type: NutritionValueType = NutritionValueType.THEORETICAL,
+) -> list[DishNutrition]:
+    """按菜品、口径与数值类型取行。
+
+    `value_type` 必须显式参与过滤：三层校准落库之后，同一道菜同一口径会有理论、
+    校准、抽样三条并存，只按菜品和口径取再拿 `[0]`，等于把断言压在数据库的返回
+    顺序上——今天碰巧对，明天多一条校准结果就悄悄换了对象。
+    """
     return list(
         session.scalars(
             select(DishNutrition)
             .join(Dish, Dish.id == DishNutrition.dish_id)
-            .where(Dish.name == dish_name, DishNutrition.caliber == caliber)
+            .where(
+                Dish.name == dish_name,
+                DishNutrition.caliber == caliber,
+                DishNutrition.value_type == value_type,
+            )
+            .order_by(DishNutrition.date)
         )
     )
 

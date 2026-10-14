@@ -28,6 +28,7 @@ from app.shared.nutrients import (
     NUTRIENT_SCALES,
     NUTRIENT_UNITS,
 )
+from app.shared.nutrition_values import VALUE_TYPE_DESCRIPTIONS
 from app.shared.standards import compare_to_standard, sum_per_capita_across_meals
 
 DISCLAIMER = (
@@ -46,8 +47,15 @@ def build_board(session: Session, *, on_date: date | None = None) -> PublicBoard
 
     menu_day = repository.load_menu_day(session, target_date)
     dishes = repository.load_dishes(session, menu_day.id) if menu_day else []
-    nutritions = repository.load_per_serving_nutritions(
-        session, dish_ids=[dish.id for dish in dishes], on_date=target_date
+    nutritions = (
+        repository.load_per_serving_nutritions(
+            session,
+            dish_ids=[dish.id for dish in dishes],
+            on_date=target_date,
+            meal_type=menu_day.meal_type,
+        )
+        if menu_day
+        else {}
     )
     daily_logs = repository.load_daily_logs(session, target_date)
     standards = repository.load_active_standards(session)
@@ -99,6 +107,8 @@ def _dish_card(dish: Dish, nutrition: DishNutrition) -> PublicDishCard:
         allergens=list(dish.allergens or []),
         nutrients=nutrients,
         recipe_version=dish.recipe_version,
+        value_type=nutrition.value_type.value,
+        value_type_label=VALUE_TYPE_DESCRIPTIONS[nutrition.value_type],
         source_note=nutrition.source_note,
         missing_nutrients=list(nutrition.uncertainty.get("missing_nutrients", [])),
     )

@@ -6,9 +6,13 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
 from app.modules.collection.models import DailyLog
+from app.modules.nutrition.models import DishNutrition
+from app.shared.enums import NutrientCaliber
+from app.shared.nutrients import NUTRIENT_FIELDS
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -143,9 +147,56 @@ def test_per_capita_explains_its_basis(as_recorder: TestClient) -> None:
     assert body["latest_diner_count"] > 0
     assert len(body["latest"]) == 5
     assert len(body["average"]) == 5
+    assert "抽样称重实测" in body["basis_note"]
     assert "理论值" in body["basis_note"]
     assert "实际投料量" in body["basis_note"]
     assert len(body["comparisons"]) == 4
+
+
+def test_per_capita_sums_one_row_per_dish(as_recorder: TestClient, db_session: Session) -> None:
+    """同一道菜当天可能有三份人均结果，只能取一份相加。
+
+    三份全加进去等于把同一道菜算三遍，人均摄入会凭空翻两三倍——这种错不会报错，
+    只会让看板上的数字悄悄偏大，所以必须有一条盯着它。
+    """
+    # 先跑一次当日闭环，保证每天至少有两份人均结果（理论 + 校准）可挑，
+    # 否则这条测试在干净库上什么也没验到
+    latest_log = db_session.scalar(select(DailyLog).order_by(DailyLog.date.desc()).limit(1))
+    assert latest_log is not None
+    as_recorder.post(
+        "/api/v1/calibration/daily-closure",
+        params={"on_date": latest_log.date.isoformat(), "meal_type": latest_log.meal_type.value},
+    )
+
+    body = as_recorder.get(f"{BASE}/per-capita", params={"days": 56}).json()
+    assert body["latest_date"] is not None
+    latest_date = date.fromisoformat(body["latest_date"])
+
+    priority = {"SAMPLED": 0, "CALIBRATED": 1, "THEORETICAL": 2}
+    rows = db_session.scalars(
+        select(DishNutrition).where(
+            DishNutrition.date == latest_date,
+            DishNutrition.caliber == NutrientCaliber.PER_CAPITA,
+        )
+    ).all()
+    assert rows, "最新一天应当有人均口径结果"
+
+    best: dict[object, DishNutrition] = {}
+    for row in rows:
+        current = best.get(row.dish_id)
+        if current is None or priority[row.value_type.value] < priority[current.value_type.value]:
+            best[row.dish_id] = row
+
+    expected = {
+        field: sum((getattr(row, field) for row in best.values()), Decimal("0"))
+        for field in NUTRIENT_FIELDS
+    }
+    actual = {item["code"]: item for item in body["latest"]}
+
+    assert Decimal(actual["ENERGY"]["value"]) == expected["energy_kcal"]
+    assert Decimal(actual["PROTEIN"]["value"]) == expected["protein_g"]
+    # 同一道菜的三份结果条数一定多于菜品数，否则下面的断言就没在验任何东西
+    assert len(rows) > len(best)
 
 
 def test_days_parameter_is_validated(as_recorder: TestClient) -> None:

@@ -17,7 +17,8 @@ from app.modules.collection.models import DailyLog
 from app.modules.dish.models import Dish, RecipeItem
 from app.modules.menu.models import MenuDay, MenuDayItem
 from app.modules.nutrition.models import DishNutrition, NutritionStandard
-from app.shared.enums import MealType, NutrientCaliber, NutritionValueType
+from app.shared.enums import MealType, NutrientCaliber
+from app.shared.nutrition_values import VALUE_TYPES, pick_best
 
 
 def load_menu_day(session: Session, on_date: date) -> MenuDay | None:
@@ -45,19 +46,30 @@ def load_dishes(session: Session, menu_day_id: UUID) -> list[Dish]:
 
 
 def load_per_serving_nutritions(
-    session: Session, *, dish_ids: Sequence[UUID], on_date: date
+    session: Session, *, dish_ids: Sequence[UUID], on_date: date, meal_type: MealType
 ) -> dict[UUID, DishNutrition]:
+    """当天每道菜的单份营养，**取当前最有证据的那一份**。
+
+    同一天同一道菜可能有理论值、当日校准值、抽样实测值三行并存。大屏要公示的是
+    最接近事实的那个数，取舍顺序见 `app.shared.nutrition_values`：抽样 > 校准 > 理论。
+
+    必须限定餐次：一道菜午餐、晚餐都供应时是两条独立的结果，不限定的话大屏会把
+    两个餐次的数值混在一起，只显示哪一条全凭查询顺序。
+    """
     if not dish_ids:
         return {}
     rows = session.scalars(
         select(DishNutrition).where(
             DishNutrition.dish_id.in_(dish_ids),
             DishNutrition.date == on_date,
+            DishNutrition.meal_type == meal_type,
             DishNutrition.caliber == NutrientCaliber.PER_SERVING,
-            DishNutrition.value_type == NutritionValueType.THEORETICAL,
+            DishNutrition.value_type.in_(VALUE_TYPES),
         )
     ).all()
-    return {row.dish_id: row for row in rows}
+    return pick_best(
+        rows, dish_of=lambda row: row.dish_id, value_type_of=lambda row: row.value_type
+    )
 
 
 def load_daily_logs(session: Session, on_date: date) -> list[DailyLog]:

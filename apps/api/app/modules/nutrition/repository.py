@@ -16,6 +16,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Sequence
 from datetime import date
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -300,12 +301,36 @@ def load_calibration_factors(
     )
 
 
-def latest_calibration_factors(session: Session, *, dish_id: UUID) -> list[CalibrationFactor]:
-    """某道菜身上最新的抽样纠偏系数（含只针对烹饪方式的那些）。"""
-    return list(
-        session.scalars(
-            select(CalibrationFactor)
-            .where(CalibrationFactor.dish_id == dish_id)
-            .order_by(CalibrationFactor.date.desc())
-        ).all()
-    )
+def latest_sampling_corrections(
+    session: Session, *, cooking_method: CookingMethod, on_or_before: date
+) -> tuple[dict[UUID, Decimal], Decimal | None]:
+    """第三层抽样纠偏留下的整体系数，按「菜品级」与「烹饪方式级」分开返回。
+
+    只取 `on_or_before` 当天及更早的：抽样是既有事实，不能反过来影响它之前的日子。
+    同一个键下有多条时取最新的一条——纠偏是「我改主意了」，后测的覆盖先测的。
+
+    菜品级优先于烹饪方式级：称的既然是这道菜，就信这道菜，不要用一个更大的平均值
+    把它盖过去。返回值里的 `None` 键位置留给调用方表达「没有可用的烹饪方式级修正」。
+    """
+    rows = session.scalars(
+        select(CalibrationFactor)
+        .where(
+            CalibrationFactor.source == CalibrationSource.SAMPLING,
+            CalibrationFactor.cooking_method == cooking_method,
+            CalibrationFactor.date <= on_or_before,
+        )
+        .order_by(CalibrationFactor.date, CalibrationFactor.created_at)
+    ).all()
+
+    by_dish: dict[UUID, Decimal] = {}
+    by_method: Decimal | None = None
+    for row in rows:
+        value = row.coefficients.get("OVERALL")
+        if value is None:
+            continue
+        # 按日期升序遍历，后写入的自然覆盖先写入的
+        if row.dish_id is None:
+            by_method = Decimal(str(value))
+        else:
+            by_dish[row.dish_id] = Decimal(str(value))
+    return by_dish, by_method

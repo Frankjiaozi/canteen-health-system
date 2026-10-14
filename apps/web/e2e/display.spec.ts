@@ -15,6 +15,10 @@ test('公开大屏不需要登录就能看到今日菜单与营养', async ({ pa
   const first = board.dishes[0];
   await expect(page.getByText(first.name).first()).toBeVisible();
   await expect(page.getByText(first.nutrients[0].value).first()).toBeVisible();
+  // 数值来自哪一层必须写在卡面上：抽样实测和配方推算在大屏上长得一样，
+  // 但两者的说服力完全不同，不标出来等于把口径藏起来了
+  expect(first.value_type_label).toBeTruthy();
+  await expect(page.getByText(first.value_type_label).first()).toBeVisible();
 });
 
 test('公开大屏展示膳食指南对照条与合规说明', async ({ page }) => {

@@ -45,6 +45,16 @@ class ClosureFactorRead(BaseModel):
     actual_g: dict[str, str | None]
 
 
+class SamplingCorrectionRead(BaseModel):
+    """第三层抽样纠偏作用到某道菜上的整体修正比。"""
+
+    dish_id: UUID
+    dish_name: str
+    overall: str
+    scope: str = Field(description="DISH = 只针对这道菜；COOKING_METHOD = 针对整类烹饪方式")
+    scope_label: str
+
+
 class ClosureRunResponse(BaseModel):
     """一次当日闭环校准的结果。"""
 
@@ -52,6 +62,8 @@ class ClosureRunResponse(BaseModel):
     meal_type: MealType
     meal_type_label: str
     factors: list[ClosureFactorRead]
+    #: 本次叠加到菜品上的第三层抽样修正；没有抽样记录时为空数组
+    sampling_corrections: list[SamplingCorrectionRead]
     calibrated_rows: int = Field(description="本次写入的校准结果条数（单份 + 人均）")
     note: str = Field(description="口径说明，避免把校准值当成新一套真值")
 

@@ -29,6 +29,7 @@ from app.modules.nutrition.schemas import (
     NutritionComparison,
     SampleCreate,
     SampleResult,
+    SamplingCorrectionRead,
 )
 from app.shared.enums import (
     MealType,
@@ -70,6 +71,16 @@ def run_daily_closure(
                 actual_g=row.actual_g,
             )
             for row in report.factors
+        ],
+        sampling_corrections=[
+            SamplingCorrectionRead(
+                dish_id=row.dish_id,
+                dish_name=row.dish_name,
+                overall=str(row.overall),
+                scope=row.scope,
+                scope_label="这道菜" if row.scope == "DISH" else "整类烹饪方式",
+            )
+            for row in report.sampling_corrections
         ],
         calibrated_rows=report.calibrated_rows,
         note=report.note,

@@ -38,6 +38,9 @@ class PublicDishCard(BaseModel):
     allergens: list[str] = Field(description="过敏原标记，无则为空数组")
     nutrients: list[NutrientValue]
     recipe_version: int
+    #: 这份数值来自哪一层：抽样实测 / 当日校准 / 配方理论
+    value_type: str = Field(description="THEORETICAL / CALIBRATED / SAMPLED")
+    value_type_label: str = Field(description="口径来源的中文说明")
     source_note: str | None = Field(default=None, description="数值来源说明")
     missing_nutrients: list[str] = Field(description="成分数据缺失项，无则为空数组")
 

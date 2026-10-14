@@ -12,7 +12,7 @@ from types import SimpleNamespace
 from app.modules.dish.models import Dish
 from app.modules.menu.models import MenuDay, MenuDayItem
 from app.modules.nutrition.models import DishNutrition
-from app.shared.enums import NutrientCaliber, NutritionValueType
+from app.shared.enums import MealType, NutrientCaliber, NutritionValueType
 from app.shared.standards import sum_per_capita_across_meals
 from fastapi.testclient import TestClient
 from sqlalchemy import select
@@ -46,26 +46,37 @@ def test_board_does_not_leak_personal_data(client: TestClient) -> None:
 
 
 def test_dish_nutrition_matches_stored_results(client: TestClient, db_session: Session) -> None:
-    """大屏上的数字必须与营养引擎落库的结果一致，不能是另算一遍的近似值。"""
+    """大屏上的数字必须与营养引擎落库的结果一致，不能是另算一遍的近似值。
+
+    同一天同一道菜可能有三份结果（理论 / 校准 / 抽样），大屏取「证据最强」的那一份。
+    这里**故意把优先级在测试里重写一遍**，而不是复用服务端那个 helper：复用它的话，
+    规则哪天被改错了，两边一起错，这条测试就白写了。
+    """
     body = client.get(BASE).json()
     menu_day = _today_menu(db_session)
 
-    stored = {
-        # 接口下发的 dish_id 是字符串，这里统一成字符串键再比对
-        str(row.dish_id): row
-        for row in db_session.scalars(
-            select(DishNutrition).where(
-                DishNutrition.date == menu_day.date,
-                DishNutrition.caliber == NutrientCaliber.PER_SERVING,
-                DishNutrition.value_type == NutritionValueType.THEORETICAL,
-            )
+    priority = {"SAMPLED": 0, "CALIBRATED": 1, "THEORETICAL": 2}
+    rows = db_session.scalars(
+        select(DishNutrition).where(
+            DishNutrition.date == menu_day.date,
+            DishNutrition.meal_type == menu_day.meal_type,
+            DishNutrition.caliber == NutrientCaliber.PER_SERVING,
         )
-    }
+    ).all()
+    stored: dict[str, DishNutrition] = {}
+    for row in rows:
+        # 接口下发的 dish_id 是字符串，这里统一成字符串键再比对
+        key = str(row.dish_id)
+        current = stored.get(key)
+        if current is None or priority[row.value_type.value] < priority[current.value_type.value]:
+            stored[key] = row
 
     assert stored
     for card in body["dishes"]:
         row = stored.get(card["dish_id"])
         assert row is not None, f"大屏展示了没有营养结果的菜品：{card['name']}"
+        assert card["value_type"] == row.value_type.value
+        assert card["value_type_label"], "数值来自哪一层必须对界面可见"
         by_code = {item["code"]: item for item in card["nutrients"]}
         assert by_code["ENERGY"]["value"] == str(row.energy_kcal)
         assert by_code["PROTEIN"]["value"] == str(row.protein_g)
@@ -84,6 +95,53 @@ def test_every_card_carries_an_uncertainty_range(client: TestClient) -> None:
             upper = Decimal(nutrient["upper"])
             value = Decimal(nutrient["value"])
             assert lower <= value <= upper, f"{card['name']} 的 {nutrient['label']} 区间不成立"
+
+
+def test_board_switches_to_the_sampled_value_once_a_dish_is_weighed(
+    as_recorder: TestClient, db_session: Session
+) -> None:
+    """称过之后，大屏就该改口说称出来的数——否则三层校准对公众是不可见的。"""
+    menu_day = _today_menu(db_session)
+    dish = db_session.scalar(
+        select(Dish)
+        .join(MenuDayItem, MenuDayItem.dish_id == Dish.id)
+        .where(MenuDayItem.menu_day_id == menu_day.id, Dish.name == "土豆炖牛肉")
+    )
+    assert dish is not None, "演示菜单里应当有「土豆炖牛肉」"
+    theoretical = db_session.scalar(
+        select(DishNutrition).where(
+            DishNutrition.dish_id == dish.id,
+            DishNutrition.date == menu_day.date,
+            DishNutrition.caliber == NutrientCaliber.PER_SERVING,
+            DishNutrition.value_type == NutritionValueType.THEORETICAL,
+        )
+    )
+    assert theoretical is not None
+
+    weighed_energy = theoretical.energy_kcal + Decimal("12")
+    as_recorder.post(
+        "/api/v1/calibration/samples",
+        json={
+            "dish_id": str(dish.id),
+            "date": menu_day.date.isoformat(),
+            "meal_type": MealType.LUNCH.value,
+            "measured_energy_kcal": str(weighed_energy),
+            "measured_protein_g": str(theoretical.protein_g),
+            "measured_fat_g": str(theoretical.fat_g),
+            "measured_carb_g": str(theoretical.carb_g),
+            "measured_sodium_mg": str(theoretical.sodium_mg),
+            "scope": "DISH",
+        },
+    )
+
+    card = next(
+        item for item in as_recorder.get(BASE).json()["dishes"] if item["dish_id"] == str(dish.id)
+    )
+    energy = next(item for item in card["nutrients"] if item["code"] == "ENERGY")
+
+    assert card["value_type"] == "SAMPLED"
+    assert card["value_type_label"] == "抽样称重实测"
+    assert Decimal(energy["value"]) == weighed_energy
 
 
 def test_dishes_without_nutrition_are_hidden(client: TestClient, db_session: Session) -> None:

@@ -175,6 +175,25 @@ function DishCard({ dish }: { dish: PublicDishCard }) {
           每份 {formatServing(dish.standard_serving_g)} 克
           {dish.allergens.length > 0 ? ` · 含过敏原：${dish.allergens.join('、')}` : ''}
         </div>
+        {/* 把数值来自哪一层写在卡面上：公示的数字要能自证口径，
+            否则「抽样称重实测」和「按配方推算」在大屏上看起来一模一样 */}
+        <div
+          style={{
+            display: 'inline-block',
+            marginTop: 8,
+            padding: '2px 10px',
+            borderRadius: 999,
+            fontSize: 15,
+            color: dish.value_type === 'THEORETICAL' ? '#9fc0e8' : '#7fe0a6',
+            border: `1px solid ${
+              dish.value_type === 'THEORETICAL'
+                ? 'rgba(120, 180, 255, 0.35)'
+                : 'rgba(127, 224, 166, 0.45)'
+            }`,
+          }}
+        >
+          {dish.value_type_label}
+        </div>
       </div>
 
       {/* 五项指标在卡片内均匀铺开，避免下半部分留一大片空白 */}

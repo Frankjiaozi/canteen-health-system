@@ -17,7 +17,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
@@ -40,6 +40,11 @@ DAILY_CLOSURE = "/api/v1/calibration/daily-closure"
 
 #: 演示种子里配方较完整、含四类调味料的一道菜
 DISH = "土豆炖牛肉"
+
+#: 用来验证「抽样不影响更早的日子」的菜。刻意选一个与 DISH 烹饪方式不同的，
+#: 免得受到同文件其它用例留下的「整类烹饪方式」修正的影响——那种干扰会让这条
+#: 测试时而通过时而失败，比不写还糟。
+LEAK_PROBE_DISH = "宫保鸡丁"
 
 
 def _dish(session: Session, name: str) -> Dish:
@@ -481,3 +486,129 @@ def test_repeated_sample_does_not_duplicate_rows(
         )
     )
     assert count == 1
+
+
+def test_daily_closure_compounds_the_sampling_correction(
+    as_recorder: TestClient, db_session: Session
+) -> None:
+    """第三层反推的系数必须真的回流到第二层的缩放里。
+
+    否则抽样只是留了一张记录：大屏上那个「抽样实测」值只对当天有效，
+    从第二天起系统又按老样子算，三层校准等于只做了两层。
+
+    缩放口径：调味料贡献先乘当日闭环系数，再乘抽样修正比，食材部分原样不动。
+    这里按这个口径独立算一遍，与接口落库的校准值逐位比对。
+    """
+    dish = _dish(db_session, DISH)
+    menu_day = _served_day(db_session, DISH)
+    theoretical = _theoretical(db_session, dish_id=dish.id, on_date=menu_day.date)
+    ingredient_energy, seasoning_energy = _rounded_parts(theoretical)
+
+    # 实测比推算多吃一半的调味料，反推系数应当是 1.5
+    weighed_energy = ingredient_energy + Decimal("1.5") * seasoning_energy
+    sample = as_recorder.post(
+        SAMPLES,
+        json={
+            "dish_id": str(dish.id),
+            "date": menu_day.date.isoformat(),
+            "meal_type": "LUNCH",
+            "measured_energy_kcal": str(weighed_energy),
+            "measured_protein_g": str(theoretical.protein_g),
+            "measured_fat_g": str(theoretical.fat_g),
+            "measured_carb_g": str(theoretical.carb_g),
+            "measured_sodium_mg": str(theoretical.sodium_mg),
+            "scope": "DISH",
+        },
+    ).json()
+    assert sample["applied"] is True
+    overall = Decimal(sample["overall_factor"])
+    assert overall == Decimal("1.5000")
+
+    body = as_recorder.post(
+        DAILY_CLOSURE, params={"on_date": menu_day.date.isoformat(), "meal_type": "LUNCH"}
+    ).json()
+
+    applied = {row["dish_id"]: row for row in body["sampling_corrections"]}
+    assert str(dish.id) in applied, "抽样过的菜应当在闭环校准的返回里被点名"
+    assert Decimal(applied[str(dish.id)]["overall"]) == overall
+    assert applied[str(dish.id)]["scope"] == "DISH"
+
+    closure_row = next(
+        row for row in body["factors"] if row["cooking_method"] == dish.cooking_method.value
+    )
+
+    db_session.expire_all()
+    calibrated = db_session.scalar(
+        select(DishNutrition).where(
+            DishNutrition.dish_id == dish.id,
+            DishNutrition.date == menu_day.date,
+            DishNutrition.meal_type == MealType.LUNCH,
+            DishNutrition.caliber == NutrientCaliber.PER_SERVING,
+            DishNutrition.value_type == NutritionValueType.CALIBRATED,
+        )
+    )
+    assert calibrated is not None
+
+    seasoning_trace = theoretical.computation_trace["seasoning_part"]
+    expected = ingredient_energy + sum(
+        (
+            Decimal(vector["energy_kcal"])
+            * Decimal(closure_row["coefficients"].get(category, "1"))
+            * overall
+            for category, vector in seasoning_trace.items()
+        ),
+        Decimal("0"),
+    )
+    assert calibrated.energy_kcal == expected.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    # 三层都留在快照里，事后能看出这个数是怎么合成的
+    calibration_trace = calibrated.computation_trace["calibration"]
+    assert Decimal(calibration_trace["sampling_overall"]) == overall
+    assert calibration_trace["daily_closure"]
+    assert "抽样修正" in calibration_trace["applies_to"]
+
+
+def test_sampling_correction_does_not_leak_into_earlier_days(
+    as_recorder: TestClient, db_session: Session
+) -> None:
+    """抽样是既有事实，不能反过来改写它之前的日子。"""
+    dish = _dish(db_session, LEAK_PROBE_DISH)
+    menu_day = _served_day(db_session, LEAK_PROBE_DISH)
+    theoretical = _theoretical(db_session, dish_id=dish.id, on_date=menu_day.date)
+    ingredient_energy, seasoning_energy = _rounded_parts(theoretical)
+
+    later = menu_day.date + timedelta(days=7)
+    as_recorder.post(
+        SAMPLES,
+        json={
+            "dish_id": str(dish.id),
+            "date": later.isoformat(),
+            "meal_type": "LUNCH",
+            "measured_energy_kcal": str(ingredient_energy + Decimal("1.5") * seasoning_energy),
+            "measured_protein_g": str(theoretical.protein_g),
+            "measured_fat_g": str(theoretical.fat_g),
+            "measured_carb_g": str(theoretical.carb_g),
+            "measured_sodium_mg": str(theoretical.sodium_mg),
+            "scope": "DISH",
+        },
+    )
+
+    body = as_recorder.post(
+        DAILY_CLOSURE, params={"on_date": menu_day.date.isoformat(), "meal_type": "LUNCH"}
+    ).json()
+
+    # 那天的闭环校准是它之前跑的，抽样记录晚于它，不该出现在结果里
+    assert str(dish.id) not in {row["dish_id"] for row in body["sampling_corrections"]}
+
+    db_session.expire_all()
+    calibrated = db_session.scalar(
+        select(DishNutrition).where(
+            DishNutrition.dish_id == dish.id,
+            DishNutrition.date == menu_day.date,
+            DishNutrition.meal_type == MealType.LUNCH,
+            DishNutrition.caliber == NutrientCaliber.PER_SERVING,
+            DishNutrition.value_type == NutritionValueType.CALIBRATED,
+        )
+    )
+    assert calibrated is not None
+    assert Decimal(calibrated.computation_trace["calibration"]["sampling_overall"]) == Decimal("1")
