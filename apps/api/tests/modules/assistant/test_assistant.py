@@ -947,6 +947,36 @@ def test_update_dish_draft_lists_fields_and_recipe(
     assert any("整体替换" in hint for hint in draft["preview"]["提示"])
 
 
+def test_update_dish_can_turn_breakfast_off(as_recorder: TestClient, db_session: Session) -> None:
+    """布尔字段必须能被真正关掉：`False` 不能被「值为空就跳过」那句吃掉。
+
+    这条不是形式主义——`update_dish_draft` 里对空值统一跳过，
+    而 `False` 恰恰是「取消早餐固定供应」这个指令要改成的值。
+    漏了它，指令会静默变成「什么都不改」，确认卡片上却看不出来。
+    """
+    created = _make_ingredient(as_recorder, "助手测试早餐配料", energy_kcal="30")
+    dish = as_recorder.post(
+        "/api/v1/dishes",
+        json={
+            "name": "助手测试早餐粥",
+            "category": "STAPLE",
+            "cooking_method": "BOIL",
+            "standard_serving_g": "300",
+            "servings_per_pot": "80",
+            "is_breakfast_staple": True,
+            "recipe": {
+                "ingredients": [{"ingredient_id": created["id"], "quantity_per_serving_g": "60"}],
+                "seasonings": [],
+            },
+        },
+    )
+    assert dish.status_code == 201, dish.text
+
+    draft = tools.update_dish_draft(db_session, name="助手测试早餐粥", is_breakfast_staple=False)
+
+    assert draft["preview"]["将修改"] == [{"字段": "早餐固定供应", "现在": "是", "改成": False}]
+
+
 def test_deactivate_ingredient_reports_impact_and_can_be_reverted(
     as_recorder: TestClient, db_session: Session, actor
 ) -> None:

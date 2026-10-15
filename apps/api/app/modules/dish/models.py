@@ -11,7 +11,7 @@ from __future__ import annotations
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import ForeignKey, Integer, Numeric, String, UniqueConstraint, text
+from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, String, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -43,6 +43,15 @@ class Dish(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     )
     # 配方版本：每次修改配方递增，使历史营养结果能对应到当时用的配方
     recipe_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("1"))
+
+    #: 早餐固定供应。
+    #:
+    #: 早餐不走推荐求解：学校早餐是每天固定那几样，把它当成「待优化的选择」既不符合
+    #: 现实，也会和午晚餐用同一套目标算出同一份菜单。勾了这个标记的菜构成每天的早餐，
+    #: 同时**不再进入午晚餐的候选池**——否则同一个菜会在一天里出现两次。
+    is_breakfast_staple: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
     note: Mapped[str | None] = mapped_column(String(255))
 
     __table_args__ = (

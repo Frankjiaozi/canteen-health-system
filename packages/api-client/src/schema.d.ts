@@ -1495,7 +1495,7 @@ export interface components {
          * DishCategory
          * @enum {string}
          */
-        DishCategory: "MEAT" | "VEGETABLE" | "HALF_MEAT" | "SOUP" | "STAPLE";
+        DishCategory: "MEAT" | "VEGETABLE" | "HALF_MEAT" | "SOUP" | "STAPLE" | "DRINK";
         /**
          * DishCreate
          * @description 新建菜品时可一并提交配方，省掉一次往返。
@@ -1525,6 +1525,12 @@ export interface components {
              * @description 过敏原标记
              */
             allergens?: string[];
+            /**
+             * Is Breakfast Staple
+             * @description 早餐固定供应：勾了的菜构成每天的早餐（不走推荐求解），并且不再进入午餐与晚餐的候选池
+             * @default false
+             */
+            is_breakfast_staple: boolean;
             /** Note */
             note?: string | null;
             recipe?: components["schemas"]["RecipePayload"] | null;
@@ -1555,6 +1561,12 @@ export interface components {
              * @description 过敏原标记
              */
             allergens?: string[];
+            /**
+             * Is Breakfast Staple
+             * @description 早餐固定供应：勾了的菜构成每天的早餐（不走推荐求解），并且不再进入午餐与晚餐的候选池
+             * @default false
+             */
+            is_breakfast_staple: boolean;
             /** Note */
             note?: string | null;
             /**
@@ -1650,6 +1662,12 @@ export interface components {
              * @description 过敏原标记
              */
             allergens?: string[];
+            /**
+             * Is Breakfast Staple
+             * @description 早餐固定供应：勾了的菜构成每天的早餐（不走推荐求解），并且不再进入午餐与晚餐的候选池
+             * @default false
+             */
+            is_breakfast_staple: boolean;
             /** Note */
             note?: string | null;
             /**
@@ -1690,6 +1708,8 @@ export interface components {
             servings_per_pot?: number | string | null;
             /** Allergens */
             allergens?: string[] | null;
+            /** Is Breakfast Staple */
+            is_breakfast_staple?: boolean | null;
             /** Note */
             note?: string | null;
         };

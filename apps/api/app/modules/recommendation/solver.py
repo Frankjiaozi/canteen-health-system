@@ -321,6 +321,55 @@ def solve_menu(
     )
 
 
+def fixed_plan(
+    dishes: list[CandidateDish],
+    *,
+    constraints: PlanConstraints,
+) -> PlanResult:
+    """给定一批菜与份数，直接算出人均供给与成本——**不求解**。
+
+    早餐是每天固定供应的那几样：这里根本不存在「选哪几道」的问题，把它塞进整数规划
+    只会让固定的组合变成待优化的对象。但供给、成本、贴边约束的口径必须与求解出来的
+    那条路**完全一样**，否则早餐与午晚餐的差距分析没法并排看——所以这里复用同一套
+    `_sum_field` / `_binding`，而不是另写一份算法。
+
+    份数用 `constraints.fixed_servings`（由预测给出，没有预测就退回基准份数）。
+    """
+    if constraints.diner_count <= 0:
+        raise InfeasibleError("输入不完整", ["就餐人次必须大于 0，否则人均供给没有意义"])
+    if not dishes:
+        raise InfeasibleError(
+            "早餐没有可用的菜",
+            ["把要固定供应的早餐菜勾上「早餐固定供应」，或先给它们录配方"],
+        )
+
+    diners = Decimal(constraints.diner_count)
+    portions = {
+        dish.dish_id: constraints.fixed_servings.get(dish.dish_id, diners) for dish in dishes
+    }
+    items = [
+        PlannedDish(
+            dish_id=dish.dish_id,
+            name=dish.name,
+            servings=portions[dish.dish_id],
+            cost=(dish.cost_per_serving * portions[dish.dish_id]).quantize(Decimal("0.01")),
+        )
+        for dish in dishes
+    ]
+    totals = {
+        target.code: _sum_field(target.code, dishes, portions, diners)
+        for target in constraints.targets
+        if target.code in FIELD_BY_CODE
+    }
+    return PlanResult(
+        items=items,
+        per_capita=totals,
+        cost=sum((item.cost for item in items), Decimal("0")).quantize(Decimal("0.01")),
+        binding=_binding(constraints, totals),
+        solver_status="FIXED",
+    )
+
+
 def _scale_of(target: PlanTarget) -> Decimal:
     """把不同量纲的偏差折算到同一个尺度，否则权重之间没法比。"""
     if target.lower is not None and target.upper is not None:

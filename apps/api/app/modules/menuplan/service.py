@@ -101,8 +101,13 @@ def build_menu_plan(
     usage_counts: dict[UUID, int] | None = None,
 ) -> MenuPlanResponse:
     """生成明天的菜单与采购建议。"""
-    candidate_ids = recommendation_service.candidate_dish_ids(session)
+    candidate_ids = recommendation_service.candidate_dish_ids(session, meal_type=meal_type)
     if not candidate_ids:
+        if meal_type is MealType.BREAKFAST:
+            raise BusinessRuleError(
+                "早餐还没有可用的菜：在菜品库里给早餐那几道菜勾上「早餐固定供应」，"
+                "并确保它们有配方、上过菜单"
+            )
         raise BusinessRuleError("没有可用于推荐的菜品：菜品需要有配方，并且至少供应过一次")
 
     diners = diner_count or recommendation_service.latest_diner_count(session, on_date=on_date)
@@ -173,10 +178,17 @@ def build_menu_plan(
     ]
 
     fallback_names = [dish.dish_name for dish in dishes if dish.prediction_fallback]
-    notes = [
-        "菜品由推荐在营养目标下选出；份数由预测按同星期历史与日历修正给出。",
-        "推荐用预测份数评估营养，因此页面上只有一套份数。",
-    ]
+    if meal_type is MealType.BREAKFAST:
+        notes = [
+            "早餐按固定组合供应：上哪几道菜由菜品库的「早餐固定供应」决定，不参与每日选菜。",
+            "份数仍由预测按同星期历史与日历修正给出；采购量按这些份数算。",
+        ]
+    else:
+        notes = [
+            "菜品由推荐在营养目标下选出；份数由预测按同星期历史与日历修正给出。",
+            "推荐用预测份数评估营养，因此页面上只有一套份数。",
+            "同一天的另一餐已经排过的菜不会再选（主食可以重样）。",
+        ]
     if fallback_names:
         notes.append(
             "这几道菜历史不足、预测不出份数，采购量按「每人一份」估算：" + "、".join(fallback_names)

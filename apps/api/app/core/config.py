@@ -86,8 +86,14 @@ class Settings(BaseSettings):
     nutrition_energy_target_kcal: int = 2000
     #: 全天能量目标的下限；上限由能量目标本身给出
     nutrition_energy_target_min_kcal: int = 1800
-    #: 一餐占全天的能量比例：早 30% / 午 40% / 晚 30%
+    #: 各餐占全天的能量比例：早 30% / 午 40% / 晚 30%，三项之和应当为 1。
+    #:
+    #: 三项分开配，而不是「只配午餐、早晚餐平分剩下的」：后者有两个毛病——
+    #: 改午餐比例会连带改掉另外两餐；而且早餐与晚餐天然是同一个数，
+    #: 于是两餐的营养目标一字不差（那正是早晚餐菜单算出一样的原因之一）。
+    nutrition_meal_share_breakfast: float = 0.3
     nutrition_meal_share_lunch: float = 0.4
+    nutrition_meal_share_dinner: float = 0.3
     #: 一餐的伙食预算（元 / 人）
     nutrition_meal_budget_per_person: float = 8.0
 

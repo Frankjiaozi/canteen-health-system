@@ -72,6 +72,10 @@ def _display(value: Any) -> str | None:
         return None
     if isinstance(value, Decimal):
         return _num(value)
+    # 布尔要写成「是 / 否」：「现在 True → 改成 False」在确认卡片上没法看，
+    # 而这正是用户要核对的最后一眼
+    if isinstance(value, bool):
+        return "是" if value else "否"
     label = getattr(value, "label", None)
     return str(label) if label is not None else str(value)
 
@@ -608,6 +612,7 @@ def create_dish_draft(
     standard_serving_g: str,
     servings_per_pot: str | None = None,
     allergens: list[str] | None = None,
+    is_breakfast_staple: bool = False,
     recipe_items: list[dict[str, Any]] | None = None,
     seasoning_items: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
@@ -683,6 +688,7 @@ def create_dish_draft(
                 "标准份量_克": standard_serving_g,
                 "单锅制作份数": servings_per_pot,
                 "过敏原": allergens or [],
+                "早餐固定供应": "是" if is_breakfast_staple else "否",
             },
             "配方食材": resolved,
             "配方调味料": resolved_seasonings,
@@ -699,6 +705,7 @@ def create_dish_draft(
             "standard_serving_g": standard_serving_g,
             "servings_per_pot": servings_per_pot,
             "allergens": allergens or [],
+            "is_breakfast_staple": is_breakfast_staple,
             "recipe": {"ingredients": payload_items, "seasonings": payload_seasonings},
         },
     }
@@ -718,6 +725,7 @@ def create_dish_execute(
             standard_serving_g=payload["standard_serving_g"],
             servings_per_pot=payload.get("servings_per_pot") or payload["standard_serving_g"],
             allergens=payload.get("allergens") or [],
+            is_breakfast_staple=bool(payload.get("is_breakfast_staple")),
             recipe=RecipePayload(
                 ingredients=payload["recipe"]["ingredients"],
                 seasonings=payload["recipe"].get("seasonings") or [],
@@ -749,6 +757,7 @@ DISH_EDITABLE = {
     "cooking_method": "做法",
     "standard_serving_g": "标准份量_克",
     "servings_per_pot": "单锅制作份数",
+    "is_breakfast_staple": "早餐固定供应",
     "note": "备注",
 }
 
@@ -761,13 +770,15 @@ def update_dish_draft(
     cooking_method: str | None = None,
     standard_serving_g: str | None = None,
     servings_per_pot: str | None = None,
+    is_breakfast_staple: bool | None = None,
     note: str | None = None,
     recipe_items: list[dict[str, Any]] | None = None,
     seasoning_items: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """修改菜品：基础信息按字段改，配方是**整体替换**（与页面上同一个语义）。"""
     dish = _dish_or_fail(session, name)
-    changes = {
+    # 值不全是字符串：`is_breakfast_staple` 是布尔，注解不能跟着推断走
+    changes: dict[str, Any] = {
         field: value
         for field, value in (
             ("category", category),
@@ -778,6 +789,10 @@ def update_dish_draft(
         )
         if value not in (None, "")
     }
+    # 布尔字段单独处理：`False` 是**要改成的值**，不能被上面那句「空值过滤」吃掉——
+    # 否则「取消早餐固定供应」这条指令会静默变成「什么都不改」
+    if is_breakfast_staple is not None:
+        changes["is_breakfast_staple"] = is_breakfast_staple
     warnings: list[str] = []
     recipe_payload: dict[str, Any] | None = None
     resolved: list[dict[str, Any]] = []
@@ -1936,6 +1951,10 @@ TOOLS: tuple[Tool, ...] = (
                     "items": {"type": "string"},
                     "description": "过敏原",
                 },
+                "is_breakfast_staple": {
+                    "type": "boolean",
+                    "description": "早餐固定供应：勾上之后这道菜每天都是早餐的一部分，且不再出现在午晚餐",
+                },
                 "recipe_items": {
                     "type": "array",
                     "description": "配方食材，每行一份单份用量（克，市品重量）",
@@ -2033,6 +2052,10 @@ TOOLS: tuple[Tool, ...] = (
                 },
                 "standard_serving_g": {"type": "string"},
                 "servings_per_pot": {"type": "string"},
+                "is_breakfast_staple": {
+                    "type": "boolean",
+                    "description": "是否早餐固定供应；取消时传 false",
+                },
                 "note": {"type": "string"},
                 "recipe_items": {
                     "type": "array",
@@ -2108,6 +2131,8 @@ TOOLS: tuple[Tool, ...] = (
         description=(
             "排一份菜单：在营养目标下选出做哪几道菜 → 按同星期历史与节假日日历预测每道菜做多少份 → "
             "算出要买多少料。用户说「排一下明天的菜单」「今天午饭做什么」时用它。"
+            "**早餐是例外**：菜品库里勾了「早餐固定供应」的那几道菜每天照上，"
+            "早餐不参与选菜——所以问早餐时会给出固定那几道，这是对的，不是没生效。"
             "**它只出方案，不改当天的菜单**，所以不需要确认就能跑；"
             "**用户明确要「排/定」菜单时，紧接着调 sync_menu_plan 把确认卡片直接摆出来**，"
             "别让他再说一句「同步」；只是随口问「明天吃什么」时就不用跟着调。"

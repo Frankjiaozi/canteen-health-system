@@ -62,6 +62,8 @@ export function DishListPage() {
           <Space size={4}>
             {record.is_active ? null : <Tag>已停用</Tag>}
             {record.nutrition === null ? <Tag color="warning">无配方</Tag> : null}
+            {/* 早餐固定供应不属于「午晚餐轮换」，不标出来会被当成漏排 */}
+            {record.is_breakfast_staple ? <Tag color="blue">早餐固定</Tag> : null}
             <Tag>配方 v{record.recipe_version}</Tag>
           </Space>
         </Space>

@@ -21,7 +21,7 @@ from uuid import UUID
 import pytest
 from app.db.session import get_session_factory
 from app.modules.collection.models import DailyLog, DailyLogItem
-from app.modules.dish.models import RecipeItem, RecipeSeasoning
+from app.modules.dish.models import Dish, RecipeItem, RecipeSeasoning
 from app.modules.forecast import service as forecast_service
 from app.modules.forecast.models import Forecast
 from app.modules.ingredient.models import Ingredient
@@ -76,6 +76,15 @@ def cleanup_beyond_seed_history() -> Iterator[None]:
 def _generate(client: TestClient, target: date) -> dict:
     response = client.post(
         f"{BASE}/generate", params={"on_date": target.isoformat(), "meal_type": "LUNCH"}
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def _generate_meal(client: TestClient, target: date, meal: MealType) -> dict:
+    response = client.post(
+        f"{BASE}/generate",
+        params={"on_date": target.isoformat(), "meal_type": meal.value},
     )
     assert response.status_code == 200, response.text
     return response.json()
@@ -155,6 +164,50 @@ def _expected_quantities(
 # ---------------------------------------------------------------------------
 # 接口
 # ---------------------------------------------------------------------------
+def test_breakfast_is_the_fixed_set_from_the_dish_library(
+    as_recorder: TestClient, db_session: Session
+) -> None:
+    """早餐按固定组合供应：上哪几道菜由菜品库的标记决定，不走每日选菜。
+
+    这条同时守住两件事：早餐每天一样（求解器不会因为目标区间不同而给出另一套），
+    以及「固定」这件事在页面上讲得清楚——它没有求解，也就没有贴边约束这类理由。
+    """
+    staples = set(db_session.scalars(select(Dish.name).where(Dish.is_breakfast_staple.is_(True))))
+    assert staples, "种子里应当有几道勾了「早餐固定供应」的菜"
+
+    plan = _generate_meal(as_recorder, _fresh_date(), MealType.BREAKFAST)
+    names = [dish["dish_name"] for dish in plan["dishes"]]
+
+    assert set(names) == staples
+    assert any("固定" in reason["text"] for reason in plan["reasons"])
+
+
+def test_the_three_meals_of_a_day_do_not_share_dishes(as_recorder: TestClient) -> None:
+    """同一天的早/午/晚必须是三套菜。主食允许重样，别的菜不行。
+
+    这正是要修的那个毛病：以前早晚餐的营养目标是一个数、排除集又都空着，
+    求解器拿到一模一样的输入，自然给出一模一样的菜单。
+    """
+    target = _fresh_date()
+    breakfast = _generate_meal(as_recorder, target, MealType.BREAKFAST)
+    lunch = _generate_meal(as_recorder, target, MealType.LUNCH)
+    dinner = _generate_meal(as_recorder, target, MealType.DINNER)
+
+    def names(plan: dict, *, skip_staple: bool = False) -> set[str]:
+        return {
+            dish["dish_name"]
+            for dish in plan["dishes"]
+            if not (skip_staple and dish["category_label"] == "主食")
+        }
+
+    # 主食只有米饭与馒头两道，一天两餐都排除的话根本选不出菜单
+    assert names(lunch, skip_staple=True) & names(dinner, skip_staple=True) == set()
+    # 早餐的菜不进午晚餐的池子，一天里不会出现两次
+    assert names(breakfast) & names(lunch) == set()
+    assert names(breakfast) & names(dinner) == set()
+    assert names(lunch) != names(dinner)
+
+
 def test_purchase_list_is_recommended_dishes_times_predicted_servings(
     as_recorder: TestClient, db_session: Session
 ) -> None:

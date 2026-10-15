@@ -1,5 +1,16 @@
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
-import { Button, Divider, Drawer, Form, Input, InputNumber, Select, Space, Typography } from 'antd';
+import {
+  Button,
+  Divider,
+  Drawer,
+  Form,
+  Input,
+  InputNumber,
+  Select,
+  Space,
+  Switch,
+  Typography,
+} from 'antd';
 import { useState } from 'react';
 import { useEnumOptions } from '@/shared/hooks/useEnumOptions';
 import { useIngredientList } from '@/features/ingredient/hooks/useIngredients';
@@ -28,6 +39,7 @@ interface DishFormValues {
   standardServingG: number;
   servingsPerPot: number;
   allergenText: string;
+  isBreakfastStaple: boolean;
   note: string | null;
   lines: RecipeLineForm[];
 }
@@ -96,6 +108,7 @@ export function DishFormDrawer({ dish, onClose }: DishFormDrawerProps) {
       standard_serving_g: values.standardServingG.toFixed(2),
       servings_per_pot: values.servingsPerPot.toFixed(2),
       allergens: splitAllergens(values.allergenText ?? ''),
+      is_breakfast_staple: values.isBreakfastStaple ?? false,
       note: values.note?.trim() || null,
     };
 
@@ -165,6 +178,7 @@ export function DishFormDrawer({ dish, onClose }: DishFormDrawerProps) {
           standardServingG: dish ? Number(dish.standard_serving_g) : undefined,
           servingsPerPot: dish ? Number(dish.servings_per_pot) : undefined,
           allergenText: (dish?.allergens ?? []).join('、'),
+          isBreakfastStaple: dish?.is_breakfast_staple ?? false,
           note: dish?.note ?? null,
         }}
       >
@@ -235,6 +249,15 @@ export function DishFormDrawer({ dish, onClose }: DishFormDrawerProps) {
           tooltip="多个用顿号或逗号分隔，例如：蛋、花生"
         >
           <Input placeholder="蛋、花生" />
+        </Form.Item>
+
+        <Form.Item
+          name="isBreakfastStaple"
+          label="早餐固定供应"
+          valuePropName="checked"
+          tooltip="勾上之后这道菜每天都是早餐的一部分（早餐不走每日选菜），并且不再出现在午餐与晚餐里"
+        >
+          <Switch />
         </Form.Item>
 
         <Form.Item name="note" label="备注">

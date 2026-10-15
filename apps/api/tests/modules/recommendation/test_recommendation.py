@@ -11,7 +11,9 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
-from app.modules.recommendation import solver, targets
+from app.modules.dish.models import Dish
+from app.modules.menu.models import MenuDay, MenuDayItem
+from app.modules.recommendation import repository, solver, targets
 from app.modules.recommendation.models import MenuSuggestion
 from app.shared.enums import CookingMethod, DishCategory, MealType, SuggestionStatus
 from fastapi.testclient import TestClient
@@ -79,6 +81,56 @@ def _constraints(**overrides: object) -> solver.PlanConstraints:
 # ---------------------------------------------------------------------------
 # 求解器：硬约束逐条验证
 # ---------------------------------------------------------------------------
+def test_fixed_plan_takes_the_servings_it_is_given_and_chooses_nothing() -> None:
+    """早餐那条路：给定菜品与份数，只算供给与成本，不做任何选择。
+
+    口径必须与求解出来的那条完全一样（同一套折算与取整），否则早餐与午晚餐的
+    差距分析没法并排看——所以这里连人均值都手算一遍。
+    """
+    dishes = [
+        _dish(
+            "白粥",
+            energy="30",
+            salt="0",
+            oil="0",
+            cost="0.4",
+            category=DishCategory.STAPLE,
+            method=CookingMethod.BOIL,
+        ),
+        _dish(
+            "煮鸡蛋",
+            energy="78",
+            salt="0.1",
+            oil="0",
+            cost="0.7",
+            category=DishCategory.HALF_MEAT,
+            method=CookingMethod.BOIL,
+        ),
+    ]
+    constraints = _constraints(
+        targets=(
+            solver.PlanTarget("energy_kcal", "能量", "千卡", Decimal("400"), Decimal("600")),
+            solver.PlanTarget("SALT", "食盐", "g", None, Decimal("5")),
+        ),
+        fixed_servings={
+            dishes[0].dish_id: Decimal("600"),
+            dishes[1].dish_id: Decimal("800"),
+        },
+    )
+
+    plan = solver.fixed_plan(dishes, constraints=constraints)
+
+    # 两道菜都留下，没有被「优化」掉
+    assert {item.dish_id for item in plan.items} == {dish.dish_id for dish in dishes}
+    assert plan.solver_status == "FIXED"
+    # 人均能量 = (30×600 + 78×800) ÷ 200 人次 = 402 千卡
+    assert plan.per_capita["energy_kcal"] == Decimal("402.000")
+    # 人均盐 = (0×600 + 0.1×800) ÷ 200 = 0.4 克
+    assert plan.per_capita["SALT"] == Decimal("0.400")
+    # 成本 = 0.4×600 + 0.7×800 = 800 元
+    assert plan.cost == Decimal("800.00")
+
+
 def test_plan_satisfies_every_hard_constraint() -> None:
     """需求要求「生成的菜单满足全部硬约束」，那就逐条量一遍。"""
     pool = [
@@ -156,6 +208,42 @@ def test_method_ratio_is_respected() -> None:
 
     stir = [item for item in plan.items if item.name.startswith("炒")]
     assert len(stir) <= len(plan.items) / 2
+
+
+def test_other_meal_uses_one_authoritative_source(db_session: Session) -> None:
+    """同一天另一餐只取一个权威来源：有菜单日就按菜单日，别把过期的那版并进来。
+
+    并起来会把**已经作废的旧版本**也算进去。实测过一次真实后果：三样汤分别被
+    「昨天午餐的菜」「今天晚餐的菜单日」「今天晚餐那版过期推荐」各排除一样，
+    午餐直接排不出来——而其中一条本该已经是历史版本。
+    """
+    target = today_local() + timedelta(days=40)
+    dish_ids = {row.name: row.id for row in db_session.scalars(select(Dish))}
+
+    menu_day = MenuDay(date=target, meal_type=MealType.DINNER)
+    db_session.add(menu_day)
+    db_session.flush()
+    db_session.add(
+        MenuDayItem(
+            menu_day_id=menu_day.id,
+            dish_id=dish_ids["红烧肉"],
+            planned_servings=Decimal("100"),
+        )
+    )
+    # 同一餐还有一版更早生成、没被采纳的推荐：它已经被菜单日取代了
+    db_session.add(
+        MenuSuggestion(
+            date=target,
+            meal_type=MealType.DINNER,
+            candidate_menu=[{"dish_id": str(dish_ids["清蒸鲈鱼"]), "dish_name": "清蒸鲈鱼"}],
+        )
+    )
+    db_session.flush()
+
+    found = repository.load_other_meal_dishes(db_session, on_date=target, meal_type=MealType.LUNCH)
+
+    assert dish_ids["红烧肉"] in found
+    assert dish_ids["清蒸鲈鱼"] not in found
 
 
 def test_excluded_dishes_are_not_recommended() -> None:

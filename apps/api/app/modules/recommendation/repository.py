@@ -138,6 +138,53 @@ def load_previous_dishes(session: Session, *, on_date: date, meal_type: MealType
     )
 
 
+def load_other_meal_dishes(session: Session, *, on_date: date, meal_type: MealType) -> set[UUID]:
+    """同一天**其它餐次**已经排上的菜，用于「午晚餐不重样」。
+
+    每一餐只取**一个**权威来源，而不是把两个来源并起来：
+
+    - 这一餐已经同步成菜单日 → 用菜单日，那是定下来要上的；
+    - 还没同步、但生成过推荐 → 退回最近生成的那一版。
+
+    并起来会把**已经作废的旧版本**也算进去：菜单日是按某一版生成的，之后人可能又
+    重排了一版更好的却没同步，两版合起来排除的菜比实际要上的多。实测就是这样把
+    三样汤全排除掉、午餐直接排不出来的（昨天午餐一样、今天晚餐的菜单日一样、
+    今天晚餐那版过期的推荐又一样）。
+    """
+    menu_day_by_meal: dict[MealType, UUID] = dict(
+        session.execute(
+            select(MenuDay.meal_type, MenuDay.id).where(
+                MenuDay.date == on_date, MenuDay.meal_type != meal_type
+            )
+        ).all()
+    )
+
+    ids: set[UUID] = set()
+    if menu_day_by_meal:
+        ids.update(
+            session.scalars(
+                select(MenuDayItem.dish_id).where(
+                    MenuDayItem.menu_day_id.in_(menu_day_by_meal.values())
+                )
+            )
+        )
+
+    unsynced = {meal for meal in MealType if meal is not meal_type and meal not in menu_day_by_meal}
+    if unsynced:
+        seen: set[MealType] = set()
+        for suggestion in session.scalars(
+            select(MenuSuggestion)
+            .where(MenuSuggestion.date == on_date, MenuSuggestion.meal_type.in_(unsynced))
+            .order_by(MenuSuggestion.created_at.desc())
+        ):
+            if suggestion.meal_type in seen:
+                continue
+            seen.add(suggestion.meal_type)
+            for row in suggestion.candidate_menu or []:
+                ids.add(UUID(str(row["dish_id"])))
+    return ids
+
+
 def load_standards(session: Session) -> list[NutritionStandard]:
     return list(
         session.scalars(

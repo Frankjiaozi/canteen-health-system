@@ -102,21 +102,55 @@ def generate(
     popularity = repository.load_popularity(session)
     standards = repository.load_standards(session)
 
+    # 早餐与午晚餐是**两个互不相交的池子**。
+    #
+    # 早餐按固定组合供应（学校早饭就是每天那几样），不走推荐求解；勾了
+    # 「早餐固定供应」的菜同时从午晚餐的池子里拿掉——否则同一道菜会在一天里
+    # 出现两次，而这正是「三餐菜单算出一样」最难解释的一种表现。
+    is_breakfast = meal_type is MealType.BREAKFAST
+    pool = {
+        dish_id: dish
+        for dish_id, dish in dishes.items()
+        if bool(dish.is_breakfast_staple) is is_breakfast
+    }
     candidates, snapshots, missing_price = _candidates(
-        session, dishes=dishes, materials=materials, popularity=popularity
+        session, dishes=pool, materials=materials, popularity=popularity
     )
     if not candidates:
+        if is_breakfast:
+            raise BusinessRuleError(
+                "早餐还没有可用的菜：在菜品库里给早餐那几道菜勾上「早餐固定供应」，"
+                "并确保它们有配方、上过菜单"
+            )
         raise BusinessRuleError("没有可用于推荐的菜品：菜品需要有配方，并且至少供应过一次")
 
     plan_targets, target_basis = targets.build_targets(meal_type, standards)
     diners = diner_count or repository.load_latest_diner_count(session, on_date=on_date)
     baseline = servings_by_dish or {candidate.dish_id: Decimal(diners) for candidate in candidates}
-    # 库里前一天供应过的菜要排除；批量排菜单时，前一天的那份菜单可能还在内存里
-    # 没落库（是同一批生成出来的），所以允许把「上一批算出来的菜」一并传进来，
-    # 否则「不连续两日重复」在批量里会形同虚设
-    excluded = repository.load_previous_dishes(session, on_date=on_date, meal_type=meal_type) | set(
-        extra_excluded or ()
-    )
+
+    if is_breakfast:
+        # 早餐是固定组合：没有任何菜需要被排除，否则「每天固定」这条就不成立了
+        previous: set[UUID] = set()
+        other_meal: set[UUID] = set()
+    else:
+        # 库里前一天供应过的菜要排除；批量排菜单时，前一天的那份菜单可能还在内存里
+        # 没落库（是同一批生成出来的），所以允许把「上一批算出来的菜」一并传进来，
+        # 否则「不连续两日重复」在批量里会形同虚设
+        previous = repository.load_previous_dishes(
+            session, on_date=on_date, meal_type=meal_type
+        ) | set(extra_excluded or ())
+        # 同一天的另一餐已经排上的菜也不再出现。**主食除外**：主食池里只有米饭与
+        # 馒头两道，一天两餐都排除的话候选择不出菜单，而中午晚上都上米饭本来就是
+        # 食堂的常态——要的是「菜不重样」，不是「连米饭都不能一样」。
+        other_meal = {
+            dish_id
+            for dish_id in repository.load_other_meal_dishes(
+                session, on_date=on_date, meal_type=meal_type
+            )
+            if getattr(dishes.get(dish_id), "category", None) is not DishCategory.STAPLE
+        }
+    excluded = previous | other_meal
+
     budget = (Decimal(str(settings.nutrition_meal_budget_per_person)) * diners).quantize(
         Decimal("0.01")
     )
@@ -138,7 +172,11 @@ def generate(
     )
 
     try:
-        plan = solver.solve_menu(candidates, constraints)
+        plan = (
+            solver.fixed_plan(candidates, constraints=constraints)
+            if is_breakfast
+            else solver.solve_menu(candidates, constraints)
+        )
     except solver.InfeasibleError as error:
         # 求解器是纯函数，不认识业务异常；但「无解」对使用者是一条正经的业务结论，
         # 不能让它冒成 500——那样界面上只剩一句「服务器内部错误」，
@@ -146,7 +184,7 @@ def generate(
         raise BusinessRuleError(str(error)) from error
     by_id = {dish.dish_id: dish for dish in candidates}
     gaps = _gaps(plan_targets, plan.per_capita, meal_type)
-    reasons = _reasons(plan, gaps, by_id, excluded, dishes)
+    reasons = _reasons(plan, gaps, by_id, previous, other_meal, dishes, breakfast=is_breakfast)
 
     suggestion = repository.save_suggestion(
         session,
@@ -202,19 +240,26 @@ def generate(
     return read_suggestion(suggestion)
 
 
-def candidate_dish_ids(session: Session) -> list[UUID]:
+def candidate_dish_ids(session: Session, *, meal_type: MealType = MealType.LUNCH) -> list[UUID]:
     """可作为推荐候选的菜品。
 
     「合并页」要先拿这份清单去预测份数、再交给推荐选菜，两边的候选集必须是同一批，
     否则会出现「预测了但没参与推荐」或「推荐了却没有份数」的错位。
+
+    早餐与午晚餐的池子互不相交（见 `generate` 里的说明），所以这里必须按餐次取，
+    不能用「全部菜品」——那会让午晚餐预测一批根本不会入选的早餐菜。
     """
     dishes = repository.load_active_dishes(session)
     materials = repository.load_materials(session)
     popularity = repository.load_popularity(session)
+    want_breakfast = meal_type is MealType.BREAKFAST
     return [
         dish_id
         for dish_id, usage in materials.items()
-        if usage.ingredient_ids and dish_id in dishes and dish_id in popularity
+        if usage.ingredient_ids
+        and dish_id in dishes
+        and dish_id in popularity
+        and bool(dishes[dish_id].is_breakfast_staple) is want_breakfast
     ]
 
 
@@ -407,8 +452,11 @@ def _reasons(
     plan: solver.PlanResult,
     gaps: list[NutrientGap],
     by_id: dict[UUID, solver.CandidateDish],
-    excluded: set[UUID],
+    previous: set[UUID],
+    other_meal: set[UUID],
     dishes: Mapping[UUID, Any],
+    *,
+    breakfast: bool = False,
 ) -> list[SuggestionReason]:
     """把求解结果讲成人能看的话。
 
@@ -416,6 +464,16 @@ def _reasons(
     「营养均衡」这种话对厨师长没有任何意义，写不出事实的理由不如不写。
     """
     reasons: list[SuggestionReason] = []
+    if breakfast:
+        reasons.append(
+            SuggestionReason(
+                kind="constraint",
+                text=(
+                    "早餐按固定组合供应，不参与每日选菜——"
+                    "要改菜单就在菜品库里调整「早餐固定供应」那几道菜"
+                ),
+            )
+        )
     for row in gaps:
         if row.status == "under":
             reasons.append(
@@ -454,14 +512,24 @@ def _reasons(
                 text=f"这一餐覆盖 {len(methods)} 种烹饪方式（{'、'.join(sorted(methods))}）",
             )
         )
-    if excluded:
+    if previous:
         names = "、".join(
-            sorted(str(getattr(dishes.get(dish_id), "name", dish_id)) for dish_id in excluded)
+            sorted(str(getattr(dishes.get(dish_id), "name", dish_id)) for dish_id in previous)
         )
         reasons.append(
             SuggestionReason(
                 kind="constraint",
-                text=f"按「同一道菜不连续两日重复」，昨天供应的 {names} 本次不参与",
+                text=f"按「同一道菜不连续两日重复」，昨天这一餐供应的 {names} 本次不参与",
+            )
+        )
+    if other_meal:
+        names = "、".join(
+            sorted(str(getattr(dishes.get(dish_id), "name", dish_id)) for dish_id in other_meal)
+        )
+        reasons.append(
+            SuggestionReason(
+                kind="constraint",
+                text=f"同一天的另一餐已经有 {names}，本次不再重复（主食可以重样）",
             )
         )
     return reasons

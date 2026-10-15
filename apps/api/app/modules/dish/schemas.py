@@ -76,6 +76,12 @@ class DishBase(BaseModel):
     standard_serving_g: Decimal = Field(gt=0, description="标准份量（克）")
     servings_per_pot: Decimal = Field(gt=0, description="单锅制作份数")
     allergens: list[str] = Field(default_factory=list, description="过敏原标记")
+    is_breakfast_staple: bool = Field(
+        default=False,
+        description=(
+            "早餐固定供应：勾了的菜构成每天的早餐（不走推荐求解），并且不再进入午餐与晚餐的候选池"
+        ),
+    )
     note: str | None = Field(default=None, max_length=255)
 
 
@@ -94,6 +100,7 @@ class DishUpdate(BaseModel):
     standard_serving_g: Decimal | None = Field(default=None, gt=0)
     servings_per_pot: Decimal | None = Field(default=None, gt=0)
     allergens: list[str] | None = None
+    is_breakfast_staple: bool | None = None
     note: str | None = Field(default=None, max_length=255)
 
 

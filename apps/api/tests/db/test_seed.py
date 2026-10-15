@@ -26,6 +26,7 @@ from app.modules.ingredient.models import Ingredient
 from app.modules.menu.models import MenuDay, MenuDayItem
 from app.modules.nutrition.models import NutritionStandard
 from app.modules.seasoning.models import Seasoning
+from app.shared.enums import MealType
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -60,18 +61,29 @@ def test_seed_covers_required_demo_scope(db_session: Session) -> None:
     assert seeded_ingredients == 30
     assert db_session.scalar(select(func.count()).select_from(Dish)) >= 20
     assert db_session.scalar(select(func.count()).select_from(NutritionStandard)) == 4
-    # 8 周历史：同星期移动平均的每个星期几有 8 个样本，回测才有意义
+    # 8 周历史 × 三餐：同星期移动平均的每个星期几有 8 个样本，回测才有意义。
+    # 按餐次分别数，而不是数总数：总数对得上但三餐少了一餐，是「大屏上只有午餐」
+    # 这类问题最典型的伪装。
     # 以当天为界：开发库里可能留着端到端用例造的未来日期的菜单与采集记录，
     # 它们不属于种子历史，也不该让这条断言跟着变
     today = today_local()
-    assert (
-        db_session.scalar(select(func.count()).select_from(MenuDay).where(MenuDay.date <= today))
-        == HISTORY_DAYS
-    )
-    assert (
-        db_session.scalar(select(func.count()).select_from(DailyLog).where(DailyLog.date <= today))
-        == HISTORY_DAYS
-    )
+    for meal_type in (MealType.BREAKFAST, MealType.LUNCH, MealType.DINNER):
+        assert (
+            db_session.scalar(
+                select(func.count())
+                .select_from(MenuDay)
+                .where(MenuDay.date <= today, MenuDay.meal_type == meal_type)
+            )
+            == HISTORY_DAYS
+        ), f"{meal_type.label}的菜单日数量不对"
+        assert (
+            db_session.scalar(
+                select(func.count())
+                .select_from(DailyLog)
+                .where(DailyLog.date <= today, DailyLog.meal_type == meal_type)
+            )
+            == HISTORY_DAYS
+        ), f"{meal_type.label}的采集记录数量不对"
 
 
 def test_seeded_nutrition_matches_the_reference_snapshot(db_session: Session) -> None:

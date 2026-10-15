@@ -3,7 +3,7 @@
 两条口径必须分开讲清楚，否则目标区间会变成一堆没有依据的数字：
 
 1. **能量与三大营养素按餐次占比折算**。它们是「要给够」的东西，一餐该承担全天的一部分。
-   午餐取 40%（早 30 / 午 40 / 晚 30，可配置）。供能比取《中国居民膳食指南（2022）》的
+   早/午/晚分别取 30% / 40% / 30%，三项**各自可配**。供能比取《中国居民膳食指南（2022）》的
    蛋白质 10–15%、脂肪 20–30%、碳水化合物 50–65%，每克产能取 4 / 9 / 4 千卡，
    由「能量目标 × 供能比 ÷ 每克产能」反推克数区间。
 
@@ -36,17 +36,20 @@ KCAL_PER_GRAM: dict[str, Decimal] = {
     "carb_g": Decimal("4"),
 }
 
-DEFAULT_MEAL_SHARE = Decimal("0.4")
-
 
 def meal_share(meal_type: MealType) -> Decimal:
-    """这一餐占全天的能量比例。"""
+    """这一餐占全天的能量比例。
+
+    三项分开取，不写「午餐之外两餐平分剩余」：那样早餐与晚餐永远是同一个数，
+    两餐的营养目标一字不差——这是早晚餐菜单会算出一模一样的直接原因之一。
+    """
     settings = get_settings()
-    lunch = Decimal(str(settings.nutrition_meal_share_lunch))
-    if meal_type is MealType.LUNCH:
-        return lunch
-    # 早餐与晚餐平分剩下的部分：改了午餐比例，另外两餐跟着变，不用改三处
-    return ((Decimal("1") - lunch) / 2).quantize(Decimal("0.01"))
+    configured = {
+        MealType.BREAKFAST: settings.nutrition_meal_share_breakfast,
+        MealType.LUNCH: settings.nutrition_meal_share_lunch,
+        MealType.DINNER: settings.nutrition_meal_share_dinner,
+    }
+    return Decimal(str(configured[meal_type]))
 
 
 def energy_targets(meal_type: MealType) -> tuple[PlanTarget, tuple[PlanTarget, ...]]:

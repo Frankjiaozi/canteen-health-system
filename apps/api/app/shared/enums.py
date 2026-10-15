@@ -44,6 +44,9 @@ class DishCategory(LabelledStrEnum):
     HALF_MEAT = "HALF_MEAT"
     SOUP = "SOUP"
     STAPLE = "STAPLE"
+    #: 饮品（牛奶、豆浆这类）。单独一类而不是塞进「汤」或「半荤」：
+    #: 分类错了，菜单结构与类别配额都会跟着错。
+    DRINK = "DRINK"
 
 
 class CookingMethod(LabelledStrEnum):
@@ -238,6 +241,7 @@ ENUM_LABELS: dict[tuple[type[LabelledStrEnum], str], str] = {
     (DishCategory, DishCategory.HALF_MEAT.value): "半荤",
     (DishCategory, DishCategory.SOUP.value): "汤",
     (DishCategory, DishCategory.STAPLE.value): "主食",
+    (DishCategory, DishCategory.DRINK.value): "饮品",
     # 烹饪方式
     (CookingMethod, CookingMethod.STEAM.value): "蒸",
     (CookingMethod, CookingMethod.BOIL.value): "煮",

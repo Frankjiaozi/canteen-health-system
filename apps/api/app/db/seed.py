@@ -400,6 +400,8 @@ class _DishRow(NamedTuple):
     items: list[tuple[str, str, str | None]]
     # (调味料 key, 单份用量克)
     seasonings: list[tuple[str, str]]
+    # 早餐固定供应：这些菜构成每天的早餐，不参与午晚餐的选菜
+    is_breakfast_staple: bool = False
 
 
 _DISHES: list[_DishRow] = [
@@ -677,6 +679,74 @@ _DISHES: list[_DishRow] = [
         [("green_bean", "110.000", None)],
         [("soybean_oil", "7.000"), ("salt", "1.200"), ("bean_paste", "4.000")],
     ),
+    # ---- 早餐 ----
+    #
+    # 早餐不走推荐求解：学校早饭就是每天固定那几样，把它当成「待优化的选择」
+    # 既不符合现实，也会和午晚餐用同一套目标算出同一份菜单。这几道菜勾上
+    # `is_breakfast_staple`，构成每天的早餐，同时不再进入午晚餐的候选池。
+    _DishRow(
+        "congee",
+        "白粥",
+        DishCategory.STAPLE,
+        CookingMethod.BOIL,
+        "300.00",
+        "80.00",
+        [],
+        [("rice", "60.000", None)],
+        [],
+        is_breakfast_staple=True,
+    ),
+    _DishRow(
+        "steamed_roll",
+        "花卷",
+        DishCategory.STAPLE,
+        CookingMethod.STEAM,
+        "80.00",
+        "100.00",
+        ["小麦"],
+        [("flour", "70.000", None)],
+        # 刻意不加烹调油：蒸制在 `_OIL_BIAS_BY_METHOD` 里的系数是 0（蒸不额外加油），
+        # 而「每日用油总量」是按烹饪方式折算的——真在配方里放油，日志里的油会凭空少一截，
+        # 那笔差额会被第二层校准当成「实际比推算多用油」，是凭空造出来的冲突。
+        [("sugar", "3.000")],
+        is_breakfast_staple=True,
+    ),
+    _DishRow(
+        "boiled_egg",
+        "煮鸡蛋",
+        DishCategory.HALF_MEAT,
+        CookingMethod.BOIL,
+        "55.00",
+        "200.00",
+        ["蛋"],
+        [("egg", "55.000", None)],
+        [],
+        is_breakfast_staple=True,
+    ),
+    _DishRow(
+        "egg_pancake",
+        "鸡蛋饼",
+        DishCategory.HALF_MEAT,
+        CookingMethod.STIR_FRY,
+        "100.00",
+        "40.00",
+        ["小麦", "蛋"],
+        [("flour", "45.000", None), ("egg", "30.000", None)],
+        [("soybean_oil", "4.000"), ("salt", "0.500")],
+        is_breakfast_staple=True,
+    ),
+    _DishRow(
+        "hot_milk",
+        "热牛奶",
+        DishCategory.DRINK,
+        CookingMethod.BOIL,
+        "250.00",
+        "100.00",
+        ["奶"],
+        [("milk", "250.000", None)],
+        [],
+        is_breakfast_staple=True,
+    ),
 ]
 
 
@@ -702,6 +772,7 @@ def seed_dishes(
                 standard_serving_g=Decimal(row.standard_serving_g),
                 servings_per_pot=Decimal(row.servings_per_pot),
                 allergens=row.allergens,
+                is_breakfast_staple=row.is_breakfast_staple,
                 recipe_version=1,
                 is_active=True,
             ),
@@ -853,13 +924,59 @@ _VEGETABLES: tuple[str, ...] = (
 #: 轮换基准日：锚在固定日期上，同一天永远供应同一批菜，历史不会随日子往前跑而改写。
 _ROTATION_EPOCH = date(2026, 1, 1)
 
-_MENU_ROTATION: tuple[tuple[tuple[str, ...], int, int], ...] = (
-    (_STAPLES, 3, 0),
-    (_SOUPS, 2, 0),
-    (_MEATS, 1, 0),
-    (_HALF_MEATS, 2, 1),
-    (_VEGETABLES, 3, 2),
+#: 各餐次的轮换。晚餐把每个池的起始偏移整体往前挪一位，于是同一天的晚餐与午餐
+#: 在**每一个类别里都取到不同的菜**——这与推荐里「同一天另一餐排过的不再选
+#: （主食除外）」是同一件事。历史与规则对不上的话，回测测出来的是两者的差，
+#: 不是模型的准头，而这种自相矛盾最难查。
+_ROTATION_BY_MEAL: dict[MealType, tuple[tuple[tuple[str, ...], int, int], ...]] = {
+    MealType.LUNCH: (
+        (_STAPLES, 3, 0),
+        (_SOUPS, 2, 0),
+        (_MEATS, 1, 0),
+        (_HALF_MEATS, 2, 1),
+        (_VEGETABLES, 3, 2),
+    ),
+    MealType.DINNER: (
+        (_STAPLES, 3, 1),
+        (_SOUPS, 2, 1),
+        (_MEATS, 1, 1),
+        (_HALF_MEATS, 2, 2),
+        (_VEGETABLES, 3, 3),
+    ),
+}
+
+#: 早餐每天固定供应这几道。必须与菜品库里勾了「早餐固定供应」的那几道一致：
+#: 种子写的是历史、标记决定推荐，两边不一致就会出现「历史里早餐有牛奶、
+#: 大屏上却没有」这种对不上的状态。
+_BREAKFAST_MENU: tuple[str, ...] = (
+    "congee",
+    "steamed_roll",
+    "boiled_egg",
+    "egg_pancake",
+    "hot_milk",
 )
+
+#: 各餐次就餐人次相对午餐的系数。早餐人少、晚餐略少于午餐：这既是食堂的实情，
+#: 也让「按同星期历史预测份数」在三个餐次上各自有信号可抓。
+_DINER_FACTOR_BY_MEAL: dict[MealType, float] = {
+    MealType.BREAKFAST: 0.55,
+    MealType.LUNCH: 1.0,
+    MealType.DINNER: 0.85,
+}
+
+#: 各餐次记在菜单日上的轮换名
+_ROTATION_NAME_BY_MEAL: dict[MealType, str] = {
+    MealType.BREAKFAST: "早餐固定",
+    MealType.LUNCH: "演示两周轮换",
+    MealType.DINNER: "演示两周轮换",
+}
+
+#: 各餐次的提交时间，只是让演示数据看起来像人录的
+_SUBMIT_TIME_BY_MEAL: dict[MealType, time] = {
+    MealType.BREAKFAST: time(8, 30),
+    MealType.LUNCH: time(13, 30),
+    MealType.DINNER: time(19, 30),
+}
 
 # 各菜品的受欢迎程度（出餐份数占当餐就餐人次的比例），用于生成有起伏但合理的份数序列
 _POPULARITY: dict[str, float] = {
@@ -883,6 +1000,12 @@ _POPULARITY: dict[str, float] = {
     "vinegar_cabbage": 0.38,
     "cucumber_salad": 0.36,
     "dry_fried_beans": 0.41,
+    # 早餐：比例是「出餐份数 ÷ 早餐就餐人次」
+    "congee": 0.78,
+    "steamed_roll": 0.46,
+    "boiled_egg": 0.81,
+    "egg_pancake": 0.34,
+    "hot_milk": 0.52,
 }
 
 #: 周末在校人数明显低于工作日。不去人为制造这个差异的话，
@@ -904,6 +1027,20 @@ _SALT_BIAS = 1.09
 _SUGAR_BIAS = 1.02
 
 
+def _served_dishes(day_index: int, meal_type: MealType) -> list[str]:
+    """这一天这一餐供应哪几道菜。
+
+    早餐是固定组合，午晚餐按各自那条轮换取——两条轮换的起始偏移错开一位，
+    所以同一天的晚餐与午餐在每个类别里都是不同的菜。
+    """
+    if meal_type is MealType.BREAKFAST:
+        return list(_BREAKFAST_MENU)
+    return [
+        pool[(day_index * step + start) % len(pool)]
+        for pool, step, start in _ROTATION_BY_MEAL[meal_type]
+    ]
+
+
 def seed_history(
     session: Session,
     tally: _Tally,
@@ -911,7 +1048,7 @@ def seed_history(
     recorder_id: UUID,
     days: int = HISTORY_DAYS,
 ) -> None:
-    """生成最近 N 天（含今天）的午餐菜单与每日记录。
+    """生成最近 N 天（含今天）**早中晚三餐**的菜单与每日记录。
 
     用固定种子的伪随机数，保证每次执行生成完全相同的数值——否则「重跑不产生变化」
     这条幂等性质就不成立了。
@@ -930,6 +1067,7 @@ def seed_history(
     # 日历从库里读，种子不再自己抄一份：两处各写一份迟早会对不上，
     # 而一旦对不上，回测测出来的是两者的差，不是模型的准头。
     calendar = {row.date: row.kind for row in session.scalars(select(Holiday)).all()}
+    dish_lookup = {row.key: row for row in _DISHES}
 
     for offset in range(days - 1, -1, -1):
         day = today - timedelta(days=offset)
@@ -937,10 +1075,6 @@ def seed_history(
         # 用窗口内序号的话，每过一天整个窗口前移，同一天供应的菜就全变了——
         # 演示历史每天都在改写，看板与回测的数字跟着漂，谁也说不清哪个是真的。
         day_index = (day - _ROTATION_EPOCH).days
-
-        served = [
-            pool[(day_index * step + start) % len(pool)] for pool, step, start in _MENU_ROTATION
-        ]
 
         # 节假日当天的在校人数确实会掉下来。种子里必须体现这一点，
         # 否则「历史按普通日子生成、预测却按节假日折减」，回测会平白多出一大截误差——
@@ -950,136 +1084,155 @@ def seed_history(
         # 调休上班的周末要按工作日算：那天是要上班的，不能套周末的折减
         is_weekend = day.weekday() >= 5 and kind is not HolidayKind.WORKDAY
         weekday_factor = _WEEKEND_DINER_FACTOR if is_weekend else 1.0
-        diner_count = max(
+        # 午餐的人次是基准，另外两餐按系数折算（见 _DINER_FACTOR_BY_MEAL）
+        lunch_diners = max(
             1, round((950 + rng.randrange(-120, 121)) * weekday_factor * holiday_factor)
         )
-        # 按自然键认领已有行，而不是硬插一个固定主键：这一天可能已经被别的东西写过
-        # （例如端到端用例在昨天往「明天」录了一餐，而昨天的那天就是今天）。
-        # 数据库有 (date, meal_type) 唯一约束，硬插会直接撞上；认领则把它收敛到种子定义。
-        menu_day_id = _existing_id(
-            session, MenuDay, {"date": day, "meal_type": MealType.LUNCH}
-        ) or _stable_id("menu_day", f"{day.isoformat()}:LUNCH")
-        tally.add(
-            "菜单日",
-            _upsert(
-                session,
-                MenuDay,
-                menu_day_id,
-                date=day,
-                meal_type=MealType.LUNCH,
-                rotation_name="演示两周轮换",
-                created_by=recorder_id,
-            ),
-        )
 
-        daily_log_id = _existing_id(
-            session, DailyLog, {"date": day, "meal_type": MealType.LUNCH}
-        ) or _stable_id("daily_log", f"{day.isoformat()}:LUNCH")
+        for meal_type in (MealType.BREAKFAST, MealType.LUNCH, MealType.DINNER):
+            served = _served_dishes(day_index, meal_type)
+            diner_count = max(1, round(lunch_diners * _DINER_FACTOR_BY_MEAL[meal_type]))
 
-        # 清掉这一天不在当前计划内的旧明细。种子脚本要能把演示库**收敛**到当前
-        # 定义，而不是每改一次菜单就多留一批孤儿行——那些行会悄悄混进人均摄入的
-        # 聚合里，让看板上的数字变得无法解释。
-        served_ids = [dish_ids[key] for key in served]
-        session.execute(
-            delete(MenuDayItem).where(
-                MenuDayItem.menu_day_id == menu_day_id, MenuDayItem.dish_id.not_in(served_ids)
-            )
-        )
-        session.execute(
-            delete(DailyLogItem).where(
-                DailyLogItem.daily_log_id == daily_log_id, DailyLogItem.dish_id.not_in(served_ids)
-            )
-        )
-        session.execute(
-            delete(DishNutrition).where(
-                DishNutrition.date == day, DishNutrition.dish_id.not_in(served_ids)
-            )
-        )
-
-        oil_total = Decimal("0")
-        salt_total = Decimal("0")
-        sugar_total = Decimal("0")
-        leftover_total = Decimal("0")
-        item_rows: list[tuple[str, Decimal, Decimal]] = []
-
-        dish_lookup = {row.key: row for row in _DISHES}
-        for dish_key in served:
-            row = dish_lookup[dish_key]
-            servings = Decimal(str(round(diner_count * _POPULARITY[dish_key])))
-            leftover_ratio = Decimal(str(round(rng.uniform(0.02, 0.14), 4)))
-
+            # 按自然键认领已有行，而不是硬插一个固定主键：这一天可能已经被别的东西写过
+            # （例如端到端用例在昨天往「明天」录了一餐，而昨天的那天就是今天）。
+            # 数据库有 (date, meal_type) 唯一约束，硬插会直接撞上；认领则把它收敛到种子定义。
+            menu_day_id = _existing_id(
+                session, MenuDay, {"date": day, "meal_type": meal_type}
+            ) or _stable_id("menu_day", f"{day.isoformat()}:{meal_type.value}")
             tally.add(
-                "菜单日菜品",
+                "菜单日",
                 _upsert(
                     session,
-                    MenuDayItem,
-                    _existing_id(
+                    MenuDay,
+                    menu_day_id,
+                    date=day,
+                    meal_type=meal_type,
+                    rotation_name=_ROTATION_NAME_BY_MEAL[meal_type],
+                    created_by=recorder_id,
+                ),
+            )
+
+            daily_log_id = _existing_id(
+                session, DailyLog, {"date": day, "meal_type": meal_type}
+            ) or _stable_id("daily_log", f"{day.isoformat()}:{meal_type.value}")
+
+            # 清掉这一天这一餐不在当前计划内的旧明细。种子脚本要能把演示库**收敛**到当前
+            # 定义，而不是每改一次菜单就多留一批孤儿行——那些行会悄悄混进人均摄入的
+            # 聚合里，让看板上的数字变得无法解释。
+            #
+            # 营养结果那一条必须带上餐次：它是按 (日期, 餐次, 菜品) 存的，只按日期+菜品删
+            # 会把另外两餐的结果一起删掉，而它们随即要被重算——看起来没事，直到某天
+            # 重算没跟上，大屏就少了一餐。
+            served_ids = [dish_ids[key] for key in served]
+            session.execute(
+                delete(MenuDayItem).where(
+                    MenuDayItem.menu_day_id == menu_day_id,
+                    MenuDayItem.dish_id.not_in(served_ids),
+                )
+            )
+            session.execute(
+                delete(DailyLogItem).where(
+                    DailyLogItem.daily_log_id == daily_log_id,
+                    DailyLogItem.dish_id.not_in(served_ids),
+                )
+            )
+            session.execute(
+                delete(DishNutrition).where(
+                    DishNutrition.date == day,
+                    DishNutrition.meal_type == meal_type,
+                    DishNutrition.dish_id.not_in(served_ids),
+                )
+            )
+
+            oil_total = Decimal("0")
+            salt_total = Decimal("0")
+            sugar_total = Decimal("0")
+            leftover_total = Decimal("0")
+            item_rows: list[tuple[str, Decimal, Decimal]] = []
+
+            for dish_key in served:
+                row = dish_lookup[dish_key]
+                servings = Decimal(str(round(diner_count * _POPULARITY[dish_key])))
+                leftover_ratio = Decimal(str(round(rng.uniform(0.02, 0.14), 4)))
+
+                tally.add(
+                    "菜单日菜品",
+                    _upsert(
                         session,
                         MenuDayItem,
-                        {"menu_day_id": menu_day_id, "dish_id": dish_ids[dish_key]},
-                    )
-                    or _stable_id("menu_day_item", f"{day.isoformat()}:{dish_key}"),
-                    menu_day_id=menu_day_id,
-                    dish_id=dish_ids[dish_key],
-                    planned_servings=servings,
-                    is_substituted=False,
-                ),
-            )
+                        _existing_id(
+                            session,
+                            MenuDayItem,
+                            {"menu_day_id": menu_day_id, "dish_id": dish_ids[dish_key]},
+                        )
+                        or _stable_id(
+                            "menu_day_item", f"{day.isoformat()}:{meal_type.value}:{dish_key}"
+                        ),
+                        menu_day_id=menu_day_id,
+                        dish_id=dish_ids[dish_key],
+                        planned_servings=servings,
+                        is_substituted=False,
+                    ),
+                )
 
-            item_rows.append((dish_key, servings, leftover_ratio))
+                item_rows.append((dish_key, servings, leftover_ratio))
 
-            for seasoning_key, quantity in row.seasonings:
-                amount = Decimal(quantity) * servings
-                if seasoning_key == "soybean_oil":
-                    oil_total += amount * Decimal(str(_OIL_BIAS_BY_METHOD[row.cooking_method]))
-                elif seasoning_key == "salt":
-                    salt_total += amount * Decimal(str(_SALT_BIAS))
-                elif seasoning_key == "sugar":
-                    sugar_total += amount * Decimal(str(_SUGAR_BIAS))
+                for seasoning_key, quantity in row.seasonings:
+                    amount = Decimal(quantity) * servings
+                    if seasoning_key == "soybean_oil":
+                        oil_total += amount * Decimal(str(_OIL_BIAS_BY_METHOD[row.cooking_method]))
+                    elif seasoning_key == "salt":
+                        salt_total += amount * Decimal(str(_SALT_BIAS))
+                    elif seasoning_key == "sugar":
+                        sugar_total += amount * Decimal(str(_SUGAR_BIAS))
 
-            leftover_total += servings * leftover_ratio * Decimal(row.standard_serving_g)
+                leftover_total += servings * leftover_ratio * Decimal(row.standard_serving_g)
 
-        tally.add(
-            "每日记录",
-            _upsert(
-                session,
-                DailyLog,
-                daily_log_id,
-                date=day,
-                meal_type=MealType.LUNCH,
-                diner_count=diner_count,
-                oil_total_g=oil_total.quantize(Decimal("0.01")),
-                salt_total_g=salt_total.quantize(Decimal("0.01")),
-                sugar_total_g=sugar_total.quantize(Decimal("0.01")),
-                leftover_weight_g=leftover_total.quantize(Decimal("0.01")),
-                anomaly_flags=[],
-                submitted_by=recorder_id,
-                submitted_at=datetime.combine(day, time(13, 30), tzinfo=settings.timezone),
-            ),
-        )
-
-        for dish_key, servings, leftover_ratio in item_rows:
-            row = dish_lookup[dish_key]
             tally.add(
-                "每日明细",
+                "每日记录",
                 _upsert(
                     session,
-                    DailyLogItem,
-                    _existing_id(
-                        session,
-                        DailyLogItem,
-                        {"daily_log_id": daily_log_id, "dish_id": dish_ids[dish_key]},
-                    )
-                    or _stable_id("daily_log_item", f"{day.isoformat()}:{dish_key}"),
-                    daily_log_id=daily_log_id,
-                    dish_id=dish_ids[dish_key],
-                    servings_produced=servings,
-                    leftover_ratio=leftover_ratio,
-                    leftover_weight_g=(
-                        servings * leftover_ratio * Decimal(row.standard_serving_g)
-                    ).quantize(Decimal("0.01")),
+                    DailyLog,
+                    daily_log_id,
+                    date=day,
+                    meal_type=meal_type,
+                    diner_count=diner_count,
+                    oil_total_g=oil_total.quantize(Decimal("0.01")),
+                    salt_total_g=salt_total.quantize(Decimal("0.01")),
+                    sugar_total_g=sugar_total.quantize(Decimal("0.01")),
+                    leftover_weight_g=leftover_total.quantize(Decimal("0.01")),
+                    anomaly_flags=[],
+                    submitted_by=recorder_id,
+                    submitted_at=datetime.combine(
+                        day, _SUBMIT_TIME_BY_MEAL[meal_type], tzinfo=settings.timezone
+                    ),
                 ),
             )
+
+            for dish_key, servings, leftover_ratio in item_rows:
+                row = dish_lookup[dish_key]
+                tally.add(
+                    "每日明细",
+                    _upsert(
+                        session,
+                        DailyLogItem,
+                        _existing_id(
+                            session,
+                            DailyLogItem,
+                            {"daily_log_id": daily_log_id, "dish_id": dish_ids[dish_key]},
+                        )
+                        or _stable_id(
+                            "daily_log_item", f"{day.isoformat()}:{meal_type.value}:{dish_key}"
+                        ),
+                        daily_log_id=daily_log_id,
+                        dish_id=dish_ids[dish_key],
+                        servings_produced=servings,
+                        leftover_ratio=leftover_ratio,
+                        leftover_weight_g=(
+                            servings * leftover_ratio * Decimal(row.standard_serving_g)
+                        ).quantize(Decimal("0.01")),
+                    ),
+                )
 
     session.flush()
 
