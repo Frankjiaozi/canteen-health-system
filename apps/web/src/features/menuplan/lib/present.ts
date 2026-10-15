@@ -1,5 +1,5 @@
 import { formatAmount, formatServings } from '@/features/forecast/lib/format';
-import type { IngredientRequirement, MenuPlanDish } from '../types';
+import type { IngredientRequirement, MenuPlanBatchDay, MenuPlanDish } from '../types';
 
 /**
  * 「这一份份数是怎么来的」。
@@ -55,4 +55,39 @@ export function summarizePurchase(
   return total > cap
     ? { text, tone: 'over', note: `超出预算 ${(total - cap).toFixed(2)} 元` }
     : { text, tone: 'ok', note: '' };
+}
+
+export type BatchTone = 'ok' | 'skipped' | 'bad';
+
+/** 批量结果里一天的状态色。四种状态各有各的语气，不混成一个「成功/失败」。 */
+export function batchStatusTone(status: string): BatchTone {
+  if (status === 'GENERATED' || status === 'IMPORTED') return 'ok';
+  if (status === 'SKIPPED') return 'skipped';
+  return 'bad';
+}
+
+/**
+ * 导入之后把两批结果合起来看。
+
+ * 导入返回的每一行只有状态与条数（它不重算菜单），而用户还想看到「这一天排了什么菜」，
+ * 所以按日期合：状态以导入那次为准，菜品与金额沿用生成那次。
+ */
+export function mergeBatchStatuses(
+  generated: MenuPlanBatchDay[],
+  imported: MenuPlanBatchDay[],
+): MenuPlanBatchDay[] {
+  const byDate = new Map(imported.map((row) => [row.date, row]));
+  return generated.map((row) => {
+    const latest = byDate.get(row.date);
+    if (!latest) return row;
+    return {
+      ...row,
+      status: latest.status,
+      status_label: latest.status_label,
+      reason: latest.reason,
+      suggestion_id: latest.suggestion_id ?? row.suggestion_id,
+      dish_count: latest.dish_count || row.dish_count,
+      nutrition_rows: latest.nutrition_rows,
+    };
+  });
 }

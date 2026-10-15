@@ -113,6 +113,9 @@ class PlanConstraints:
     #: 份数该由「这道菜明天实际会出多少」决定，那是预测的活，不是配餐的活。
     fixed_servings: dict[UUID, Decimal] = field(default_factory=dict)
     excluded_dish_ids: frozenset[UUID] = frozenset()
+    #: 这一批菜单里每道菜已经排过几次。批量排菜单时用它做均衡：
+    #: 排得多的菜在后面几天会被轻微压价，菜单才会真正轮换开。
+    usage_counts: dict[UUID, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,6 +130,10 @@ class PlanWeights:
     nutrition: Decimal = Decimal("1")
     cost: Decimal = Decimal("0.3")
     popularity: Decimal = Decimal("0.5")
+    #: 均衡度：同一批菜单里已经用过的菜，用得越多越不该再排。
+    #: 只排除「昨天」那几道会排出「A、B、A、B」两天一循环的菜单——那不是轮换。
+    #: 权重刻意小：它是偏好，不能把营养与预算挤到一边去。
+    variety: Decimal = Decimal("0.35")
 
 
 @dataclass(frozen=True, slots=True)
@@ -269,10 +276,18 @@ def solve_menu(
     popularity = pulp.lpSum(
         float(dish.popularity) / max_popularity * pick[dish.dish_id] for dish in usable
     )
+    # 均衡项：这一批里已经排过的菜，排得越多越不该再出现。只用「排除昨天」的话，
+    # 求解器每天都会从剩下那十几道里挑出同一个最优解，排出「A、B、A、B」的循环。
+    usage = constraints.usage_counts
+    max_usage = max(usage.values(), default=0) or 1
+    repeat = pulp.lpSum(
+        float(usage.get(dish.dish_id, 0)) / max_usage * pick[dish.dish_id] for dish in usable
+    )
     problem += (
         pulp.lpSum(slacks)
         + float(weight.cost) * cost / float(constraints.budget)
         - float(weight.popularity) * popularity / max(constraints.dish_count_max, 1)
+        + float(weight.variety) * repeat
     )
 
     status = pulp.LpStatus[problem.solve(pulp.PULP_CBC_CMD(msg=False, timeLimit=time_limit))]
@@ -361,6 +376,14 @@ def _diagnose(constraints: PlanConstraints, usable: list[CandidateDish]) -> list
         reasons.append("候选菜品能提供的食材种类数达不到下限")
     if constraints.dish_count_max < constraints.dish_count_min:
         reasons.append("菜品数量上下限写反了")
+    # 某一类菜被排除光：这在实际里很常见——昨天排过的菜今天不能排，
+    # 而主食总共就两种、汤总共就三种，排除之后可能刚好一份都不剩。
+    for category, minimum in constraints.category_min.items():
+        if not minimum:
+            continue
+        available = sum(1 for dish in usable if dish.category is category)
+        if available < minimum:
+            reasons.append(f"{category.label}类的菜已经一份都不剩（昨天排过的都排除了）")
     for target in constraints.targets:
         field_name = FIELD_BY_CODE.get(target.code)
         if field_name is None or target.upper is None:

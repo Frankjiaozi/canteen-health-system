@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
@@ -56,7 +56,10 @@ CATEGORY_MIN: dict[DishCategory, int] = {
     DishCategory.VEGETABLE: 1,
 }
 CATEGORY_MAX: dict[DishCategory, int] = {
-    DishCategory.STAPLE: 2,
+    # 主食**每天只排一份**。菜品库里只有两种主食（米饭、馒头），
+    # 允许一天排两份的话，第二天就没有主食可排了（「同一道菜不连续两日重复」把它们都排除了），
+    # 结果是第二天直接「排不出来」。食堂本来就一天一种主食，限制它不损失什么。
+    DishCategory.STAPLE: 1,
     DishCategory.SOUP: 1,
     DishCategory.MEAT: 2,
     DishCategory.HALF_MEAT: 2,
@@ -81,6 +84,8 @@ def generate(
     meal_type: MealType = MealType.LUNCH,
     diner_count: int | None = None,
     servings_by_dish: dict[UUID, Decimal] | None = None,
+    extra_excluded: Collection[UUID] | None = None,
+    usage_counts: dict[UUID, int] | None = None,
 ) -> MenuSuggestionRead:
     """生成一份菜单建议。
 
@@ -106,7 +111,12 @@ def generate(
     plan_targets, target_basis = targets.build_targets(meal_type, standards)
     diners = diner_count or repository.load_latest_diner_count(session, on_date=on_date)
     baseline = servings_by_dish or {candidate.dish_id: Decimal(diners) for candidate in candidates}
-    excluded = repository.load_previous_dishes(session, on_date=on_date, meal_type=meal_type)
+    # 库里前一天供应过的菜要排除；批量排菜单时，前一天的那份菜单可能还在内存里
+    # 没落库（是同一批生成出来的），所以允许把「上一批算出来的菜」一并传进来，
+    # 否则「不连续两日重复」在批量里会形同虚设
+    excluded = repository.load_previous_dishes(session, on_date=on_date, meal_type=meal_type) | set(
+        extra_excluded or ()
+    )
     budget = (Decimal(str(settings.nutrition_meal_budget_per_person)) * diners).quantize(
         Decimal("0.01")
     )
@@ -124,6 +134,7 @@ def generate(
         category_max=CATEGORY_MAX,
         fixed_servings=baseline,
         excluded_dish_ids=frozenset(excluded),
+        usage_counts=usage_counts or {},
     )
 
     try:
@@ -205,6 +216,27 @@ def candidate_dish_ids(session: Session) -> list[UUID]:
         for dish_id, usage in materials.items()
         if usage.ingredient_ids and dish_id in dishes and dish_id in popularity
     ]
+
+
+def latest_suggestion_id(session: Session, *, on_date: date, meal_type: MealType) -> UUID | None:
+    """这一天这一餐最近生成的那一版菜单，没有就返回空。
+
+    「一键导入当日菜单」按日期区间干活，调用方只给区间、不给一串 id——
+    那样刷新页面或换个人来点，结果都一样。
+    """
+    for row in repository.list_suggestions(session, on_date=on_date, limit=20):
+        if row.meal_type is meal_type:
+            return row.id
+    return None
+
+
+def latest_diner_count(session: Session, *, on_date: date) -> int:
+    """最近一次采集里的就餐人次。
+
+    别的域（例如「明日菜单与采购」）要按人次折算人均供给时走这里问，
+    而不是自己去读推荐域的表。
+    """
+    return repository.load_latest_diner_count(session, on_date=on_date)
 
 
 @dataclass(frozen=True, slots=True)

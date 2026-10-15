@@ -464,6 +464,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/menu-plan/batch/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 按日期区间批量排菜单 */
+        post: operations["batch_generate_api_v1_menu_plan_batch_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/menu-plan/batch/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 一键导入这几天的当日菜单 */
+        post: operations["batch_sync_api_v1_menu_plan_batch_sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/collection/logs": {
         parameters: {
             query?: never;
@@ -1921,6 +1955,95 @@ export interface components {
          */
         MealType: "BREAKFAST" | "LUNCH" | "DINNER";
         /**
+         * MenuPlanBatchDay
+         * @description 批量排菜单里的一天。
+         */
+        MenuPlanBatchDay: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Status */
+            status: string;
+            /** Status Label */
+            status_label: string;
+            /** Reason */
+            reason?: string | null;
+            /** Suggestion Id */
+            suggestion_id?: string | null;
+            /** Dish Names */
+            dish_names?: string[];
+            /**
+             * Dish Count
+             * @default 0
+             */
+            dish_count: number;
+            /**
+             * Diner Count
+             * @default 0
+             */
+            diner_count: number;
+            /** Total Cost */
+            total_cost?: string | null;
+            /** Cost Per Person */
+            cost_per_person?: string | null;
+            /**
+             * Requirements Count
+             * @default 0
+             */
+            requirements_count: number;
+            /** Calendar Note */
+            calendar_note?: string | null;
+            /**
+             * Nutrition Rows
+             * @default 0
+             */
+            nutrition_rows: number;
+        };
+        /** MenuPlanBatchResult */
+        MenuPlanBatchResult: {
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            /**
+             * End Date
+             * Format: date
+             */
+            end_date: string;
+            meal_type: components["schemas"]["MealType"];
+            /** Meal Type Label */
+            meal_type_label: string;
+            /** Days */
+            days: number;
+            /**
+             * Generated
+             * @default 0
+             */
+            generated: number;
+            /**
+             * Imported
+             * @default 0
+             */
+            imported: number;
+            /**
+             * Skipped
+             * @default 0
+             */
+            skipped: number;
+            /**
+             * Failed
+             * @default 0
+             */
+            failed: number;
+            /** Rows */
+            rows: components["schemas"]["MenuPlanBatchDay"][];
+            /** Message */
+            message: string;
+        };
+        /**
          * MenuPlanDish
          * @description 推荐入选的一道菜，附上它明天的预测份数。
          */
@@ -3029,6 +3152,8 @@ export type SchemaLoggedDish = components['schemas']['LoggedDish'];
 export type SchemaLoggedDishWrite = components['schemas']['LoggedDishWrite'];
 export type SchemaLoginRequest = components['schemas']['LoginRequest'];
 export type SchemaMealType = components['schemas']['MealType'];
+export type SchemaMenuPlanBatchDay = components['schemas']['MenuPlanBatchDay'];
+export type SchemaMenuPlanBatchResult = components['schemas']['MenuPlanBatchResult'];
 export type SchemaMenuPlanDish = components['schemas']['MenuPlanDish'];
 export type SchemaMenuPlanResponse = components['schemas']['MenuPlanResponse'];
 export type SchemaMenuPlanSyncResult = components['schemas']['MenuPlanSyncResult'];
@@ -4161,6 +4286,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MenuPlanSyncResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    batch_generate_api_v1_menu_plan_batch_generate_post: {
+        parameters: {
+            query: {
+                /** @description 开始日期 */
+                start_date: string;
+                /** @description 结束日期（含） */
+                end_date: string;
+                meal_type?: components["schemas"]["MealType"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuPlanBatchResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    batch_sync_api_v1_menu_plan_batch_sync_post: {
+        parameters: {
+            query: {
+                /** @description 开始日期 */
+                start_date: string;
+                /** @description 结束日期（含） */
+                end_date: string;
+                meal_type?: components["schemas"]["MealType"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuPlanBatchResult"];
                 };
             };
             /** @description Validation Error */

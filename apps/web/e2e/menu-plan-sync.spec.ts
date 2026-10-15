@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import dayjs from 'dayjs';
-import { loginAs } from './helpers';
+import { loginAs, saveCollection } from './helpers';
 
 /**
  * 「同步至当日数据」这条链路。
@@ -14,6 +14,9 @@ const TARGET = dayjs().add(20, 'day').format('YYYY-MM-DD');
 
 test('同步之后：采集页按计划勾好，公开大屏不用登录就看得到', async ({ page }) => {
   await loginAs(page, 'recorder');
+  // 先把「最近一次采集的人次」铺成与预测份数同一量级：否则人均油盐糖被放大到排不出来
+  // （那是系统会明确报出来的数据不一致，不是这条用例要验的东西）
+  await saveCollection(page, dayjs(TARGET).subtract(1, 'day').format('YYYY-MM-DD'));
 
   await page.goto(`/admin/menu-plan?date=${TARGET}&meal=LUNCH`);
   await page.getByRole('button', { name: '生成明日菜单' }).click();
@@ -62,24 +65,9 @@ test('已经录过采集的那一天，计划不会再盖上去', async ({ page 
   // 这让后一天的可选菜变少，可能撞上油盐糖上限（那是模型该有的行为，不是这条用例要验的东西）
   const target = dayjs().add(41, 'day').format('YYYY-MM-DD');
 
-  // 先录一餐（模拟「这一天已经过完了」）
-  const dishList = await (await page.request.get('/api/v1/dishes?page_size=100')).json();
-  const rice = dishList.items.find((item: { name: string }) => item.name === '米饭');
-  const saved = await page.request.put(`/api/v1/collection/logs/${target}`, {
-    data: {
-      meal_type: 'LUNCH',
-      // 人次按演示数据的量级填：份数是按历史预测出来的，人次填得过小会把人均油盐糖放大
-      diner_count: 900,
-      oil_total_g: '100',
-      salt_total_g: '80',
-      sugar_total_g: '30',
-      leftover_weight_g: '500',
-      note: null,
-      anomaly_flags: [],
-      dishes: [{ dish_id: rice.id, servings_produced: '150' }],
-    },
-  });
-  expect(saved.ok()).toBeTruthy();
+  // 先录一餐（模拟「这一天已经过完了」）。人次按演示数据的量级填：
+  // 份数是按历史预测出来的，人次填得过小会把人均油盐糖放大到排不出菜单
+  await saveCollection(page, target);
 
   await page.goto(`/admin/menu-plan?date=${target}&meal=LUNCH`);
   await page.getByRole('button', { name: '生成明日菜单' }).click();

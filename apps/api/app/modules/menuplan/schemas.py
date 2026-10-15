@@ -73,3 +73,39 @@ class MenuPlanSyncResult(BaseModel):
         description="有几道菜带上了计划份数；预测不出来的菜为空，不编数"
     )
     message: str
+
+
+class MenuPlanBatchDay(BaseModel):
+    """批量排菜单里的一天。"""
+
+    date: date
+    #: GENERATED 已生成 / IMPORTED 已导入 / SKIPPED 跳过 / FAILED 排不出来
+    status: str
+    status_label: str
+    reason: str | None = None
+    suggestion_id: str | None = None
+    dish_names: list[str] = Field(default_factory=list)
+    dish_count: int = 0
+    diner_count: int = 0
+    #: 这一餐的采购金额（元）与摊到每个人头上的成本
+    total_cost: str | None = None
+    cost_per_person: str | None = None
+    requirements_count: int = 0
+    #: 这一天是不是放假/调休，来自节假日日历
+    calendar_note: str | None = None
+    #: 导入时写了几条营养结果
+    nutrition_rows: int = 0
+
+
+class MenuPlanBatchResult(BaseModel):
+    start_date: date
+    end_date: date
+    meal_type: MealType
+    meal_type_label: str
+    days: int
+    generated: int = 0
+    imported: int = 0
+    skipped: int = 0
+    failed: int = 0
+    rows: list[MenuPlanBatchDay]
+    message: str

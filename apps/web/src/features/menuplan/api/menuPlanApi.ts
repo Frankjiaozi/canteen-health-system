@@ -1,6 +1,6 @@
 import { api } from '@/shared/api/client';
 import { unwrap } from '@/shared/api/result';
-import type { MealType, MenuPlanResponse, MenuPlanSyncResult } from '../types';
+import type { MealType, MenuPlanBatchResult, MenuPlanResponse, MenuPlanSyncResult } from '../types';
 
 /** 生成「明日菜单与采购」：一次调用把推荐、预测、采购三件事都算完。 */
 export async function generateMenuPlan(
@@ -30,6 +30,36 @@ export async function syncMenuPlan(
     await api.POST('/api/v1/menu-plan/sync', {
       params: {
         query: { on_date: onDate, meal_type: mealType, suggestion_id: suggestionId },
+      },
+    }),
+  );
+}
+
+/** 按日期区间批量排菜单：一次排一段，逐日生成。 */
+export async function generateMenuPlanBatch(
+  startDate: string,
+  endDate: string,
+  mealType: MealType,
+): Promise<MenuPlanBatchResult> {
+  return unwrap(
+    await api.POST('/api/v1/menu-plan/batch/generate', {
+      params: {
+        query: { start_date: startDate, end_date: endDate, meal_type: mealType },
+      },
+    }),
+  );
+}
+
+/** 一键导入：把区间内每一天最近生成的那一版菜单写进当天的当日数据。 */
+export async function syncMenuPlanBatch(
+  startDate: string,
+  endDate: string,
+  mealType: MealType,
+): Promise<MenuPlanBatchResult> {
+  return unwrap(
+    await api.POST('/api/v1/menu-plan/batch/sync', {
+      params: {
+        query: { start_date: startDate, end_date: endDate, meal_type: mealType },
       },
     }),
   );

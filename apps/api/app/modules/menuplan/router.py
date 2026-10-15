@@ -14,7 +14,11 @@ from app.db.session import get_session
 from app.modules.auth.dependencies import require_roles
 from app.modules.auth.schemas import AuthUser
 from app.modules.menuplan import service
-from app.modules.menuplan.schemas import MenuPlanResponse, MenuPlanSyncResult
+from app.modules.menuplan.schemas import (
+    MenuPlanBatchResult,
+    MenuPlanResponse,
+    MenuPlanSyncResult,
+)
 from app.shared.enums import MealType, UserRole
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -50,5 +54,35 @@ def sync(
         on_date=on_date,
         meal_type=meal_type,
         suggestion_id=suggestion_id,
+        actor_id=actor.id,
+    )
+
+
+@router.post("/batch/generate", response_model=MenuPlanBatchResult, summary="按日期区间批量排菜单")
+def batch_generate(
+    start_date: date = Query(description="开始日期"),
+    end_date: date = Query(description="结束日期（含）"),
+    meal_type: MealType = Query(default=MealType.LUNCH),
+    session: Session = Depends(get_session),
+    _: AuthUser = Depends(require_roles(*WRITE_ROLES)),
+) -> MenuPlanBatchResult:
+    return service.generate_batch(
+        session, start_date=start_date, end_date=end_date, meal_type=meal_type
+    )
+
+
+@router.post("/batch/sync", response_model=MenuPlanBatchResult, summary="一键导入这几天的当日菜单")
+def batch_sync(
+    start_date: date = Query(description="开始日期"),
+    end_date: date = Query(description="结束日期（含）"),
+    meal_type: MealType = Query(default=MealType.LUNCH),
+    session: Session = Depends(get_session),
+    actor: AuthUser = Depends(require_roles(*WRITE_ROLES)),
+) -> MenuPlanBatchResult:
+    return service.sync_batch(
+        session,
+        start_date=start_date,
+        end_date=end_date,
+        meal_type=meal_type,
         actor_id=actor.id,
     )
