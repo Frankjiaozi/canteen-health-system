@@ -37,6 +37,7 @@ export function DisplayPage() {
           mealLabel={data?.meal_label}
           dinerCount={data?.diner_count ?? null}
           loading={isPending}
+          isToday={data === undefined || data.date === dayjs().format('YYYY-MM-DD')}
         />
 
         <div style={{ flex: 1, minHeight: 0 }}>
@@ -88,9 +89,11 @@ interface HeaderProps {
   mealLabel?: string;
   dinerCount: number | null;
   loading: boolean;
+  /** 看的是不是今天。带 ?date= 回看时标题不再写「今日」，免得自相矛盾 */
+  isToday: boolean;
 }
 
-function Header({ date, mealLabel, dinerCount, loading }: HeaderProps) {
+function Header({ date, mealLabel, dinerCount, loading, isToday }: HeaderProps) {
   const formatted = date ? dayjs(date).format('YYYY 年 M 月 D 日 dddd') : '——';
 
   return (
@@ -107,7 +110,7 @@ function Header({ date, mealLabel, dinerCount, loading }: HeaderProps) {
           知味 · 校园智慧膳食平台
         </div>
         <div style={{ fontSize: 52, fontWeight: 700, marginTop: 8, lineHeight: 1.1 }}>
-          今日菜单与营养
+          {isToday ? '今日菜单与营养' : '菜单与营养'}
         </div>
       </div>
       <div style={{ textAlign: 'right', lineHeight: 1.6 }}>

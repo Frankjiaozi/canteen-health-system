@@ -1,5 +1,6 @@
 import { Button, Card, DatePicker, Empty, Segmented, Space, Typography } from 'antd';
 import dayjs from 'dayjs';
+import { useState } from 'react';
 import { useCurrentUser } from '@/features/auth/hooks/useAuth';
 import { canWriteBusinessData } from '@/features/auth/lib/permissions';
 import { useSuggestionDetail } from '@/features/recommendation/hooks/useRecommendation';
@@ -8,7 +9,7 @@ import { useEnumOptions } from '@/shared/hooks/useEnumOptions';
 import { PlanEvidence } from '../components/PlanEvidence';
 import { PurchaseList } from '../components/PurchaseList';
 import { RecommendedDishes } from '../components/RecommendedDishes';
-import { useGenerateMenuPlan } from '../hooks/useMenuPlan';
+import { useGenerateMenuPlan, useSyncMenuPlan } from '../hooks/useMenuPlan';
 import type { MealType } from '../types';
 
 /**
@@ -28,9 +29,26 @@ export function MenuPlanPage() {
 
   const generate = useGenerateMenuPlan();
   const plan = generate.data ?? null;
+  // 「已同步」只对**当前这一版**成立：换日期或重新生成之后，计划又变回未同步
+  const [syncedId, setSyncedId] = useState<string | null>(null);
   // 结论（待确认 / 已采纳 / 已否决）是会变的，以详情查询为唯一来源；
   // 菜单内容本身来自生成结果——它不可变，没必要再查一次
   const suggestion = useSuggestionDetail(plan?.suggestion_id ?? null);
+  const syncMutation = useSyncMenuPlan();
+  const synced = plan !== null && syncedId === plan.suggestion_id;
+
+  const handleGenerate = () => {
+    setSyncedId(null);
+    generate.mutate({ onDate, mealType });
+  };
+
+  const handleSync = () => {
+    if (!plan) return;
+    syncMutation.mutate(
+      { onDate: plan.date, mealType: plan.meal_type, suggestionId: plan.suggestion_id },
+      { onSuccess: () => setSyncedId(plan.suggestion_id) },
+    );
+  };
 
   return (
     <Space orientation="vertical" size={16} style={{ width: '100%' }}>
@@ -41,22 +59,26 @@ export function MenuPlanPage() {
             <DatePicker
               value={dayjs(onDate)}
               allowClear={false}
-              onChange={(value) => value && setDate(value.format('YYYY-MM-DD'))}
+              onChange={(value) => {
+                if (value) {
+                  setDate(value.format('YYYY-MM-DD'));
+                  setSyncedId(null);
+                }
+              }}
             />
             <Segmented<MealType>
               value={mealType}
-              onChange={(value) => setMeal(value)}
+              onChange={(value) => {
+                setMeal(value);
+                setSyncedId(null);
+              }}
               options={(enumOptions?.meal_type ?? []).map((option) => ({
                 value: option.value as MealType,
                 label: option.label,
               }))}
             />
             {canWrite ? (
-              <Button
-                type="primary"
-                loading={generate.isPending}
-                onClick={() => generate.mutate({ onDate, mealType })}
-              >
+              <Button type="primary" loading={generate.isPending} onClick={handleGenerate}>
                 生成明日菜单
               </Button>
             ) : null}
@@ -73,7 +95,13 @@ export function MenuPlanPage() {
             <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
               {plan.notes.join('；')}
             </Typography.Paragraph>
-            <RecommendedDishes plan={plan} suggestion={suggestion.data} />
+            <RecommendedDishes
+              plan={plan}
+              suggestion={suggestion.data}
+              synced={synced}
+              syncing={syncMutation.isPending}
+              onSync={handleSync}
+            />
             <PurchaseList plan={plan} />
             <PlanEvidence plan={plan} />
           </Space>

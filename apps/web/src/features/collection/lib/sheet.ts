@@ -54,6 +54,19 @@ export function toNumber(value: string | null | undefined): number | null {
 }
 
 /**
+ * 计划份数按整数说。
+ *
+ * 它是预测算出来的小数（812.36），但录入员拿它对标时只需要「大概八百份」——
+ * 把小数照搬出来只会让人以为要按小数出餐。取不到（没排菜单、预测不出来）时返回空，
+ * 界面上就不显示这一项，而不是显示「计划 0 份」。
+ */
+export function formatPlannedServings(value: string | null | undefined): string | null {
+  const parsed = toNumber(value);
+  if (parsed === null) return null;
+  return Math.round(parsed).toLocaleString('zh-CN');
+}
+
+/**
  * 提交前的校验。返回一句能照做的中文提示；全部通过时返回 null。
  *
  * 这些规则与后端一致（后端也会再拦一次）——放在前端只是为了让录入员当场知道哪里没填，

@@ -447,6 +447,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/menu-plan/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 把这版菜单同步至当日数据 */
+        post: operations["sync_api_v1_menu_plan_sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/collection/logs": {
         parameters: {
             query?: never;
@@ -1831,6 +1848,13 @@ export interface components {
              * @default false
              */
             selected: boolean;
+            /**
+             * Is Planned
+             * @default false
+             */
+            is_planned: boolean;
+            /** Planned Servings */
+            planned_servings?: string | null;
             /** Servings Produced */
             servings_produced?: string | null;
             /**
@@ -1969,6 +1993,33 @@ export interface components {
             servings_note: string;
             /** Notes */
             notes: string[];
+        };
+        /**
+         * MenuPlanSyncResult
+         * @description 「同步至当日数据」的结果。
+         */
+        MenuPlanSyncResult: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            meal_type: components["schemas"]["MealType"];
+            /** Meal Type Label */
+            meal_type_label: string;
+            /** Suggestion Id */
+            suggestion_id: string;
+            /** Dish Count */
+            dish_count: number;
+            /** Nutrition Rows */
+            nutrition_rows: number;
+            /**
+             * Planned Servings Filled
+             * @description 有几道菜带上了计划份数；预测不出来的菜为空，不编数
+             */
+            planned_servings_filled: number;
+            /** Message */
+            message: string;
         };
         /** MenuSuggestionRead */
         MenuSuggestionRead: {
@@ -2980,6 +3031,7 @@ export type SchemaLoginRequest = components['schemas']['LoginRequest'];
 export type SchemaMealType = components['schemas']['MealType'];
 export type SchemaMenuPlanDish = components['schemas']['MenuPlanDish'];
 export type SchemaMenuPlanResponse = components['schemas']['MenuPlanResponse'];
+export type SchemaMenuPlanSyncResult = components['schemas']['MenuPlanSyncResult'];
 export type SchemaMenuSuggestionRead = components['schemas']['MenuSuggestionRead'];
 export type SchemaNutrientAmount = components['schemas']['NutrientAmount'];
 export type SchemaNutrientGap = components['schemas']['NutrientGap'];
@@ -4074,6 +4126,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MenuPlanResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sync_api_v1_menu_plan_sync_post: {
+        parameters: {
+            query: {
+                /** @description 要写入的日期 */
+                on_date: string;
+                meal_type?: components["schemas"]["MealType"];
+                /** @description 要同步的那一版菜单 */
+                suggestion_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuPlanSyncResult"];
                 };
             };
             /** @description Validation Error */

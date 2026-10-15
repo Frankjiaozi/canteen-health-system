@@ -11,6 +11,10 @@
 **份数由预测给，不由推荐算**：份数要看明天是不是放假、这道菜历史卖得怎么样，
 推荐手里没有这些信息。但份数又必须参与营养评估（人均供给 = Σ单份营养 × 份数 ÷ 人次），
 所以它是推荐的**输入**而不是输出。
+
+「同步至当日数据」是这条链路的最后一环（`sync_to_day`）：把这一版菜单写进那一天的**菜单日**，
+每日采集的「当日供应菜品」因此一打开就是勾好的，公开大屏当天早上也能直接显示。
+采集页提交时按实际供应整份覆盖——一天供应了哪些菜，始终只有 `menu_days` 这一份数据。
 """
 
 from __future__ import annotations
@@ -21,11 +25,15 @@ from uuid import UUID
 
 from app.core.errors import BusinessRuleError
 from app.core.logging import get_logger
+from app.modules.collection import service as collection_service
 from app.modules.forecast import service as forecast_service
-from app.modules.menuplan.schemas import MenuPlanDish, MenuPlanResponse
+from app.modules.menu import service as menu_service
+from app.modules.menuplan.schemas import MenuPlanDish, MenuPlanResponse, MenuPlanSyncResult
+from app.modules.nutrition import service as nutrition_service
 from app.modules.recommendation import repository as recommendation_repository
 from app.modules.recommendation import service as recommendation_service
-from app.shared.enums import MealType
+from app.modules.recommendation.schemas import DecideRequest
+from app.shared.enums import MealType, SuggestionStatus
 from sqlalchemy.orm import Session
 
 logger = get_logger(__name__)
@@ -147,4 +155,84 @@ def build_menu_plan(
             "预测不出来时退回「每人一份」估算并逐行标注。"
         ),
         notes=notes,
+    )
+
+
+def sync_to_day(
+    session: Session,
+    *,
+    on_date: date,
+    meal_type: MealType,
+    suggestion_id: UUID,
+    actor_id: UUID | None = None,
+) -> MenuPlanSyncResult:
+    """把这一版菜单同步到那一天的当日数据：写菜单日 + 算营养 + 记下「已采纳」。
+
+    做完这三件事，第二天会发生什么就确定了：
+
+    - **每日采集**的「当日供应菜品」一打开就是勾好的（整份菜品库都列着，随时能改）；
+    - **公开大屏**当天早上就有内容——它读菜单日与营养结果，两者在这里都齐了；
+      而油盐糖、食物种类那类对照数据来自采集记录，采集之前如实显示「暂无」。
+
+    为什么读快照而不是重算：同步要落的是**人当时看到并确认的那一版**。
+    重算会算出可能不一样的结果，那就不是同步，是悄悄换一份菜单。
+    """
+    if collection_service.has_collection(session, on_date=on_date, meal_type=meal_type):
+        raise BusinessRuleError(
+            f"{on_date} {meal_type.label} 已经录过采集了，菜单以实际供应为准；"
+            "要调整请到「每日采集」里改，不要把计划盖上去"
+        )
+
+    planned, status = recommendation_service.planned_dishes(
+        session, suggestion_id=suggestion_id, on_date=on_date, meal_type=meal_type
+    )
+    if status is SuggestionStatus.REJECTED:
+        raise BusinessRuleError("这一版菜单已被否决，不能同步；请重新生成一版")
+
+    menu_service.plan_menu_day(
+        session,
+        on_date=on_date,
+        meal_type=meal_type,
+        dishes=[
+            menu_service.PlannedDish(dish_id=row.dish_id, planned_servings=row.planned_servings)
+            for row in planned
+        ],
+        created_by=actor_id,
+    )
+    # 大屏只展示有营养结果的菜，所以写菜单日与算营养必须一起做：
+    # 只写菜单日的话，第二天早上大屏还是空的
+    report = nutrition_service.compute_menu_day(session, on_date=on_date, meal_type=meal_type)
+
+    # 同步即采纳：把「这一版被采用了」记下来，历史里查得到是谁在哪天定的菜单
+    if status is SuggestionStatus.PENDING:
+        recommendation_service.decide(
+            session,
+            suggestion_id=suggestion_id,
+            payload=DecideRequest(status=SuggestionStatus.ACCEPTED, reason=None),
+            actor_id=actor_id,
+        )
+    else:
+        session.commit()
+
+    filled = sum(1 for row in planned if row.planned_servings is not None)
+    logger.info(
+        "菜单已同步至当日数据：%s %s，%d 道菜，营养结果 %d 条",
+        on_date,
+        meal_type.label,
+        len(planned),
+        report.rows,
+    )
+    return MenuPlanSyncResult(
+        date=on_date,
+        meal_type=meal_type,
+        meal_type_label=meal_type.label,
+        suggestion_id=str(suggestion_id),
+        dish_count=len(planned),
+        nutrition_rows=report.rows,
+        planned_servings_filled=filled,
+        message=(
+            f"已写入 {on_date} {meal_type.label}的当日数据：{len(planned)} 道菜，"
+            f"{report.rows} 条营养结果。每日采集的供应菜品已按这份菜单勾好，"
+            "公开大屏也看得到了；提交采集时会按实际供应覆盖。"
+        ),
     )

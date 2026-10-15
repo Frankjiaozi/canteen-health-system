@@ -205,6 +205,24 @@ def test_infeasible_budget_is_explained() -> None:
     assert "预算" in " ".join(error.value.conflicts)
 
 
+def test_infeasible_seasoning_floor_is_explained() -> None:
+    """份数给定之后，「少做点」这条退路没了，诊断要按「最少几道菜的合计」算。
+
+    这一条是实测踩出来的：录进来的就餐人次远小于预测份数时，人均油盐糖会被放大，
+    而求解器只能用「换菜」来降——换不动的时候，得让人看清是哪个量压不下去。
+    """
+    pool = [_dish(f"菜{index}", salt="1.5") for index in range(5)]
+    fixed = {dish.dish_id: Decimal("400") for dish in pool}
+    constraints = _constraints(diner_count=100, fixed_servings=fixed)
+
+    with pytest.raises(solver.InfeasibleError) as error:
+        solver.solve_menu(pool, constraints)
+
+    conflicts = " ".join(error.value.conflicts)
+    assert "食盐" in conflicts
+    assert "超过上限" in conflicts
+
+
 # ---------------------------------------------------------------------------
 # 目标区间怎么来的
 # ---------------------------------------------------------------------------

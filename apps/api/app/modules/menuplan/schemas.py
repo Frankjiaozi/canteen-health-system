@@ -11,7 +11,7 @@ from datetime import date
 from app.modules.forecast.schemas import IngredientRequirement
 from app.modules.recommendation.schemas import NutrientGap, SuggestionReason
 from app.shared.enums import MealType
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class MenuPlanDish(BaseModel):
@@ -57,3 +57,19 @@ class MenuPlanResponse(BaseModel):
     #: 采购量按什么份数算的——这一句必须写清楚，否则看的人不知道买多少是怎么来的
     servings_note: str
     notes: list[str]
+
+
+class MenuPlanSyncResult(BaseModel):
+    """「同步至当日数据」的结果。"""
+
+    date: date
+    meal_type: MealType
+    meal_type_label: str
+    suggestion_id: str
+    dish_count: int
+    #: 写入了多少条营养结果（每道菜一条单份理论值）
+    nutrition_rows: int
+    planned_servings_filled: int = Field(
+        description="有几道菜带上了计划份数；预测不出来的菜为空，不编数"
+    )
+    message: str

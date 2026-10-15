@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -27,6 +28,15 @@ class ConfirmedDish:
     note: str | None = None
 
 
+@dataclass
+class PlannedDish:
+    """排菜单时计划供应的一道菜。"""
+
+    dish_id: UUID
+    #: 计划做多少份。预测不出来时可以是空的——空着比编一个数诚实
+    planned_servings: Decimal | None = None
+
+
 def confirm_menu_day(
     session: Session,
     *,
@@ -42,6 +52,39 @@ def confirm_menu_day(
     repository.replace_items(
         session,
         menu_day_id=menu_day.id,
-        items=[(row.dish_id, row.is_substituted, row.note) for row in dishes],
+        items=[(row.dish_id, row.is_substituted, row.note, None) for row in dishes],
+    )
+    return menu_day.id
+
+
+def plan_menu_day(
+    session: Session,
+    *,
+    on_date: date,
+    meal_type: MealType,
+    dishes: list[PlannedDish],
+    created_by: UUID | None = None,
+) -> UUID:
+    """把「明天做哪几道菜、各做多少份」写进那一天的菜单日——菜单的**计划**。
+
+    菜单日在采集页里是「实际供应了哪些菜」，在这里是「计划供应哪些菜」，
+    同一条记录先后扮演两个角色：采集页打开时先按计划勾好，提交时按实际整份覆盖。
+    这样「一天供应了哪些菜」始终只有一份数据，不会出现计划与实际两张表打架。
+
+    计划份数写进 `planned_servings`，提交采集时**保留**（见 repository.replace_items），
+    因此事后能对上「计划做 812 份、实际做了 700 份」。
+    """
+    menu_day = repository.ensure_menu_day(
+        session, on_date=on_date, meal_type=meal_type, created_by=created_by
+    )
+    repository.replace_items(
+        session,
+        menu_day_id=menu_day.id,
+        items=[
+            # note 留给「临时替换」用，计划这件事不写进去——计划与实际的分野
+            # 是靠「有没有计划份数、有没有当天的采集记录」判断的，往备注里塞标记迟早会串味
+            (row.dish_id, False, None, row.planned_servings)
+            for row in dishes
+        ],
     )
     return menu_day.id

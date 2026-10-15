@@ -20,6 +20,10 @@ class LoggedDish(BaseModel):
     cooking_method_label: str
     #: 是否已确认为当餐供应的菜。当天还没有菜单时，整份菜品库都会列出来供勾选
     selected: bool = False
+    #: 是否在当天的菜单上（计划供应）。取消勾选后它仍然是「本来计划的菜」
+    is_planned: bool = False
+    #: 计划做多少份。由「明日菜单与采购」同步过来，采集提交后仍然留着，便于计划与实际对账
+    planned_servings: str | None = None
     #: 已保存的出餐份数；还没录入时为空
     servings_produced: str | None = None
     leftover_ratio: str | None = Field(default=None, description="剩余比例 0~1")

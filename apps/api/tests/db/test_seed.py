@@ -6,6 +6,9 @@
 
 from __future__ import annotations
 
+from datetime import date
+from uuid import UUID
+
 from app.db.seed import DEMO_DATA_SOURCE, HISTORY_DAYS, run
 from app.db.session import get_session_factory
 from app.modules.collection.models import DailyLog, DailyLogItem
@@ -83,24 +86,40 @@ def test_recipe_items_reference_existing_ingredients(db_session: Session) -> Non
 
 
 def test_history_links_menu_items_and_daily_items(db_session: Session) -> None:
-    """菜单日与每日记录的明细必须一一对应，否则闭环不完整。"""
-    menu_pairs = set(
-        db_session.execute(
-            select(MenuDay.date, MenuDayItem.dish_id).join(
-                MenuDayItem, MenuDayItem.menu_day_id == MenuDay.id
-            )
-        )
-    )
-    log_pairs = set(
-        db_session.execute(
-            select(DailyLog.date, DailyLogItem.dish_id).join(
-                DailyLogItem, DailyLogItem.daily_log_id == DailyLog.id
-            )
-        )
-    )
+    """菜单日与每日记录的明细必须对得上，否则闭环不完整。
 
-    assert menu_pairs
-    assert menu_pairs == log_pairs, "菜单供应的菜品与每日记录的菜品不一致"
+    对得上的口径分两种日子，因为「同步至当日数据」之后菜单日会**先于**采集出现：
+
+    - **已经过去的日子**：既有菜单日也有采集记录，两者的菜品必须完全一致
+      （采集提交时按实际供应整份覆盖菜单）；
+    - **将来/还没采集的日子**：允许只有菜单日没有采集记录——那正是「菜单已排好、
+      还没到录入的时候」，次日采集页要靠它把供应菜品勾好。
+    """
+    menu_by_date: dict[date, set[UUID]] = {}
+    for day, dish_id in db_session.execute(
+        select(MenuDay.date, MenuDayItem.dish_id).join(
+            MenuDayItem, MenuDayItem.menu_day_id == MenuDay.id
+        )
+    ):
+        menu_by_date.setdefault(day, set()).add(dish_id)
+
+    log_by_date: dict[date, set[UUID]] = {}
+    for day, dish_id in db_session.execute(
+        select(DailyLog.date, DailyLogItem.dish_id).join(
+            DailyLogItem, DailyLogItem.daily_log_id == DailyLog.id
+        )
+    ):
+        log_by_date.setdefault(day, set()).add(dish_id)
+
+    assert menu_by_date
+    missing_menu = set(log_by_date) - set(menu_by_date)
+    assert not missing_menu, f"这些日子有采集记录却没有菜单日：{sorted(missing_menu)}"
+
+    today = today_local()
+    for day, dishes in log_by_date.items():
+        assert menu_by_date[day] == dishes, f"{day} 的菜单与采集记录不一致"
+    uncollected = {day for day in menu_by_date if day <= today} - set(log_by_date)
+    assert not uncollected, f"已过去的日子只有菜单没有采集记录：{sorted(uncollected)}"
 
 
 def test_submitted_logs_record_who_and_when(db_session: Session) -> None:

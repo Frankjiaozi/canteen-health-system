@@ -12,23 +12,80 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import timedelta
+from collections.abc import Iterator
+from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
+import pytest
+from app.db.session import get_session_factory
+from app.modules.collection.models import DailyLog, DailyLogItem
 from app.modules.dish.models import RecipeItem, RecipeSeasoning
 from app.modules.forecast import service as forecast_service
 from app.modules.forecast.models import Forecast
 from app.modules.ingredient.models import Ingredient
+from app.modules.menu.models import MenuDay, MenuDayItem
+from app.modules.nutrition.models import DishNutrition
 from app.modules.seasoning.models import Seasoning
 from app.shared.enums import IngredientCategory, MealType
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from tests.helpers import today_local
 
 BASE = "/api/v1/menu-plan"
+COLLECTION = "/api/v1/collection"
+BOARD = "/api/v1/public/board/today"
+RECOMMENDATION = "/api/v1/recommendation"
+
+
+def _fresh_date() -> date:
+    """种子历史之外的一天。
+
+    同步用例会往将来写菜单日与营养结果，而**很多用例把「最新的菜单日」当成今天**
+    （大屏、看板、营养计算都这么取）。挑一个固定偏移的将来日期，再在用例结束后清掉，
+    就不会给别的用例下绊子。
+    """
+    return today_local() + timedelta(days=30)
+
+
+@pytest.fixture(autouse=True)
+def cleanup_beyond_seed_history() -> Iterator[None]:
+    """用例结束后，把种子历史之后新建的菜单日、营养结果与份数记录删掉。"""
+    cutoff = today_local()
+    yield
+    with get_session_factory()() as session:
+        log_ids = list(session.scalars(select(DailyLog.id).where(DailyLog.date > cutoff)))
+        if log_ids:
+            session.execute(delete(DailyLogItem).where(DailyLogItem.daily_log_id.in_(log_ids)))
+        session.execute(delete(DailyLog).where(DailyLog.date > cutoff))
+        menu_ids = list(session.scalars(select(MenuDay.id).where(MenuDay.date > cutoff)))
+        if menu_ids:
+            session.execute(delete(MenuDayItem).where(MenuDayItem.menu_day_id.in_(menu_ids)))
+        session.execute(delete(MenuDay).where(MenuDay.date > cutoff))
+        session.execute(delete(DishNutrition).where(DishNutrition.date > cutoff))
+        session.execute(delete(Forecast).where(Forecast.date > cutoff))
+        session.commit()
+
+
+def _generate(client: TestClient, target: date) -> dict:
+    response = client.post(
+        f"{BASE}/generate", params={"on_date": target.isoformat(), "meal_type": "LUNCH"}
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def _sync(client: TestClient, target: date, suggestion_id: str):
+    return client.post(
+        f"{BASE}/sync",
+        params={
+            "on_date": target.isoformat(),
+            "meal_type": "LUNCH",
+            "suggestion_id": suggestion_id,
+        },
+    )
 
 
 def _per_serving_usage(session: Session, dish_id: UUID) -> list[tuple[str, Decimal]]:
@@ -238,6 +295,195 @@ def test_predictions_are_persisted_for_the_planned_dishes_only(
     # 快照要能自解释：复盘时看得出这个份数是怎么来的
     assert all(row.features["model"] for row in rows)
     assert all(row.features["samples"] for row in rows)
+
+
+def test_sync_puts_the_plan_into_the_day_for_collection_and_board(
+    as_recorder: TestClient, db_session: Session
+) -> None:
+    """「同步至当日数据」要一次接通两处：采集页的供应菜品、公开大屏的当日菜单。
+
+    这是交互上的一条硬要求：大屏早上就开始显示，而采集要到一天结束才录；
+    靠人工在采集页重勾一遍，大屏整个白天就是空的。
+    """
+    target = _fresh_date()
+    plan = _generate(as_recorder, target)
+
+    synced = _sync(as_recorder, target, plan["suggestion_id"])
+    assert synced.status_code == 200, synced.text
+    body = synced.json()
+    assert body["dish_count"] == len(plan["dishes"])
+    assert body["nutrition_rows"] == len(plan["dishes"]), "每道菜都要算出单份营养，大屏才有内容"
+    assert body["planned_servings_filled"] == len(plan["dishes"])
+
+    # 每日采集：整份菜品库都列着（临时换菜有地方勾），计划里的菜已经勾好
+    sheet = as_recorder.get(
+        f"{COLLECTION}/logs/{target.isoformat()}", params={"meal_type": "LUNCH"}
+    ).json()
+    assert sheet["menu_confirmed"] is True
+    assert len(sheet["dishes"]) >= 20
+    planned = [row for row in sheet["dishes"] if row["is_planned"]]
+    assert {row["dish_id"] for row in planned} == {dish["dish_id"] for dish in plan["dishes"]}
+    assert all(row["selected"] for row in planned)
+    assert all(row["planned_servings"] for row in planned)
+    # 计划里的菜排在最前面，录入员一眼看到的就是「今天计划做的那几道」
+    assert all(row["is_planned"] for row in sheet["dishes"][: len(planned)])
+    assert "计划" in sheet["warning"]
+
+    # 公开大屏：免登录就能看到这一天的菜单与营养
+    board = as_recorder.get(BOARD, params={"on_date": target.isoformat()}).json()
+    assert board["meal_label"] == "午餐"
+    assert {card["name"] for card in board["dishes"]} == {
+        dish["dish_name"] for dish in plan["dishes"]
+    }
+    assert all(len(card["nutrients"]) == 5 for card in board["dishes"])
+
+    # 同步即采纳：历史里查得到「这一版被用上了」
+    detail = as_recorder.get(f"{RECOMMENDATION}/{plan['suggestion_id']}").json()
+    assert detail["status"] == "ACCEPTED"
+
+
+def test_resync_replaces_the_plan_instead_of_piling_up(as_recorder: TestClient) -> None:
+    """同一版菜单同步两次是幂等的；换成新一版则整份替换。"""
+    target = _fresh_date()
+    first = _generate(as_recorder, target)
+    assert _sync(as_recorder, target, first["suggestion_id"]).status_code == 200
+
+    assert _sync(as_recorder, target, first["suggestion_id"]).status_code == 200
+    sheet = as_recorder.get(
+        f"{COLLECTION}/logs/{target.isoformat()}", params={"meal_type": "LUNCH"}
+    ).json()
+    assert sum(1 for row in sheet["dishes"] if row["is_planned"]) == len(first["dishes"])
+
+    second = _generate(as_recorder, target)
+    assert _sync(as_recorder, target, second["suggestion_id"]).status_code == 200
+    sheet = as_recorder.get(
+        f"{COLLECTION}/logs/{target.isoformat()}", params={"meal_type": "LUNCH"}
+    ).json()
+    planned = {row["dish_id"] for row in sheet["dishes"] if row["is_planned"]}
+    assert planned == {dish["dish_id"] for dish in second["dishes"]}, "菜单按最新一版整体替换"
+
+
+def test_sync_refuses_to_overwrite_a_day_that_was_already_collected(
+    as_recorder: TestClient, db_session: Session
+) -> None:
+    """已经录过采集的日子，菜单以实际供应为准——不能被计划盖掉。"""
+    target = _fresh_date()
+    plan = _generate(as_recorder, target)
+    dish_ids = [dish["dish_id"] for dish in plan["dishes"][:2]]
+    saved = as_recorder.put(
+        f"{COLLECTION}/logs/{target.isoformat()}",
+        json={
+            "meal_type": "LUNCH",
+            "diner_count": 300,
+            "oil_total_g": "1000",
+            "salt_total_g": "400",
+            "sugar_total_g": "150",
+            "leftover_weight_g": "2000",
+            "note": None,
+            "anomaly_flags": [],
+            "dishes": [{"dish_id": dish_id, "servings_produced": "140"} for dish_id in dish_ids],
+        },
+    )
+    assert saved.status_code == 200, saved.text
+
+    refused = _sync(as_recorder, target, plan["suggestion_id"])
+    assert refused.status_code == 422
+    assert "已经录过采集" in refused.json()["message"]
+
+    db_session.expire_all()
+    sheet = as_recorder.get(
+        f"{COLLECTION}/logs/{target.isoformat()}", params={"meal_type": "LUNCH"}
+    ).json()
+    selected = {row["dish_id"] for row in sheet["dishes"] if row["selected"]}
+    assert selected == set(dish_ids), "原有菜单不该被计划覆盖"
+
+
+def test_collection_keeps_the_planned_servings_for_reconciliation(
+    as_recorder: TestClient,
+) -> None:
+    """提交实际份数之后，计划份数仍然留着——否则「计划做多少、实际做多少」事后对不上。"""
+    target = _fresh_date()
+    plan = _generate(as_recorder, target)
+    assert _sync(as_recorder, target, plan["suggestion_id"]).status_code == 200
+
+    dish_ids = [dish["dish_id"] for dish in plan["dishes"]]
+    saved = as_recorder.put(
+        f"{COLLECTION}/logs/{target.isoformat()}",
+        json={
+            "meal_type": "LUNCH",
+            "diner_count": 300,
+            "oil_total_g": "1000",
+            "salt_total_g": "400",
+            "sugar_total_g": "150",
+            "leftover_weight_g": "2000",
+            "note": None,
+            "anomaly_flags": [],
+            "dishes": [{"dish_id": dish_id, "servings_produced": "12"} for dish_id in dish_ids],
+        },
+    )
+    assert saved.status_code == 200, saved.text
+
+    sheet = as_recorder.get(
+        f"{COLLECTION}/logs/{target.isoformat()}", params={"meal_type": "LUNCH"}
+    ).json()
+    planned_rows = [row for row in sheet["dishes"] if row["is_planned"]]
+    # 提交采集之后不该再标「计划」：那一天供应的是实际做的事
+    assert planned_rows == []
+    recorded = [row for row in sheet["dishes"] if row["servings_produced"] == "12.00"]
+    assert len(recorded) == len(dish_ids)
+    assert all(row["planned_servings"] not in (None, "12.00") for row in recorded), (
+        "计划份数应当保留，且与实际的 12 份不同"
+    )
+
+
+def test_sync_rejects_a_suggestion_from_another_day(as_recorder: TestClient) -> None:
+    """把别的日期那一版菜单同步到这一天，属于张冠李戴，必须拦住。"""
+    target = _fresh_date()
+    plan = _generate(as_recorder, target)
+
+    refused = _sync(as_recorder, target + timedelta(days=1), plan["suggestion_id"])
+    assert refused.status_code == 422
+    assert "对不上" in refused.json()["message"]
+
+
+def test_unsatisfiable_menu_comes_back_as_a_readable_error(as_recorder: TestClient) -> None:
+    """排不出菜单时要说明卡在哪条约束上（422），不能冒成 500——
+    界面上只剩一句「服务器内部错误」的话，求解器算出来的原因就白算了。
+    """
+    target = _fresh_date()
+
+    response = as_recorder.post(
+        f"{BASE}/generate",
+        params={"on_date": target.isoformat(), "meal_type": "LUNCH", "diner_count": 5},
+    )
+
+    assert response.status_code == 422, response.text
+    message = response.json()["message"]
+    assert any(word in message for word in ("预算", "上限", "无解")), message
+
+
+def test_sync_requires_login(client: TestClient) -> None:
+    response = client.post(
+        f"{BASE}/sync",
+        params={
+            "on_date": today_local().isoformat(),
+            "meal_type": "LUNCH",
+            "suggestion_id": "00000000-0000-0000-0000-000000000000",
+        },
+    )
+    assert response.status_code == 401
+
+
+def test_school_admin_cannot_sync_to_the_day(as_school_admin: TestClient) -> None:
+    response = as_school_admin.post(
+        f"{BASE}/sync",
+        params={
+            "on_date": today_local().isoformat(),
+            "meal_type": "LUNCH",
+            "suggestion_id": "00000000-0000-0000-0000-000000000000",
+        },
+    )
+    assert response.status_code == 403
 
 
 def test_requires_login(client: TestClient) -> None:

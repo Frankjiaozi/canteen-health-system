@@ -34,6 +34,10 @@ FIELD_BY_CODE: dict[str, str] = {
     "ADDED_SUGAR": "sugar_g",
 }
 
+#: 这几项是「份数给定后，多做少做不再能调」的量：一旦最少几道菜的合计就压不下去，
+#: 模型必然无解，诊断时按这个口径算一遍说得清原因。
+_PER_CAPITA_TOPIC_FIELDS = frozenset({"salt_g", "oil_g", "sugar_g", "sodium_mg"})
+
 
 class InfeasibleError(Exception):
     """解不出来。带上最可能是哪条约束卡住了——只说「无解」对使用者毫无帮助。"""
@@ -366,4 +370,38 @@ def _diagnose(constraints: PlanConstraints, usable: list[CandidateDish]) -> list
         )
         if lowest > target.upper:
             reasons.append(f"任何一道菜的{target.label}都已超过上限 {target.upper}{target.unit}")
+            continue
+        # 份数给定之后，「多做少做」这条退路没有了：只要哪几道菜的合计就已经顶破上限，
+        # 剩下的自由度就只有「换菜」。这时要说清是「最少几道菜的合计」超了——
+        # 否则看的人只知道无解，不知道该怎么改。
+        if field_name in _PER_CAPITA_TOPIC_FIELDS:
+            floor = _lowest_per_capita_total(constraints, usable, field_name)
+            if floor is not None and floor > target.upper:
+                reasons.append(
+                    f"按最少 {constraints.dish_count_min} 道菜算，{target.label}合计已达 "
+                    f"{floor.quantize(Decimal('0.01'))}{target.unit}，超过上限 {target.upper}{target.unit}"
+                )
     return reasons or ["约束之间互相冲突，请放宽其中一项后重试"]
+
+
+def _lowest_per_capita_total(
+    constraints: PlanConstraints, usable: list[CandidateDish], field_name: str
+) -> Decimal | None:
+    """最少几道菜的人均合计。份数取给定值，没给定就按份数下限估。
+
+    这就是「怎么换菜都压不下去」的那个下限：它超了上限，模型必然无解。
+    """
+    diners = Decimal(constraints.diner_count)
+    if diners <= 0:
+        return None
+    contributions: list[Decimal] = []
+    for dish in usable:
+        servings = constraints.fixed_servings.get(dish.dish_id)
+        if servings is None:
+            servings = diners * constraints.serving_ratio_min
+        contributions.append(Decimal(str(getattr(dish, field_name))) * servings / diners)
+    if not contributions:
+        return None
+    contributions.sort()
+    picked = contributions[: constraints.dish_count_min]
+    return sum(picked, Decimal("0"))

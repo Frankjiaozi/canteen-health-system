@@ -8,6 +8,7 @@ import type { components } from '@canteen/api-client';
  */
 export type MenuPlanResponse = components['schemas']['MenuPlanResponse'];
 export type MenuPlanDish = components['schemas']['MenuPlanDish'];
+export type MenuPlanSyncResult = components['schemas']['MenuPlanSyncResult'];
 
 export type { IngredientRequirement, MealType } from '@/features/forecast/types';
 export type {

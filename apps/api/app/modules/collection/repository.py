@@ -32,17 +32,17 @@ def load_items(session: Session, daily_log_id: UUID) -> list[DailyLogItem]:
     )
 
 
-def load_served_dishes(
-    session: Session, *, on_date: date, meal_type: MealType
-) -> list[tuple[Dish, MenuDayItem]]:
-    """当天菜单上确认过的菜品与它在菜单里的那一行。没有任何菜单时返回空列表。"""
+def load_menu_items(session: Session, *, on_date: date, meal_type: MealType) -> list[MenuDayItem]:
+    """当天菜单上的明细行（菜单还没排时是空列表）。
+
+    返回明细行而不是菜品：采集单既要知道有哪些菜，也要知道它的**计划份数**，
+    后者只在明细行上。
+    """
     return list(
-        session.execute(
-            select(Dish, MenuDayItem)
-            .join(MenuDayItem, MenuDayItem.dish_id == Dish.id)
+        session.scalars(
+            select(MenuDayItem)
             .join(MenuDay, MenuDay.id == MenuDayItem.menu_day_id)
             .where(MenuDay.date == on_date, MenuDay.meal_type == meal_type)
-            .order_by(Dish.category, Dish.name)
         ).all()
     )
 

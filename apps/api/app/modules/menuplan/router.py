@@ -8,12 +8,13 @@
 from __future__ import annotations
 
 from datetime import date
+from uuid import UUID
 
 from app.db.session import get_session
 from app.modules.auth.dependencies import require_roles
 from app.modules.auth.schemas import AuthUser
 from app.modules.menuplan import service
-from app.modules.menuplan.schemas import MenuPlanResponse
+from app.modules.menuplan.schemas import MenuPlanResponse, MenuPlanSyncResult
 from app.shared.enums import MealType, UserRole
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -33,4 +34,21 @@ def generate(
 ) -> MenuPlanResponse:
     return service.build_menu_plan(
         session, on_date=on_date, meal_type=meal_type, diner_count=diner_count
+    )
+
+
+@router.post("/sync", response_model=MenuPlanSyncResult, summary="把这版菜单同步至当日数据")
+def sync(
+    on_date: date = Query(description="要写入的日期"),
+    meal_type: MealType = Query(default=MealType.LUNCH),
+    suggestion_id: UUID = Query(description="要同步的那一版菜单"),
+    session: Session = Depends(get_session),
+    actor: AuthUser = Depends(require_roles(*WRITE_ROLES)),
+) -> MenuPlanSyncResult:
+    return service.sync_to_day(
+        session,
+        on_date=on_date,
+        meal_type=meal_type,
+        suggestion_id=suggestion_id,
+        actor_id=actor.id,
     )

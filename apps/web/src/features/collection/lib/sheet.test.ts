@@ -3,6 +3,7 @@ import type { DailyLogSheet } from '../types';
 import {
   buildSavePayload,
   describeSaved,
+  formatPlannedServings,
   initialFormValues,
   initialRows,
   toNumber,
@@ -154,6 +155,18 @@ it('回执文案把勾了几道菜与重算结果都说清楚', () => {
   expect(describeSaved({ dish_count: 5, nutrition_rows: 10 })).toBe(
     '已保存 5 道菜，重算了 10 条营养结果',
   );
+});
+
+describe('计划份数怎么显示', () => {
+  it('按整数说，不把预测出来的小数摆到录入员面前', () => {
+    expect(formatPlannedServings('812.36')).toBe('812');
+    expect(formatPlannedServings('1200.00')).toBe('1,200');
+  });
+
+  it('没有计划就说没有，不显示成 0 份', () => {
+    expect(formatPlannedServings(null)).toBeNull();
+    expect(formatPlannedServings('')).toBeNull();
+  });
 });
 
 it('空字符串按没填处理，而不是当成 0', () => {

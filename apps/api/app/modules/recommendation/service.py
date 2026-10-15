@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
@@ -125,7 +126,13 @@ def generate(
         excluded_dish_ids=frozenset(excluded),
     )
 
-    plan = solver.solve_menu(candidates, constraints)
+    try:
+        plan = solver.solve_menu(candidates, constraints)
+    except solver.InfeasibleError as error:
+        # 求解器是纯函数，不认识业务异常；但「无解」对使用者是一条正经的业务结论，
+        # 不能让它冒成 500——那样界面上只剩一句「服务器内部错误」，
+        # 而求解器已经算清了卡在哪条约束上，白算。
+        raise BusinessRuleError(str(error)) from error
     by_id = {dish.dish_id: dish for dish in candidates}
     gaps = _gaps(plan_targets, plan.per_capita, meal_type)
     reasons = _reasons(plan, gaps, by_id, excluded, dishes)
@@ -145,6 +152,10 @@ def generate(
                 "salt_g": str(by_id[item.dish_id].salt_g),
                 "popularity": str(by_id[item.dish_id].popularity.quantize(Decimal("1"))),
                 "nutrition_basis": snapshots[item.dish_id],
+                # 这一版是拿哪套份数评估营养的。它不是推荐给出的建议份数，
+                # 而是**同步到当日数据**时要写的计划份数——快照因此能自解释：
+                # 事后看到「那天计划做 812 份米饭」，能对上当时确实按下 812 份评估过。
+                "planned_servings": str(item.servings),
             }
             for item in plan.items
         ],
@@ -194,6 +205,46 @@ def candidate_dish_ids(session: Session) -> list[UUID]:
         for dish_id, usage in materials.items()
         if usage.ingredient_ids and dish_id in dishes and dish_id in popularity
     ]
+
+
+@dataclass(frozen=True, slots=True)
+class PlannedDish:
+    """一版菜单里的一道菜：做哪道 + 计划做多少份。"""
+
+    dish_id: UUID
+    planned_servings: Decimal | None
+
+
+def planned_dishes(
+    session: Session, *, suggestion_id: UUID, on_date: date, meal_type: MealType
+) -> tuple[list[PlannedDish], SuggestionStatus]:
+    """读出某一版菜单的菜品与计划份数，供「同步到当日数据」落库。
+
+    读的是**快照**而不是重新算一遍：同步要落的是人当时看到并确认的那一版，
+    重算会算出可能不一样的结果，那就不是「同步」而是「悄悄换一份菜单」了。
+    """
+    suggestion = repository.get_suggestion(session, suggestion_id)
+    if suggestion is None:
+        raise NotFoundError("推荐不存在")
+    if suggestion.date != on_date or suggestion.meal_type is not meal_type:
+        raise BusinessRuleError(
+            f"这一版菜单是 {suggestion.date} {suggestion.meal_type.label} 的，"
+            f"与要同步的 {on_date} {meal_type.label} 对不上"
+        )
+    rows = [
+        PlannedDish(
+            dish_id=UUID(str(row["dish_id"])),
+            planned_servings=(
+                None
+                if row.get("planned_servings") is None
+                else Decimal(str(row["planned_servings"]))
+            ),
+        )
+        for row in (suggestion.candidate_menu or [])
+    ]
+    if not rows:
+        raise BusinessRuleError("这一版菜单里没有菜品，无法同步")
+    return rows, suggestion.status
 
 
 def _candidates(

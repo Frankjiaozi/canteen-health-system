@@ -11,7 +11,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -44,18 +43,27 @@ class _NutritionPeek:
 
 
 def build_sheet(session: Session, *, on_date: date, meal_type: MealType) -> DailyLogSheet:
-    """组装采集单：当天该填什么、已经填了什么，一次给全。"""
-    served = repository.load_served_dishes(session, on_date=on_date, meal_type=meal_type)
-    # 当天还没排菜单时，把整份菜品库列出来供勾选：勾选本身就是在确认当天的菜单
-    candidates: list[tuple[Any, Any]] = list(served)
-    if not served:
-        candidates = [(dish, None) for dish in repository.load_active_dishes(session)]
+    """组装采集单：当天该填什么、已经填了什么，一次给全。
+
+    **整份菜品库都列出来**，菜单上有的先勾好。早先只在没有菜单时才列整库，
+    结果是「菜单一旦排好，临时加一道菜就没地方勾」——而临时换菜在后厨是常态。
+    勾选是权威：提交时按勾选的清单整份覆盖菜单日。
+    """
+    served = {
+        item.dish_id: item
+        for item in repository.load_menu_items(session, on_date=on_date, meal_type=meal_type)
+    }
+    candidates = repository.load_active_dishes(session)
+    # 排好菜单的排前面：录入员先看到的就是「今天计划做的那几道」，
+    # 要临时加菜再往下列；整库混在一起按类别排，找计划里的菜得来回找
+    candidates.sort(key=lambda dish: (dish.id not in served, dish.category, dish.name))
     log = repository.get_log(session, on_date=on_date, meal_type=meal_type)
     items = {item.dish_id: item for item in repository.load_items(session, log.id)} if log else {}
     peek = _nutrition_peek(session, on_date=on_date, meal_type=meal_type)
 
     rows: list[LoggedDish] = []
-    for dish, menu_item in candidates:
+    for dish in candidates:
+        menu_item = served.get(dish.id)
         item = items.get(dish.id)
         nutrition = peek.get(dish.id)
         rows.append(
@@ -64,7 +72,14 @@ def build_sheet(session: Session, *, on_date: date, meal_type: MealType) -> Dail
                 name=dish.name,
                 category_label=dish.category.label,
                 cooking_method_label=dish.cooking_method.label,
+                # 采集提交之前，菜单日上写的是「计划供应」，采集提交之后写的是「实际供应」。
+                # 所以「计划」这个标记只在提交之前成立——提交完还给每道菜挂「计划」，
+                # 等于把实际做的事说成计划做的事。计划份数不受影响，它一直留着供对账。
+                is_planned=menu_item is not None and log is None,
                 selected=menu_item is not None,
+                planned_servings=(
+                    None if menu_item is None else _opt_str(menu_item.planned_servings)
+                ),
                 servings_produced=None if item is None else str(item.servings_produced),
                 leftover_ratio=None if item is None else _opt_str(item.leftover_ratio),
                 leftover_weight_g=None if item is None else _opt_str(item.leftover_weight_g),
@@ -75,9 +90,15 @@ def build_sheet(session: Session, *, on_date: date, meal_type: MealType) -> Dail
             )
         )
 
-    warning = None
     if not served:
         warning = "这一天还没有确认菜单。从下面勾出今天实际供应的菜品，勾选即写入当天菜单日。"
+    elif log is None:
+        warning = (
+            "这份菜单是「明日菜单与采购」排好的计划：标了「计划」的菜已经勾上，"
+            "按实际供应核对——临时加了菜就顺手勾上，没做的取消勾选，保存即按实际覆盖。"
+        )
+    else:
+        warning = None
 
     return DailyLogSheet(
         date=on_date,
@@ -96,6 +117,14 @@ def build_sheet(session: Session, *, on_date: date, meal_type: MealType) -> Dail
         menu_confirmed=bool(served),
         warning=warning,
     )
+
+
+def has_collection(session: Session, *, on_date: date, meal_type: MealType) -> bool:
+    """这一天这一餐是否已经录过采集。
+
+    别的域要判断「能不能往这天写菜单」，得走这里问，而不是自己去读 collection 的表。
+    """
+    return repository.get_log(session, on_date=on_date, meal_type=meal_type) is not None
 
 
 def save_sheet(
