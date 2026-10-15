@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -29,6 +30,7 @@ from app.modules.analytics import service as analytics_service
 from app.modules.collection import service as collection_service
 from app.modules.dish import service as dish_service
 from app.modules.ingredient import service as ingredient_service
+from app.modules.menu import service as menu_service
 from app.modules.seasoning import service as seasoning_service
 from app.shared.enums import DishCategory, IngredientCategory, MealType, UserRole
 
@@ -281,6 +283,169 @@ def list_recent_collections(session: Session, *, days: int = 7) -> dict[str, Any
     }
 
 
+def _spec_parameters(path: str) -> tuple[list[str], list[str]]:
+    """这个 GET 接口的必填与可选查询参数。从 OpenAPI 里读，不手写。"""
+    from app.main import app as application
+
+    get = ((application.openapi().get("paths") or {}).get(path) or {}).get("get") or {}
+    required: list[str] = []
+    optional: list[str] = []
+    for parameter in get.get("parameters") or []:
+        name = str(parameter.get("name") or "")
+        if not name:
+            continue
+        (required if parameter.get("required") else optional).append(name)
+    return required, optional
+
+
+def list_read_apis(session: Session, *, prefix: str | None = None) -> dict[str, Any]:
+    """列出助手能调的只读接口**以及每个接口需要的参数**。
+
+    为什么要有这个工具：模型不知道某个接口要哪些参数，只能先试一次、吃个 422、再改一次——
+    每试一次花掉一轮工具调用。实测它就是在这一步把轮次预算烧光的。把参数一次给全，
+    它就能一次调对。
+    """
+    paths = read_api_paths()
+    if prefix:
+        paths = tuple(path for path in paths if prefix in path)
+    rows = []
+    for path in paths:
+        required, optional = _spec_parameters(path)
+        rows.append({"路径": path, "必填参数": required, "可选参数": optional})
+    return {
+        "接口": rows,
+        "说明": "只读接口的清单与参数。写操作不在其中——那些要用专门的工具（会先出方案、要人确认）",
+    }
+
+
+# ---------------------------------------------------------------------------
+# 通用只读出口：call_api
+# ---------------------------------------------------------------------------
+#: 白名单缓存：从路由表里取出来的 GET 路径
+_READ_PATHS: tuple[str, ...] | None = None
+
+#: 一次最多回多少字符。超了就截断并说明——对话里塞一整页 JSON 对模型和人都没用。
+MAX_API_CHARS = 6000
+
+
+def read_api_paths() -> tuple[str, ...]:
+    """助手允许调的 GET 路径。**从 OpenAPI 文档生成**，不是手写清单——接口加了就自动进来，不会过期。
+
+    只收「列举式」的 GET（路径里没有 `{...}` 占位符）：
+
+    - 带占位符的是单条查询（`/ingredients/{id}`），模型手里通常没有那些 id，
+      而且这类数据现有工具已经覆盖了；
+    - 非 JSON 的响应（例如 Excel 模板）也排除——那不是给对话用的；
+    - 助手自己的接口排除掉，不给自己套娃。
+
+    为什么用 OpenAPI 而不是遍历 `api_router.routes`：新版 FastAPI 把子路由**嵌套**保存，
+    直接遍历拿到的是 14 个空壳（没有 path 与 methods），得自己递归——而 OpenAPI 文档本来就是扁平的，
+    还顺带给出每个响应的内容类型，正好用来排除非 JSON 的接口。
+    """
+    global _READ_PATHS
+    if _READ_PATHS is None:
+        # 延迟导入：模块级导入会成环（api → assistant.router → service → tools）
+        from app.main import app as application
+
+        prefixes = (
+            "/api/v1/meta",
+            "/api/v1/ingredients",
+            "/api/v1/seasonings",
+            "/api/v1/dishes",
+            "/api/v1/collection",
+            # 注意这里用的是**接口前缀**而不是模块名：看板挂在 /dashboard、三层校准挂在 /calibration
+            "/api/v1/dashboard",
+            "/api/v1/calibration",
+            "/api/v1/forecast",
+            "/api/v1/recommendation",
+            "/api/v1/public",
+        )
+        paths: set[str] = set()
+        for path, operations in (application.openapi().get("paths") or {}).items():
+            get = (operations or {}).get("get")
+            if get is None or "{" in path:
+                continue
+            if not path.startswith(prefixes):
+                continue
+            content = ((get.get("responses") or {}).get("200") or {}).get("content") or {}
+            if "application/json" not in content:
+                continue  # 例如 Excel 模板：不是给对话用的
+            paths.add(path)
+        _READ_PATHS = tuple(sorted(paths))
+    return _READ_PATHS
+
+
+def call_api(
+    session: Session,
+    *,
+    actor: Any,
+    path: str,
+    params: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """调一个**只读**接口，把结果拿回来。给「现有工具没覆盖、但接口里有」的查询兜底。
+
+    三条设计：
+
+    1. **只读**：白名单里全是 GET，写操作一个也不放行——写必须走「出方案 → 人确认」那条路。
+    2. **以当前用户的身份调**：用他的身份签一个短期令牌发给自己，**完整走一遍依赖链**，
+       所以角色校验、参数校验、序列化都跟界面上一样，不存在「助手有特权」。
+    3. **走进程内的应用**（TestClient），不依赖网络与端口。
+    """
+    allowed = read_api_paths()
+    if path not in allowed:
+        raise BusinessRuleError(
+            f"这个路径不能调：{path}。只允许只读查询，可用的有：" + "、".join(allowed)
+        )
+
+    # 延迟导入：同上，避免模块级成环
+    from fastapi.testclient import TestClient
+
+    from app.core.config import get_settings
+    from app.core.security import create_access_token
+    from app.main import app as application
+
+    settings = get_settings()
+    token = create_access_token(user_id=actor.id, username=actor.username, role=actor.role)
+    client = TestClient(application)
+    client.cookies.set(settings.cookie_name, token)
+    try:
+        response = client.get(path, params=params or {})
+    finally:
+        client.close()
+
+    if response.status_code >= 400:
+        required, optional = _spec_parameters(path)
+        hint = (
+            f"这个接口需要：必填 {'、'.join(required) or '无'}"
+            f"；可选 {'、'.join(optional) or '无'}。补齐之后再试一次。"
+        )
+        raise BusinessRuleError(f"接口返回 {response.status_code}：{response.text[:200]}。{hint}")
+    try:
+        payload = response.json()
+    except ValueError as error:
+        raise BusinessRuleError("这个接口返回的不是 JSON，没法在对话里用") from error
+
+    text = json.dumps(payload, ensure_ascii=False, default=str)
+    truncated = len(text) > MAX_API_CHARS
+    # 分页接口返回的是 {items: [], total: 0}，不是空列表，所以两种都要认
+    empty = payload in ([], {}, None) or (isinstance(payload, dict) and payload.get("items") == [])
+    return {
+        "接口": path,
+        "参数": params or {},
+        "结果": text[:MAX_API_CHARS] if truncated else payload,
+        "说明": (
+            "结果太长已截断——请用参数缩小范围（指定日期、加筛选、减小 page_size）"
+            if truncated
+            else (
+                "**空结果**：这个筛选条件下没有数据。换个筛选条件，或先查一下「有哪些日期有数据」"
+                "（例如先看菜单或采集记录），别一个日期一个日期地扫"
+                if empty
+                else "以上是接口原样返回的数据"
+            )
+        ),
+    }
+
+
 # ---------------------------------------------------------------------------
 # 工具的结构（写工具的实现放在下面，注册表要引用它们）
 # ---------------------------------------------------------------------------
@@ -299,6 +464,8 @@ class Tool:
     execute: Callable[..., ExecutionOutcome] | None = None
     #: 只给「撤回」用、不给模型看的工具（例如重新启用、退回上一条采集）
     hidden: bool = False
+    #: 需要知道「现在是谁在问」的读工具（例如以他的身份去调只读接口）
+    needs_actor: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -859,6 +1026,374 @@ def reactivate_dish_execute(
     )
 
 
+# ---------------------------------------------------------------------------
+# 一句话录一餐：录入采集、调整菜单
+# ---------------------------------------------------------------------------
+def _resolve_dishes(session: Session, names: list[str]) -> tuple[list[Any], list[str]]:
+    """把菜名解析成库里的菜品。对不上的**全部**列出来，而不是只报第一个。"""
+    resolved: list[Any] = []
+    missing: list[str] = []
+    for name in names:
+        clean = str(name).strip()
+        if not clean:
+            continue
+        found = dish_service.list_dishes(session, keyword=clean, page=1, page_size=MAX_ROWS)
+        matched = next((row for row in found.items if row.name == clean), None)
+        if matched is None:
+            missing.append(clean)
+        else:
+            resolved.append(matched)
+    return resolved, missing
+
+
+def _collection_snapshot(
+    session: Session, *, on_date: date, meal_type: MealType
+) -> dict[str, Any] | None:
+    """把这一餐现在的采集记录整份记下来，供撤回时写回。"""
+    sheet = collection_service.build_sheet(session, on_date=on_date, meal_type=meal_type)
+    if not sheet.saved:
+        return None
+    return {
+        "diner_count": sheet.diner_count,
+        "oil_total_g": sheet.oil_total_g,
+        "salt_total_g": sheet.salt_total_g,
+        "sugar_total_g": sheet.sugar_total_g,
+        "leftover_weight_g": sheet.leftover_weight_g,
+        "note": sheet.note,
+        "dishes": [
+            {
+                "dish_id": row.dish_id,
+                "servings_produced": row.servings_produced or "0",
+                "leftover_ratio": row.leftover_ratio,
+            }
+            for row in sheet.dishes
+            if row.selected
+        ],
+    }
+
+
+def _menu_snapshot(session: Session, *, on_date: date, meal_type: MealType) -> list[dict[str, Any]]:
+    """菜单日现在有哪几道菜（含计划份数），撤回时按它恢复。"""
+    sheet = collection_service.build_sheet(session, on_date=on_date, meal_type=meal_type)
+    return [
+        {"dish_id": row.dish_id, "planned_servings": row.planned_servings}
+        for row in sheet.dishes
+        if row.selected
+    ]
+
+
+def save_collection_draft(
+    session: Session,
+    *,
+    diner_count: int,
+    dishes: list[dict[str, Any]],
+    on_date: str | None = None,
+    meal_type: str | None = None,
+    oil_total_g: str | None = None,
+    salt_total_g: str | None = None,
+    sugar_total_g: str | None = None,
+    leftover_weight_g: str | None = None,
+    note: str | None = None,
+) -> dict[str, Any]:
+    """「一句话录一餐」：某天某一餐供了哪几道菜、各多少份、多少人次、油盐糖总量。
+
+    这是全系统**影响面最大**的一次写入：人次与油盐糖进看板与人均摄入，份数进预测的历史序列，
+    菜品进公开大屏。所以预览要把这些摆全，并说明会被重算什么。
+    """
+    target = _date_arg(on_date)
+    meal = _meal_arg(meal_type)
+    resolved, missing = _resolve_dishes(
+        session, [str(line.get("dish_name") or "") for line in dishes or []]
+    )
+    warnings: list[str] = []
+    if missing:
+        warnings.append("菜品库里没有这几道菜，先确认名字：" + "、".join(missing))
+    if not resolved:
+        warnings.append("至少要有一道能对上库里菜品的菜，否则这一餐没有可核算的内容")
+    if diner_count <= 0:
+        warnings.append("就餐人次必须大于 0，人均摄入要靠它才算得出来")
+    if collection_service.has_collection(session, on_date=target, meal_type=meal):
+        warnings.append(
+            f"{target} {meal.label} 已经录过了：这份会**整份覆盖**原来那条，"
+            "原来的人次、油盐糖与份数都会被替换"
+        )
+    warnings.append(
+        "保存后会按这一餐重算营养：人均摄入、达标率与浪费率都会跟着变；这一天也会进入预测的历史序列"
+    )
+    warnings.append("确认之后可以「撤回」，撤回会把这一餐恢复成现在这个样子")
+
+    lines = [
+        {
+            "菜品": dish.name,
+            "出餐份数": str(line.get("servings") or ""),
+            "剩余比例": str(line.get("leftover_ratio") or "—"),
+        }
+        for line, dish in zip(dishes or [], resolved, strict=False)
+    ]
+    return {
+        "title": f"录入采集：{target} {meal.label}",
+        "summary": f"把 {target} {meal.label} 的一餐录进去：{len(resolved)} 道菜、{diner_count} 人次",
+        "preview": {
+            "将录入": {
+                "日期": target.isoformat(),
+                "餐次": meal.label,
+                "就餐人次": diner_count,
+                "食用油_克": oil_total_g or "0",
+                "食盐_克": salt_total_g or "0",
+                "添加糖_克": sugar_total_g or "0",
+                "剩餐总重_克": leftover_weight_g or "—",
+                "备注": note or "—",
+            },
+            "菜品": lines,
+            "提示": warnings,
+        },
+        "payload": {
+            "on_date": target.isoformat(),
+            "meal_type": meal.value,
+            "diner_count": diner_count,
+            "oil_total_g": oil_total_g or "0",
+            "salt_total_g": salt_total_g or "0",
+            "sugar_total_g": sugar_total_g or "0",
+            "leftover_weight_g": leftover_weight_g,
+            "note": note,
+            "dishes": [
+                {"dish_id": str(dish.id), "line": line}
+                for dish, line in zip(resolved, dishes or [], strict=False)
+            ],
+        },
+    }
+
+
+def save_collection_execute(
+    session: Session, payload: dict[str, Any], *, actor: Any
+) -> ExecutionOutcome:
+    """确认之后真正把这一餐写进去，并记下「怎么撤回」。"""
+    from app.modules.collection.schemas import DailyLogWrite, LoggedDishWrite
+
+    target = date.fromisoformat(str(payload["on_date"]))
+    meal = MealType(str(payload["meal_type"]))
+    previous = _collection_snapshot(session, on_date=target, meal_type=meal)
+    previous_menu = _menu_snapshot(session, on_date=target, meal_type=meal)
+
+    saved = collection_service.save_sheet(
+        session,
+        on_date=target,
+        payload=DailyLogWrite(
+            meal_type=meal,
+            diner_count=int(payload["diner_count"]),
+            oil_total_g=payload["oil_total_g"],
+            salt_total_g=payload["salt_total_g"],
+            sugar_total_g=payload["sugar_total_g"],
+            leftover_weight_g=payload.get("leftover_weight_g"),
+            note=payload.get("note"),
+            dishes=[
+                LoggedDishWrite(
+                    dish_id=item["dish_id"],
+                    servings_produced=item["line"].get("servings") or "0",
+                    leftover_ratio=item["line"].get("leftover_ratio"),
+                )
+                for item in payload["dishes"]
+            ],
+        ),
+        actor_id=actor.id,
+    )
+    return ExecutionOutcome(
+        result={
+            "实体": "采集记录",
+            "日期": target.isoformat(),
+            "餐次": meal.label,
+            "菜品数": saved.dish_count,
+            "重算营养结果": saved.nutrition_rows,
+        },
+        undo=(
+            UndoStep(
+                tool="restore_collection",
+                payload={
+                    "on_date": target.isoformat(),
+                    "meal_type": meal.value,
+                    "previous": previous,
+                    "previous_menu": previous_menu,
+                },
+            ),
+        ),
+    )
+
+
+def restore_collection_execute(
+    session: Session, payload: dict[str, Any], *, actor: Any
+) -> ExecutionOutcome:
+    """撤回一次采集：要么写回原来那条记录，要么把这条误录整份丢掉。"""
+    from app.modules.collection.schemas import DailyLogWrite, LoggedDishWrite
+
+    target = date.fromisoformat(str(payload["on_date"]))
+    meal = MealType(str(payload["meal_type"]))
+    previous = payload.get("previous")
+
+    if previous:
+        collection_service.save_sheet(
+            session,
+            on_date=target,
+            payload=DailyLogWrite(
+                meal_type=meal,
+                diner_count=int(previous["diner_count"] or 0),
+                oil_total_g=previous["oil_total_g"] or "0",
+                salt_total_g=previous["salt_total_g"] or "0",
+                sugar_total_g=previous["sugar_total_g"] or "0",
+                leftover_weight_g=previous.get("leftover_weight_g"),
+                note=previous.get("note"),
+                dishes=[
+                    LoggedDishWrite(
+                        dish_id=item["dish_id"],
+                        servings_produced=item["servings_produced"],
+                        leftover_ratio=item.get("leftover_ratio"),
+                    )
+                    for item in previous["dishes"]
+                ],
+            ),
+            actor_id=actor.id,
+        )
+        action = "写回原来那条采集记录"
+    else:
+        collection_service.discard_sheet(
+            session,
+            on_date=target,
+            meal_type=meal,
+            actor_id=actor.id,
+            actor_name=actor.display_name,
+            audit_note="撤回 AI 助手录入的采集：删掉这条记录",
+        )
+        action = "删掉这次录入的采集记录"
+
+    # 菜单日恢复成采集之前的样子（可能是同步过来的计划，也可能本来是空的）
+    _write_menu(
+        session,
+        on_date=target,
+        meal_type=meal,
+        items=payload.get("previous_menu") or [],
+        actor=actor,
+    )
+    return ExecutionOutcome(result={"实体": "采集记录", "日期": target.isoformat(), "撤回": action})
+
+
+def _write_menu(
+    session: Session, *, on_date: date, meal_type: MealType, items: list[dict[str, Any]], actor: Any
+) -> None:
+    menu_service.plan_menu_day(
+        session,
+        on_date=on_date,
+        meal_type=meal_type,
+        dishes=[
+            menu_service.PlannedDish(
+                dish_id=UUID(str(item["dish_id"])),
+                planned_servings=(
+                    None
+                    if item.get("planned_servings") is None
+                    else Decimal(str(item["planned_servings"]))
+                ),
+            )
+            for item in items
+        ],
+        created_by=actor.id,
+    )
+    session.commit()
+
+
+def set_menu_day_draft(
+    session: Session,
+    *,
+    dish_names: list[str],
+    on_date: str | None = None,
+    meal_type: str | None = None,
+) -> dict[str, Any]:
+    """调整某天某一餐供应哪些菜（菜单日）。
+
+    已经录过采集的日子直接拒绝：那一天的菜单以实际供应为准，要改就改采集单——
+    否则会出现「菜单与实际供应对不上」，而营养结果是按菜单算的。
+    """
+    target = _date_arg(on_date)
+    meal = _meal_arg(meal_type)
+    if collection_service.has_collection(session, on_date=target, meal_type=meal):
+        raise BusinessRuleError(
+            f"{target} {meal.label} 已经录过采集了，菜单以实际供应为准；"
+            "要改这一餐请用「录入采集」（它会把菜单一起改掉）"
+        )
+    resolved, missing = _resolve_dishes(session, dish_names)
+    warnings: list[str] = []
+    if missing:
+        warnings.append("菜品库里没有这几道菜：" + "、".join(missing))
+    if not resolved:
+        warnings.append("至少要有一道能对上库里菜品的菜")
+    warnings.append(
+        "这是「计划」性质：写进去之后公开大屏当天就会显示，"
+        "每日采集页的供应菜品也会按它勾好（录采集时按实际供应覆盖）"
+    )
+    warnings.append("确认之后可以「撤回」，菜单会恢复成现在这几道菜")
+    return {
+        "title": f"调整菜单：{target} {meal.label}",
+        "summary": f"把 {target} {meal.label} 的菜单改成："
+        + "、".join(dish.name for dish in resolved),
+        "preview": {
+            "将改成": {"日期": target.isoformat(), "餐次": meal.label},
+            "菜品": [{"菜品": dish.name, "类别": dish.category_label} for dish in resolved],
+            "提示": warnings,
+        },
+        "payload": {
+            "on_date": target.isoformat(),
+            "meal_type": meal.value,
+            "dish_ids": [str(dish.id) for dish in resolved],
+        },
+    }
+
+
+def set_menu_day_execute(
+    session: Session, payload: dict[str, Any], *, actor: Any
+) -> ExecutionOutcome:
+    target = date.fromisoformat(str(payload["on_date"]))
+    meal = MealType(str(payload["meal_type"]))
+    previous_menu = _menu_snapshot(session, on_date=target, meal_type=meal)
+
+    _write_menu(
+        session,
+        on_date=target,
+        meal_type=meal,
+        items=[{"dish_id": dish_id} for dish_id in payload["dish_ids"]],
+        actor=actor,
+    )
+    return ExecutionOutcome(
+        result={
+            "实体": "菜单日",
+            "日期": target.isoformat(),
+            "餐次": meal.label,
+            "菜品数": len(payload["dish_ids"]),
+        },
+        undo=(
+            UndoStep(
+                tool="restore_menu_day",
+                payload={
+                    "on_date": target.isoformat(),
+                    "meal_type": meal.value,
+                    "items": previous_menu,
+                },
+            ),
+        ),
+    )
+
+
+def restore_menu_day_execute(
+    session: Session, payload: dict[str, Any], *, actor: Any
+) -> ExecutionOutcome:
+    """撤回一次菜单调整：把菜单恢复成改之前那几道菜。只给撤回用。"""
+    target = date.fromisoformat(str(payload["on_date"]))
+    meal = MealType(str(payload["meal_type"]))
+    _write_menu(
+        session, on_date=target, meal_type=meal, items=payload.get("items") or [], actor=actor
+    )
+    return ExecutionOutcome(
+        result={"实体": "菜单日", "日期": target.isoformat(), "状态": "已恢复成原来的菜单"}
+    )
+
+
+# ---------------------------------------------------------------------------
 # 改与停用：同样是「先出方案、确认后执行」，但要多给两样东西
 # ---------------------------------------------------------------------------
 #: 改与停用的预览都要带上「影响面」与「怎么撤回」——这两样缺了，用户就是在盲签
@@ -1141,6 +1676,44 @@ TOOLS: tuple[Tool, ...] = (
         handler=list_recent_collections,
     ),
     Tool(
+        name="call_api",
+        label="调只读接口",
+        description=(
+            "当一个查询现有工具都覆盖不了时用它：按路径调系统里**只读**的 GET 接口"
+            "（例如抽样候选、校准系数、节假日日历、推荐历史、按条件翻采集记录）。"
+            "只能调只读接口，写操作一律走别的工具（那些会先出方案、要人确认）。"
+            "**不确定路径或参数时，先用 list_read_apis 拿到「路径 + 必填/可选参数」再调**——"
+            "盲试会一次吃一个参数错误，把轮次预算耗光。"
+        ),
+        parameters=_schema(
+            {
+                "path": {
+                    "type": "string",
+                    "description": "接口路径，例如 /api/v1/nutrition/candidates",
+                },
+                "params": {
+                    "type": "object",
+                    "description": '查询参数，例如 {"start": "2026-10-01", "page_size": 20}',
+                },
+            },
+            required=["path"],
+        ),
+        handler=call_api,
+        needs_actor=True,
+    ),
+    Tool(
+        name="list_read_apis",
+        label="列只读接口",
+        description=(
+            "列出所有可以调的只读接口，以及每个接口的必填与可选参数。"
+            "准备用 call_api 之前先调它，就能一次调对。"
+        ),
+        parameters=_schema(
+            {"prefix": {"type": "string", "description": "只列路径里含这个片段的，例如 dashboard"}}
+        ),
+        handler=list_read_apis,
+    ),
+    Tool(
         name="create_ingredient",
         label="新增食材",
         description=(
@@ -1365,6 +1938,108 @@ TOOLS: tuple[Tool, ...] = (
         read_only=False,
         build_draft=lambda session, **kwargs: kwargs,
         execute=reactivate_dish_execute,
+        hidden=True,
+    ),
+    Tool(
+        name="save_collection",
+        label="录入采集",
+        description=(
+            "录入某一天某一餐的采集数据：供应了哪几道菜、各出餐多少份、就餐人次、"
+            "油盐糖的实际投放量与剩餐量。**写操作：调用只生成待确认的方案**，"
+            "方案里会写明要录什么、会重算哪些指标；确认后才写库。"
+            "这是影响面最大的一次写入——人次与油盐糖进看板，份数进预测的历史序列，菜品进公开大屏。"
+            "用户说「今天午餐做了……」「帮我录一下昨天晚饭」时用它。菜名要先能对上菜品库。"
+        ),
+        parameters=_schema(
+            {
+                "on_date": {"type": "string", "description": "日期 YYYY-MM-DD，默认今天"},
+                "meal_type": {"type": "string", "description": "餐次：BREAKFAST / LUNCH / DINNER"},
+                "diner_count": {"type": "integer", "description": "就餐人次"},
+                "dishes": {
+                    "type": "array",
+                    "description": "这一餐供应的菜与出餐份数",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "dish_name": {"type": "string"},
+                            "servings": {"type": "string", "description": "出餐份数"},
+                            "leftover_ratio": {
+                                "type": "string",
+                                "description": "剩余比例 0~1，可选",
+                            },
+                        },
+                        "required": ["dish_name", "servings"],
+                    },
+                },
+                "oil_total_g": {"type": "string", "description": "当日食用油投放量（克）"},
+                "salt_total_g": {"type": "string", "description": "当日食盐投放量（克）"},
+                "sugar_total_g": {"type": "string", "description": "当日添加糖投放量（克）"},
+                "leftover_weight_g": {"type": "string", "description": "剩餐总重（克）"},
+                "note": {"type": "string"},
+            },
+            required=["diner_count", "dishes"],
+        ),
+        read_only=False,
+        build_draft=save_collection_draft,
+        execute=save_collection_execute,
+    ),
+    Tool(
+        name="set_menu_day",
+        label="调整菜单",
+        description=(
+            "把某一天某一餐的菜单改成指定的几道菜（计划性质：公开大屏与采集页都会按它走）。"
+            "**写操作：调用只生成待确认的方案**。已经录过采集的日子会被拒绝——"
+            "那一天的菜单以实际供应为准，要改用「录入采集」。"
+        ),
+        parameters=_schema(
+            {
+                "on_date": {"type": "string", "description": "日期 YYYY-MM-DD，默认今天"},
+                "meal_type": {"type": "string", "description": "餐次"},
+                "dish_names": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "这一餐要供应的菜品名称（整份替换）",
+                },
+            },
+            required=["dish_names"],
+        ),
+        read_only=False,
+        build_draft=set_menu_day_draft,
+        execute=set_menu_day_execute,
+    ),
+    Tool(
+        name="restore_collection",
+        label="撤回一次采集",
+        description="撤回「录入采集」时用：写回原来那条记录，或整份丢掉这次误录。不直接暴露给模型。",
+        parameters=_schema(
+            {
+                "on_date": {"type": "string"},
+                "meal_type": {"type": "string"},
+                "previous": {"type": "object"},
+                "previous_menu": {"type": "array"},
+            },
+            required=["on_date", "meal_type"],
+        ),
+        read_only=False,
+        build_draft=lambda session, **kwargs: kwargs,
+        execute=restore_collection_execute,
+        hidden=True,
+    ),
+    Tool(
+        name="restore_menu_day",
+        label="撤回菜单调整",
+        description="撤回「调整菜单」时用。不直接暴露给模型。",
+        parameters=_schema(
+            {
+                "on_date": {"type": "string"},
+                "meal_type": {"type": "string"},
+                "items": {"type": "array"},
+            },
+            required=["on_date", "meal_type"],
+        ),
+        read_only=False,
+        build_draft=lambda session, **kwargs: kwargs,
+        execute=restore_menu_day_execute,
         hidden=True,
     ),
 )

@@ -43,6 +43,12 @@ logger = get_logger(__name__)
 #: 带上多少轮历史。多了费 token，也没必要——问的通常是眼下这件事。
 HISTORY_MESSAGES = 8
 
+#: 同一轮对话里，同一个只读接口最多连查几次。
+#: 实测踩到：模型想找「哪天有抽样候选」，就一天一天地换日期扫，把轮次预算烧光，
+#: 最后什么结论也没给。这个接口一次只答一格数据，扫不是办法——
+#: 与其让它耗到上限，不如早点把这件事告诉它，让它去问用户想看哪天。
+REPEAT_READ_LIMIT = 3
+
 #: 系统提示词。写清楚三件事：你是谁、数据从哪来、不许干什么。
 #: 最后一条最重要——营养值与成本一律来自工具返回，模型不许自己估，
 #: 这个系统的可信度就建立在「每个数都能回溯」上。
@@ -111,6 +117,7 @@ def _run_tool(
     *,
     conversation: AssistantConversation,
     created: list[AssistantProposal],
+    traces: list[ToolCallTrace],
 ) -> tuple[dict[str, Any], ToolCallTrace]:
     tool = tools.TOOLS_BY_NAME.get(call.name)
     arguments = providers.parse_arguments(call.arguments)
@@ -137,11 +144,37 @@ def _run_tool(
             error=error,
         )
 
+    if tool.name == "call_api":
+        target = str(arguments.get("path") or "")
+        repeats = sum(
+            1
+            for trace in traces
+            if trace.name == "call_api" and str(trace.arguments.get("path")) == target
+        )
+        if repeats >= REPEAT_READ_LIMIT:
+            error = (
+                f"同一个接口（{target}）在一轮对话里已经查了 {repeats} 次。"
+                "它一次只回答一个条件下的数据，换着参数扫不是办法——"
+                "把已经查到的整理给用户，或者直接问他想看哪一天、哪一餐。"
+            )
+            return {"error": error}, ToolCallTrace(
+                name=tool.name,
+                label=tool.label,
+                arguments=arguments,
+                ok=False,
+                summary=error,
+                error=error,
+            )
+
     try:
         if tool.read_only:
             if tool.handler is None:  # 由 assert_write_boundary 兜住，这里只为类型收窄
                 raise BusinessRuleError(f"工具 {tool.name} 没有实现")
-            payload = tool.handler(session, **arguments)
+            # 需要身份的读工具（call_api）用当前用户的身份去查，不额外提权
+            if tool.needs_actor:
+                payload = tool.handler(session, actor=actor, **arguments)
+            else:
+                payload = tool.handler(session, **arguments)
         else:
             payload = _propose(
                 session, actor, tool, arguments, conversation=conversation, created=created
@@ -310,7 +343,12 @@ def chat_stream(
                 "label": tool.label if tool else call.name,
             }
             tool_result, trace = _run_tool(
-                session, actor, call, conversation=conversation, created=proposals
+                session,
+                actor,
+                call,
+                conversation=conversation,
+                created=proposals,
+                traces=traces,
             )
             traces.append(trace)
             messages.append(_tool_message(call.id, tool_result, trace.ok))

@@ -64,8 +64,11 @@ class Settings(BaseSettings):
     assistant_api_key: str | None = None
     assistant_model: str | None = None
     assistant_timeout_seconds: float = 60.0
-    #: 一次对话最多来回几轮工具调用，防止模型陷在「调工具—再调工具」的循环里
-    assistant_max_tool_rounds: int = 4
+    #: 一次对话最多来回几轮工具调用，防止模型陷在「调工具—再调工具」的循环里。
+    #: 取 8 而不是 4：有了 call_api 之后，**试探是正常行为**——先猜路径、被点回来、
+    #: 再按参数补一次、可能还要按日期扫几天，4 轮会在答出结论之前就用完（实测踩到）。
+    #: 这个上限是「别失控」的保险，不是预算。
+    assistant_max_tool_rounds: int = 8
     assistant_temperature: float = 0.2
 
     # ---- 菜单推荐的营养目标 ----

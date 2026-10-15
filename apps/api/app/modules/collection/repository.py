@@ -105,6 +105,17 @@ def replace_items(
     session.flush()
 
 
+def delete_log(session: Session, *, log: DailyLog) -> None:
+    """整份删掉一条采集记录（含明细）。
+
+    只给「撤回一次误录」用：采集记录本身是原始数据，正常业务里不该有删除入口。
+    菜单日不在这里处理——它可能来自计划，删完要不要恢复由调用方决定。
+    """
+    session.execute(delete(DailyLogItem).where(DailyLogItem.daily_log_id == log.id))
+    session.delete(log)
+    session.flush()
+
+
 def list_logs(
     session: Session, *, page: int, page_size: int, start: date | None, end: date | None
 ) -> tuple[list[tuple[DailyLog, int, Decimal | None, str | None]], int]:

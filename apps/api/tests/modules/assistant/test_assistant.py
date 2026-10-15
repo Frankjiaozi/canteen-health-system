@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator
+from datetime import date, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -27,15 +28,18 @@ from app.modules.assistant.schemas import ChatRequest
 from app.modules.audit.models import AuditLog
 from app.modules.auth.repository import get_by_username
 from app.modules.auth.service import to_auth_user
+from app.modules.collection import service as collection_service
 from app.modules.dish import service as dish_service
 from app.modules.dish.models import Dish
 from app.modules.ingredient.models import Ingredient
 from app.modules.nutrition.models import DishNutrition
-from app.shared.enums import AssistantProposalStatus, AuditAction
+from app.shared.enums import AssistantProposalStatus, AuditAction, MealType, NutrientCaliber
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
+
+from tests.helpers import today_local
 
 BASE = "/api/v1/assistant"
 
@@ -157,6 +161,132 @@ def _ask(session: Session, actor, scripted: ScriptedProvider, message: str):
 # ---------------------------------------------------------------------------
 # 写闸门：这是模块 21 的核心
 # ---------------------------------------------------------------------------
+def test_call_api_only_allows_read_paths() -> None:
+    """白名单是只读的：全是 GET、没有占位符、不含助手自己的接口。
+
+    这条盯的是「通用出口别变成后门」——它是唯一一个能碰到「没被包装成工具」的接口的入口，
+    所以必须由代码保证只读，而不是靠提示词说「你只能读」。
+    """
+    paths = tools.read_api_paths()
+
+    assert len(paths) >= 15, "白名单不该是空的或只有两三条"
+    assert all(path.startswith("/api/v1/") for path in paths)
+    assert all("{" not in path for path in paths), "带占位符的单条查询不收（现有工具已覆盖）"
+    assert not any("assistant" in path for path in paths), "不给自己套娃"
+    for forbidden in (
+        "/api/v1/menu-plan/generate",
+        "/api/v1/menu-plan/sync",
+        "/api/v1/forecast/run",
+    ):
+        assert forbidden not in paths, "写接口一个都不该出现在白名单里"
+
+
+def test_call_api_refuses_a_path_outside_the_allowlist(db_session: Session, actor) -> None:
+    """不在白名单里的路径直接拒绝，并把可用清单一并给它——好让它自己改。"""
+    with pytest.raises(BusinessRuleError) as error:
+        tools.call_api(db_session, actor=actor, path="/api/v1/menu-plan/generate")
+
+    message = str(error.value)
+    assert "只允许只读查询" in message
+    assert "/api/v1/dashboard/summary" in message
+
+
+def test_call_api_reaches_endpoints_the_tools_do_not_cover(db_session: Session, actor) -> None:
+    """真正兜底的地方：现有工具没覆盖、但接口里有的查询，当场就能查。"""
+    factors = tools.call_api(
+        db_session,
+        actor=actor,
+        path="/api/v1/calibration/factors",
+        params={"on_date": today_local().isoformat()},
+    )
+    assert factors["接口"] == "/api/v1/calibration/factors"
+    assert isinstance(factors["结果"], (list, dict))
+
+    summary = tools.call_api(
+        db_session, actor=actor, path="/api/v1/dashboard/summary", params={"days": 7}
+    )
+    assert summary["结果"], "看板汇总应当有数据"
+
+
+def test_call_api_uses_the_current_user_identity(db_session: Session, actor) -> None:
+    """以当前用户的身份调：接口自己的角色校验会真的跑一遍，不存在「助手有特权」。"""
+    school = to_auth_user(get_by_username(db_session, "school"))
+
+    result = tools.call_api(db_session, actor=school, path="/api/v1/meta/enums")
+
+    assert result["结果"], "只读接口对只读角色同样开放"
+
+
+def test_call_api_flags_an_empty_result(db_session: Session, actor) -> None:
+    """空结果要明说，并劝它别一个日期一个日期地扫——实测模型在这上面烧掉过整轮预算。"""
+    result = tools.call_api(
+        db_session,
+        actor=actor,
+        path="/api/v1/collection/logs",
+        params={"start": "2030-01-01", "end": "2030-01-02"},
+    )
+
+    assert "空结果" in str(result["说明"])
+    assert "别一个日期一个日期地扫" in str(result["说明"])
+
+
+def test_list_read_apis_gives_paths_with_their_parameters() -> None:
+    """把「路径 + 必填/可选参数」一次给全：模型盲试参数会把轮次预算烧光（实测踩到）。"""
+    listing = tools.list_read_apis(None, prefix="calibration")
+
+    rows = {row["路径"]: row for row in listing["接口"]}
+    assert rows["/api/v1/calibration/candidates"]["必填参数"] == ["on_date"]
+    assert rows["/api/v1/calibration/comparison"]["必填参数"] == ["dish_id", "on_date"]
+    assert "meal_type" in rows["/api/v1/calibration/candidates"]["可选参数"]
+
+
+def test_call_api_error_message_names_the_required_parameters(db_session: Session, actor) -> None:
+    """参数错了要把「这个接口需要什么」一并说出来，让它一次改对。"""
+    with pytest.raises(BusinessRuleError) as error:
+        tools.call_api(db_session, actor=actor, path="/api/v1/calibration/factors", params={})
+
+    message = str(error.value)
+    assert "on_date" in message
+    assert "必填" in message
+
+
+def test_repeated_calls_to_one_read_endpoint_are_cut_off(db_session: Session, actor) -> None:
+    """同一个只读接口一轮里最多连查 3 次：模型曾靠换日期扫，把轮次预算烧光还没结论。"""
+    scripted = ScriptedProvider(
+        [
+            _call(
+                "call_api",
+                '{"path": "/api/v1/calibration/candidates", "params": {"on_date": "2026-10-15"}}',
+                "c1",
+            ),
+            _call(
+                "call_api",
+                '{"path": "/api/v1/calibration/candidates", "params": {"on_date": "2026-10-16"}}',
+                "c2",
+            ),
+            _call(
+                "call_api",
+                '{"path": "/api/v1/calibration/candidates", "params": {"on_date": "2026-10-17"}}',
+                "c3",
+            ),
+            _call(
+                "call_api",
+                '{"path": "/api/v1/calibration/candidates", "params": {"on_date": "2026-10-18"}}',
+                "c4",
+            ),
+            providers.ProviderReply(text="我先看过的几天里都没有候选。"),
+        ]
+    )
+
+    reply = _ask(db_session, actor, scripted, "这周该抽哪几道菜？")
+
+    calls = [trace for trace in reply.tool_calls if trace.name == "call_api"]
+    assert len(calls) == 4
+    assert calls[-1].ok is False
+    assert "已经查了 3 次" in (calls[-1].error or "")
+    assert "问他想看哪一天" in (calls[-1].error or "")
+
+
 def test_write_tools_cannot_bypass_confirmation() -> None:
     """结构上的保证：读工具不带执行入口，写工具必须「出方案 + 执行」两步俱全。
 
@@ -181,6 +311,9 @@ def test_write_tools_cannot_bypass_confirmation() -> None:
     offered = {item["function"]["name"] for item in tools.tool_payload()}
     assert {"reactivate_ingredient", "reactivate_dish"} <= set(tools.TOOLS_BY_NAME)
     assert not {"reactivate_ingredient", "reactivate_dish"} & offered
+    # call_api 是只读工具，对模型可见
+    assert "call_api" in offered
+    assert tools.TOOLS_BY_NAME["call_api"].read_only is True
 
 
 def test_write_tool_only_creates_a_pending_proposal(db_session: Session, actor) -> None:
@@ -353,6 +486,221 @@ def test_dish_write_tool_reports_ingredients_missing_from_the_library(
     assert db_session.scalar(select(Dish).where(Dish.name == "助手测试菜")) is None, (
         "待确认阶段不该建出菜品"
     )
+
+
+# ---------------------------------------------------------------------------
+# 一句话录一餐
+# ---------------------------------------------------------------------------
+def _fresh_day(offset: int = 30) -> date:
+    """种子历史之外的一天：这些用例会往将来写菜单与采集，不能落在演示数据上。"""
+    return today_local() + timedelta(days=offset)
+
+
+def test_save_collection_draft_shows_what_will_be_written(
+    as_recorder: TestClient, db_session: Session
+) -> None:
+    """录用采集的预览要摆全：日期、人次、油盐糖、每道菜多少份；对不上的菜名要点出来。"""
+    target = _fresh_day(31)
+    draft = tools.save_collection_draft(
+        db_session,
+        on_date=target.isoformat(),
+        meal_type="LUNCH",
+        diner_count=880,
+        oil_total_g="5200",
+        salt_total_g="1800",
+        dishes=[
+            {"dish_name": "米饭", "servings": "800"},
+            {"dish_name": "并不存在的菜", "servings": "100"},
+        ],
+    )
+
+    assert draft["preview"]["将录入"]["就餐人次"] == 880
+    assert draft["preview"]["将录入"]["食用油_克"] == "5200"
+    assert [row["菜品"] for row in draft["preview"]["菜品"]] == ["米饭"]
+    assert any("并不存在的菜" in hint for hint in draft["preview"]["提示"])
+    assert any("重算营养" in hint for hint in draft["preview"]["提示"])
+    assert (
+        collection_service.has_collection(db_session, on_date=target, meal_type=MealType.LUNCH)
+        is False
+    ), "待确认阶段不该有采集记录"
+
+
+def test_save_collection_execute_then_revert_discards_the_log(
+    as_recorder: TestClient, db_session: Session, actor
+) -> None:
+    """原来没有采集记录时，撤回 = 把这条误录整份丢掉（连人均营养结果）。"""
+    target = _fresh_day(32)
+    draft = tools.save_collection_draft(
+        db_session,
+        on_date=target.isoformat(),
+        meal_type="LUNCH",
+        diner_count=500,
+        oil_total_g="3000",
+        salt_total_g="900",
+        dishes=[{"dish_name": "米饭", "servings": "450"}],
+    )
+    outcome = tools.save_collection_execute(db_session, draft["payload"], actor=actor)
+
+    assert outcome.result["菜品数"] == 1
+    assert collection_service.has_collection(db_session, on_date=target, meal_type=MealType.LUNCH)
+    db_session.expire_all()
+    per_capita = db_session.scalars(
+        select(DishNutrition).where(
+            DishNutrition.date == target,
+            DishNutrition.caliber == NutrientCaliber.PER_CAPITA,
+        )
+    ).all()
+    assert per_capita, "保存之后应当有人均口径的营养结果"
+
+    assert outcome.undo and outcome.undo[0].tool == "restore_collection"
+    tools.TOOLS_BY_NAME["restore_collection"].execute(
+        db_session, outcome.undo[0].payload, actor=actor
+    )
+
+    db_session.expire_all()
+    assert (
+        collection_service.has_collection(db_session, on_date=target, meal_type=MealType.LUNCH)
+        is False
+    ), "撤回之后不该还留着这条采集"
+    left = db_session.scalars(
+        select(DishNutrition).where(
+            DishNutrition.date == target,
+            DishNutrition.caliber == NutrientCaliber.PER_CAPITA,
+        )
+    ).all()
+    assert left == [], "人均结果离开采集就没有依据，必须一起清掉（否则看板会算错）"
+
+
+def test_save_collection_over_an_existing_log_reverts_to_the_old_values(
+    as_recorder: TestClient, db_session: Session, actor
+) -> None:
+    """原来就有采集时，撤回 = 写回原来那条（人次、油盐糖、份数都要回去）。"""
+    target = _fresh_day(33)
+    first = tools.save_collection_draft(
+        db_session,
+        on_date=target.isoformat(),
+        meal_type="LUNCH",
+        diner_count=500,
+        oil_total_g="3000",
+        salt_total_g="900",
+        dishes=[{"dish_name": "米饭", "servings": "450"}],
+    )
+    tools.save_collection_execute(db_session, first["payload"], actor=actor)
+
+    second = tools.save_collection_draft(
+        db_session,
+        on_date=target.isoformat(),
+        meal_type="LUNCH",
+        diner_count=999,
+        oil_total_g="9999",
+        salt_total_g="1999",
+        dishes=[{"dish_name": "米饭", "servings": "900"}],
+    )
+    assert any("整份覆盖" in hint for hint in second["preview"]["提示"])
+    outcome = tools.save_collection_execute(db_session, second["payload"], actor=actor)
+    assert outcome.undo[0].payload["previous"] is not None
+
+    tools.TOOLS_BY_NAME["restore_collection"].execute(
+        db_session, outcome.undo[0].payload, actor=actor
+    )
+    db_session.expire_all()
+    sheet = collection_service.build_sheet(db_session, on_date=target, meal_type=MealType.LUNCH)
+    assert sheet.diner_count == 500
+    assert str(sheet.oil_total_g) == "3000.00"
+    assert [row.servings_produced for row in sheet.dishes if row.selected] == ["450.00"]
+
+
+def test_set_menu_day_refuses_days_that_are_already_collected(
+    as_recorder: TestClient, db_session: Session, actor
+) -> None:
+    """已经录过采集的日子不能再单独改菜单——那一天的菜单以实际供应为准。"""
+    target = _fresh_day(34)
+    draft = tools.save_collection_draft(
+        db_session,
+        on_date=target.isoformat(),
+        meal_type="LUNCH",
+        diner_count=400,
+        dishes=[{"dish_name": "米饭", "servings": "380"}],
+    )
+    tools.save_collection_execute(db_session, draft["payload"], actor=actor)
+
+    with pytest.raises(BusinessRuleError) as error:
+        tools.set_menu_day_draft(
+            db_session, on_date=target.isoformat(), meal_type="LUNCH", dish_names=["米饭"]
+        )
+
+    assert "已经录过采集" in str(error.value)
+    assert "录入采集" in str(error.value)
+
+
+def test_set_menu_day_writes_the_plan_and_can_be_reverted(
+    as_recorder: TestClient, db_session: Session, actor
+) -> None:
+    """没录采集的日子可以调菜单：写进去之后采集页与大屏都会按它走，且可撤回。"""
+    target = _fresh_day(35)
+    before = tools.set_menu_day_draft(
+        db_session, on_date=target.isoformat(), meal_type="LUNCH", dish_names=["米饭"]
+    )
+    assert "计划" in " ".join(before["preview"]["提示"])
+    outcome = tools.set_menu_day_execute(db_session, before["payload"], actor=actor)
+    assert outcome.undo[0].payload["items"] == [], "第一次改之前菜单是空的，撤回就该回到空"
+
+    after = tools.set_menu_day_draft(
+        db_session,
+        on_date=target.isoformat(),
+        meal_type="LUNCH",
+        dish_names=["米饭", "清炒西兰花"],
+    )
+    outcome2 = tools.set_menu_day_execute(db_session, after["payload"], actor=actor)
+    db_session.expire_all()
+    assert len(tools._menu_snapshot(db_session, on_date=target, meal_type=MealType.LUNCH)) == 2
+
+    tools.TOOLS_BY_NAME["restore_menu_day"].execute(
+        db_session, outcome2.undo[0].payload, actor=actor
+    )
+    db_session.expire_all()
+    assert len(tools._menu_snapshot(db_session, on_date=target, meal_type=MealType.LUNCH)) == 1
+
+
+def test_revoke_of_a_collection_proposal_through_the_endpoint(
+    as_recorder: TestClient, install_provider: Callable[[ScriptedProvider], ScriptedProvider]
+) -> None:
+    """整条链路的收尾：让助手录一餐 → 确认 → 撤回，采集记录应当没了。"""
+    target = _fresh_day(36)
+    install_provider(
+        ScriptedProvider(
+            [
+                _call(
+                    "save_collection",
+                    f'{{"on_date": "{target.isoformat()}", "meal_type": "LUNCH",'
+                    ' "diner_count": 300, "oil_total_g": "1000", "salt_total_g": "300",'
+                    ' "dishes": [{"dish_name": "米饭", "servings": "280"}]}',
+                ),
+                providers.ProviderReply(text="方案好了，请确认。"),
+            ]
+        )
+    )
+    created = as_recorder.post(f"{BASE}/chat", json={"message": f"把 {target} 的午餐录一下"}).json()
+    assert created["proposals"][0]["title"].startswith("录入采集")
+
+    proposal_id = created["proposals"][0]["id"]
+    confirmed = as_recorder.post(f"{BASE}/proposals/{proposal_id}/confirm")
+    assert confirmed.status_code == 200, confirmed.text
+    assert confirmed.json()["can_revoke"] is True
+
+    sheet = as_recorder.get(
+        f"/api/v1/collection/logs/{target.isoformat()}", params={"meal_type": "LUNCH"}
+    ).json()
+    assert sheet["saved"] is True and sheet["diner_count"] == 300
+
+    reverted = as_recorder.post(f"{BASE}/proposals/{proposal_id}/revoke")
+    assert reverted.status_code == 200, reverted.text
+    assert reverted.json()["status"] == "REVERTED"
+
+    after = as_recorder.get(
+        f"/api/v1/collection/logs/{target.isoformat()}", params={"meal_type": "LUNCH"}
+    ).json()
+    assert after["saved"] is False, "撤回之后这一餐不该还留着采集记录"
 
 
 # ---------------------------------------------------------------------------

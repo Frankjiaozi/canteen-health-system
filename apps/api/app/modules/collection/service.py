@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.errors import BusinessRuleError
 from app.core.logging import get_logger
+from app.modules.audit import service as audit_service
 from app.modules.collection import repository
 from app.modules.collection.schemas import (
     AnomalyRead,
@@ -30,7 +31,7 @@ from app.modules.collection.schemas import (
 )
 from app.modules.menu import service as menu_service
 from app.modules.nutrition import service as nutrition_service
-from app.shared.enums import MANUAL_ANOMALY_FLAGS, AnomalyFlag, MealType
+from app.shared.enums import MANUAL_ANOMALY_FLAGS, AnomalyFlag, AuditAction, MealType
 from app.shared.nutrition_values import VALUE_TYPE_DESCRIPTIONS, pick_best
 
 logger = get_logger(__name__)
@@ -125,6 +126,45 @@ def has_collection(session: Session, *, on_date: date, meal_type: MealType) -> b
     别的域要判断「能不能往这天写菜单」，得走这里问，而不是自己去读 collection 的表。
     """
     return repository.get_log(session, on_date=on_date, meal_type=meal_type) is not None
+
+
+def discard_sheet(
+    session: Session,
+    *,
+    on_date: date,
+    meal_type: MealType,
+    actor_id: UUID | None = None,
+    actor_name: str | None = None,
+    audit_note: str | None = None,
+) -> bool:
+    """丢掉某天某一餐的采集记录（连同明细与人居口径的营养结果）。
+
+    只服务于「撤回一次误录」：采集记录是原始数据，正常业务里没有删除入口。
+    删干净的三件事：采集单与明细、**人均口径的营养结果**（它们的依据没了，留着会让看板算错）、
+    以及一条留痕。单份营养结果不动——它只依赖配方，与采集无关。
+
+    菜单日不在这里处理：它可能来自计划，删完要不要恢复由调用方决定。
+    返回是否真的删掉了东西（没有记录时返回 False，调用方据此说「没什么可丢的」）。
+    """
+    log = repository.get_log(session, on_date=on_date, meal_type=meal_type)
+    if log is None:
+        return False
+
+    log_id = log.id
+    repository.delete_log(session, log=log)
+    nutrition_service.repository.delete_per_capita(session, on_date=on_date, meal_type=meal_type)
+    audit_service.record(
+        session,
+        entity_type="daily_log",
+        entity_id=log_id,
+        action=AuditAction.DELETE,
+        actor_id=actor_id,
+        actor_name=actor_name,
+        note=audit_note or "删掉这一餐的采集记录",
+    )
+    session.commit()
+    logger.info("采集记录已删除：%s %s", on_date, meal_type.label)
+    return True
 
 
 def save_sheet(
