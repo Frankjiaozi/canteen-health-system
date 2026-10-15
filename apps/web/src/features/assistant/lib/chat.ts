@@ -1,4 +1,4 @@
-import type { ChatTurn, ToolCallTrace } from '../types';
+import type { ToolCallTrace } from '../types';
 
 /** 界面里的一条消息。助手的消息额外带上它调了哪些工具。 */
 export interface ChatMessage {
@@ -10,25 +10,17 @@ export interface ChatMessage {
   truncated?: boolean;
 }
 
-/** 送给模型的历史最多几轮：多了费 token，也没必要。 */
-export const HISTORY_LIMIT = 8;
-
 /**
- * 取最近几轮对话当历史。
- *
- * 只取**用户与助手的文字**：工具调用结果不重复回传，它们已经在上一轮的上下文里了，
- * 再带一遍会让每次提问都背着越来越长的历史。
- */
-export function buildHistory(messages: ChatMessage[]): ChatTurn[] {
-  return messages
-    .filter((message) => message.content.trim().length > 0)
-    .slice(-HISTORY_LIMIT)
-    .map((message) => ({ role: message.role, content: message.content }));
-}
+ * 新消息的 id。
 
-/** 新消息的 id。时间戳加序号足够区分，不必引入 uuid 依赖。 */
+ * 用自增序号而不是时间戳：同一次回答里连着生成两条时，时间戳会撞（同一毫秒），
+ * React 列表出现重复 key 就会串行——这种 bug 平时看不出来，一出就是错位的消息。
+ */
+let messageCounter = 0;
+
 export function nextMessageId(seed: number): string {
-  return `m-${seed}-${Date.now()}`;
+  messageCounter += 1;
+  return `m-${seed}-${messageCounter}`;
 }
 
 /** 工具调用在界面上的说法：做了什么、成没成。 */

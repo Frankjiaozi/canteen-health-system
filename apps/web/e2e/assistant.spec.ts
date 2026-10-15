@@ -20,6 +20,9 @@ test('助手抽屉打开后的状态与接口说的一致', async ({ page }) => 
   const drawer = page.getByRole('dialog');
   await expect(drawer).toBeVisible();
   await expect(drawer.getByText('AI 助手')).toBeVisible();
+  // 历史对话是审计入口，不接模型也要在（否则「助手做过什么」就查不到了）
+  await expect(drawer.getByRole('button', { name: /历史对话/ })).toBeVisible();
+  await expect(drawer.getByRole('button', { name: '新对话' })).toBeVisible();
 
   const input = drawer.getByPlaceholder(/最近两周盐用超了吗|助手未接模型/);
   if (status.enabled) {

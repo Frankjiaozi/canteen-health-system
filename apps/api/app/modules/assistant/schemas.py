@@ -2,21 +2,18 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
-
-class ChatTurn(BaseModel):
-    """一轮历史对话。客户端带上最近几轮，服务端不落库（阶段一不做会话持久化）。"""
-
-    role: Literal["user", "assistant"]
-    content: str = Field(max_length=4000)
+from app.shared.enums import AssistantProposalStatus
 
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
-    history: list[ChatTurn] = Field(default_factory=list, max_length=20)
+    #: 接着哪次对话问。不填就是新开一次；历史由服务端从库里读，不信客户端传的
+    conversation_id: str | None = None
 
 
 class ToolCallTrace(BaseModel):
@@ -37,6 +34,10 @@ class ToolCallTrace(BaseModel):
 class ChatReply(BaseModel):
     reply: str
     tool_calls: list[ToolCallTrace] = Field(default_factory=list)
+    #: 本次对话的 id。界面上接着问要带上它，历史也从这里读
+    conversation_id: str
+    #: 这一轮生成的待确认方案（写操作）。界面上要渲染成确认卡片
+    proposals: list[ProposalRead] = Field(default_factory=list)
     #: 来回了几轮工具调用（到上限就停，如实报出来）
     rounds: int = 0
     model: str | None = None
@@ -51,6 +52,52 @@ class ToolInfo(BaseModel):
     label: str
     description: str
     read_only: bool = True
+
+
+class ProposalRead(BaseModel):
+    """一份待确认的写操作方案。"""
+
+    id: str
+    conversation_id: str
+    tool_name: str
+    title: str
+    summary: str
+    #: 给人看的那份：将新增/修改哪些字段、有哪些要注意的
+    preview: dict[str, Any]
+    status: AssistantProposalStatus
+    status_label: str
+    created_by_name: str | None = None
+    created_at: datetime
+    decided_at: datetime | None = None
+    #: 执行结果（新建出来的实体与关键字段），失败时是原因
+    result: dict[str, Any] | None = None
+    error: str | None = None
+
+
+class ConversationSummary(BaseModel):
+    id: str
+    title: str
+    user_name: str | None = None
+    message_count: int
+    pending_proposals: int = 0
+    last_message_at: datetime
+    created_at: datetime
+
+
+class ConversationDetail(ConversationSummary):
+    messages: list[ChatMessageRead]
+    proposals: list[ProposalRead]
+
+
+class ChatMessageRead(BaseModel):
+    id: str
+    role: str
+    role_label: str
+    content: str
+    tool_calls: list[ToolCallTrace] = Field(default_factory=list)
+    truncated: bool = False
+    model: str | None = None
+    created_at: datetime
 
 
 class AssistantStatus(BaseModel):

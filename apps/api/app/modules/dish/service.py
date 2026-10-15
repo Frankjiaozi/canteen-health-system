@@ -206,6 +206,7 @@ def create_dish(
     *,
     actor_id: UUID | None = None,
     actor_name: str | None = None,
+    audit_note: str | None = None,
 ) -> DishDetail:
     if repository.find_by_name(session, payload.name) is not None:
         raise ConflictError(f"菜品「{payload.name}」已存在")
@@ -227,7 +228,14 @@ def create_dish(
         actor_id=actor_id,
         actor_name=actor_name,
         after=_snapshot(dish),
-        note="新建菜品" + ("（含配方）" if payload.recipe else "（暂无配方）"),
+        note="｜".join(
+            part
+            for part in (
+                audit_note,
+                "新建菜品" + ("（含配方）" if payload.recipe else "（暂无配方）"),
+            )
+            if part
+        ),
     )
     session.commit()
     return get_dish_detail(session, dish.id)

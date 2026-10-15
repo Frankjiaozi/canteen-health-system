@@ -1,24 +1,45 @@
-"""助手的一次对话：把问题交给模型，模型要用数据就调只读工具，最后回一句人话。
+"""助手的一次对话：把问题交给模型，模型要用数据就调工具，最后回一句人话。
 
 这一层自己不接触数据库表——它只做三件事：拼系统提示、执行模型点名的工具、把结果回给模型。
 工具是**进程内**调用各业务域的 service：不绕 HTTP，权限与事务语义跟界面上操作完全一致。
+
+两处闸门都在这层：
+
+- 会话与消息**落库**（审计要能回答「谁在哪个对话里让助手做了什么」）；
+- 写工具**不执行**，只落一条待确认方案，等人点确认才走 `confirm_proposal`。
 """
 
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from typing import Any
+from uuid import UUID
 
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.errors import AppError
+from app.core.errors import AppError, BusinessRuleError, NotFoundError
 from app.core.logging import get_logger
-from app.modules.assistant import providers, tools
-from app.modules.assistant.schemas import ChatReply, ChatRequest, ToolCallTrace
+from app.modules.assistant import providers, repository, tools
+from app.modules.assistant.models import AssistantConversation, AssistantProposal
+from app.modules.assistant.schemas import (
+    ChatMessageRead,
+    ChatReply,
+    ChatRequest,
+    ConversationDetail,
+    ConversationSummary,
+    ProposalRead,
+    ToolCallTrace,
+)
 from app.modules.auth.schemas import AuthUser
+from app.shared.enums import AssistantMessageRole, AssistantProposalStatus, UserRole
 
 logger = get_logger(__name__)
+
+#: 带上多少轮历史。多了费 token，也没必要——问的通常是眼下这件事。
+HISTORY_MESSAGES = 8
 
 #: 系统提示词。写清楚三件事：你是谁、数据从哪来、不许干什么。
 #: 最后一条最重要——营养值与成本一律来自工具返回，模型不许自己估，
@@ -32,8 +53,16 @@ SYSTEM_PROMPT = """你是「知味 · 校园智慧膳食平台」里的助手，
 4. 涉及营养结论时说明依据（例如《中国居民膳食指南（2022）》的量化指标），不要给个体化的健康建议。
 5. 用中文、简短直接，先给结论再给数据。不要罗列工具名与调用过程（界面上已经显示了）。
 
-你目前只有**只读**工具：可以查食材、菜品配方、某天的菜单、看板指标与最近采集。
-用户要求录入、修改、删除时，说明这些操作要在对应页面手动完成，你这一版还不能代做。
+你可以查数据（食材、菜品配方、某天的菜单、看板指标、最近采集），也可以**提出**写操作：
+新增食材、新增菜品与配方。
+
+写操作的规矩（很重要）：
+- 调用写工具**不会真的写库**，它只会生成一份待确认的方案。你必须把方案讲给用户听
+  （要新增什么、关键字段是什么、有没有对不上的地方），并请他**在界面上点确认**。
+- **绝不要说「已经建好了」**——没确认之前什么都没发生。没确认时你可以说「我准备好了方案，请你确认」。
+- 方案里有「食材库里没有某某」这类提示时，先把这件事讲清楚，建议用户先建那条食材。
+
+录入、修改、删除超出这两个写工具的其它操作，说明要在对应页面手动完成。
 """
 
 
@@ -74,7 +103,12 @@ def _summarize(tool: tools.Tool, payload: dict[str, Any]) -> str:
 
 
 def _run_tool(
-    session: Session, actor: AuthUser, call: providers.ProviderToolCall
+    session: Session,
+    actor: AuthUser,
+    call: providers.ProviderToolCall,
+    *,
+    conversation: AssistantConversation,
+    created: list[AssistantProposal],
 ) -> tuple[dict[str, Any], ToolCallTrace]:
     tool = tools.TOOLS_BY_NAME.get(call.name)
     arguments = providers.parse_arguments(call.arguments)
@@ -102,7 +136,12 @@ def _run_tool(
         )
 
     try:
-        payload = tool.handler(session, **arguments)
+        if tool.read_only:
+            payload = tool.handler(session, **arguments)
+        else:
+            payload = _propose(
+                session, actor, tool, arguments, conversation=conversation, created=created
+            )
     except AppError as error:
         # 工具的业务错误要原样回给模型（「没找到这道菜」「日期格式不对」），
         # 让它据此改正或如实告诉用户，而不是抛成 500 让整轮对话断掉
@@ -126,6 +165,43 @@ def _run_tool(
     )
 
 
+def _propose(
+    session: Session,
+    actor: AuthUser,
+    tool: tools.Tool,
+    arguments: dict[str, Any],
+    *,
+    conversation: AssistantConversation,
+    created: list[AssistantProposal],
+) -> dict[str, Any]:
+    """写工具走这条路：只落一条待确认方案，一个字节的业务数据都不写。
+
+    方案里带的 `payload` 就是确认时要执行的参数——页面上看到的与实际执行的必须是同一份，
+    否则「确认」这个词就没有意义了。
+    """
+    assert tool.build_draft is not None  # 由 assert_write_boundary 保证
+    draft = tool.build_draft(session, **arguments)
+    proposal = repository.create_proposal(
+        session,
+        conversation_id=conversation.id,
+        tool_name=tool.name,
+        title=draft["title"],
+        summary=draft["summary"],
+        payload=draft["payload"],
+        preview=draft["preview"],
+        created_by=actor.id,
+        created_by_name=actor.display_name,
+    )
+    created.append(proposal)
+    logger.info("助手提出写方案：%s（%s）", proposal.title, actor.display_name)
+    return {
+        "状态": "待用户确认",
+        "方案": proposal.summary,
+        "说明": "这一步还没有写库。请把方案讲给用户听，并请他在界面上点确认。",
+        "提示": draft["preview"].get("提示", []),
+    }
+
+
 def chat(
     session: Session,
     *,
@@ -133,22 +209,40 @@ def chat(
     payload: ChatRequest,
     provider: providers.ChatProvider,
 ) -> ChatReply:
-    """跑一轮对话（可能来回几次工具调用），返回最终回答与用到的工具。"""
+    """跑一轮对话（可能来回几次工具调用），返回最终回答、用到的工具与待确认方案。"""
     max_rounds = get_settings().assistant_max_tool_rounds
+    now = datetime.now(get_settings().timezone)
+    conversation = _resolve_conversation(session, actor=actor, payload=payload, now=now)
     messages: list[dict[str, Any]] = [_system_message(actor)]
-    for turn in payload.history:
-        messages.append({"role": turn.role, "content": turn.content})
+    # 历史从库里读：客户端传什么都不算数，审计与模型看到的必须是同一份
+    for turn in repository.list_messages(
+        session, conversation_id=conversation.id, limit=HISTORY_MESSAGES
+    ):
+        messages.append({"role": turn.role.lower(), "content": turn.content})
     messages.append({"role": "user", "content": payload.message})
+    repository.add_message(
+        session,
+        conversation=conversation,
+        role=AssistantMessageRole.USER.value,
+        content=payload.message,
+        now=now,
+    )
 
     traces: list[ToolCallTrace] = []
+    proposals: list[AssistantProposal] = []
     for round_index in range(1, max_rounds + 1):
         reply = provider.complete(messages=messages, tools=tools.tool_payload())
         if not reply.tool_calls:
-            return ChatReply(
-                reply=reply.text.strip() or "（模型没有给出回答）",
-                tool_calls=traces,
+            return _finish(
+                session,
+                conversation=conversation,
+                text=reply.text.strip() or "（模型没有给出回答）",
+                traces=traces,
+                proposals=proposals,
                 rounds=round_index,
                 model=getattr(provider, "model", None),
+                truncated=False,
+                now=now,
             )
 
         messages.append(
@@ -166,18 +260,249 @@ def chat(
             }
         )
         for call in reply.tool_calls:
-            result, trace = _run_tool(session, actor, call)
+            result, trace = _run_tool(
+                session, actor, call, conversation=conversation, created=proposals
+            )
             traces.append(trace)
             messages.append(_tool_message(call.id, result, trace.ok))
 
     logger.warning("助手到了工具调用轮次上限（%d 轮）仍未收敛", max_rounds)
-    return ChatReply(
-        reply=(
+    return _finish(
+        session,
+        conversation=conversation,
+        text=(
             "这个问题需要查的东西比较多，我查了几轮还没查完。"
             "换个更具体的问法（例如指定某一天、某道菜）我再试一次。"
         ),
-        tool_calls=traces,
+        traces=traces,
+        proposals=proposals,
         rounds=max_rounds,
         model=getattr(provider, "model", None),
         truncated=True,
+        now=now,
+    )
+
+
+def _resolve_conversation(
+    session: Session, *, actor: AuthUser, payload: ChatRequest, now: datetime
+) -> AssistantConversation:
+    """接上一次对话，或者新开一次。别人的对话不给接。"""
+    if payload.conversation_id:
+        try:
+            conversation_id = UUID(payload.conversation_id)
+        except ValueError as error:
+            raise BusinessRuleError("对话 id 格式不对") from error
+        conversation = repository.get_conversation(session, conversation_id)
+        if conversation is None:
+            raise NotFoundError("对话不存在")
+        if conversation.user_id is not None and conversation.user_id != actor.id:
+            raise BusinessRuleError("这是别人的对话，不能接着问")
+        return conversation
+    return repository.create_conversation(
+        session,
+        user_id=actor.id,
+        user_name=actor.display_name,
+        title=payload.message.strip().replace("\n", " "),
+        now=now,
+    )
+
+
+def _readable(error: object) -> list[str]:
+    """把异常整理成能显示给人看的一两句话。
+
+    pydantic 的校验错误自带字段定位（`loc`），比 `str(异常)` 那一长串好用得多——
+    用户看到的应该是「category 取值无效」，而不是「1 validation error for ...」。
+    """
+    errors = getattr(error, "errors", None)
+    if callable(errors):
+        lines = []
+        for item in errors():
+            field = ".".join(str(part) for part in item.get("loc", ())) or "参数"
+            lines.append(f"{field}：{item.get('msg', '取值无效')}")
+        if lines:
+            return lines
+    return [str(error)]
+
+
+def _finish(
+    session: Session,
+    *,
+    conversation: AssistantConversation,
+    text: str,
+    traces: list[ToolCallTrace],
+    proposals: list[AssistantProposal],
+    rounds: int,
+    model: str | None,
+    truncated: bool,
+    now: datetime,
+) -> ChatReply:
+    repository.add_message(
+        session,
+        conversation=conversation,
+        role=AssistantMessageRole.ASSISTANT.value,
+        content=text,
+        tool_calls=[trace.model_dump(mode="json") for trace in traces],
+        truncated=truncated,
+        model=model,
+        now=now,
+    )
+    session.commit()
+    return ChatReply(
+        reply=text,
+        tool_calls=traces,
+        conversation_id=str(conversation.id),
+        proposals=[read_proposal(row) for row in proposals],
+        rounds=rounds,
+        model=model,
+        truncated=truncated,
+    )
+
+
+# ---------------------------------------------------------------------------
+# 方案：读、确认、取消
+# ---------------------------------------------------------------------------
+def read_proposal(row: AssistantProposal) -> ProposalRead:
+    return ProposalRead(
+        id=str(row.id),
+        conversation_id=str(row.conversation_id),
+        tool_name=row.tool_name,
+        title=row.title,
+        summary=row.summary,
+        preview=row.preview,
+        status=row.status,
+        status_label=row.status.label,
+        created_by_name=row.created_by_name,
+        created_at=row.created_at,
+        decided_at=row.decided_at,
+        result=row.result,
+        error=row.error,
+    )
+
+
+def _load_proposal(session: Session, proposal_id: UUID, actor: AuthUser) -> AssistantProposal:
+    proposal = repository.get_proposal(session, proposal_id)
+    if proposal is None:
+        raise NotFoundError("这条方案不存在")
+    if proposal.created_by is not None and proposal.created_by != actor.id:
+        raise BusinessRuleError("这是别人那条对话里的方案，请让他本人确认")
+    return proposal
+
+
+def confirm_proposal(session: Session, *, proposal_id: UUID, actor: AuthUser) -> ProposalRead:
+    """用户点了确认，这才真正写库。
+
+    写的是方案里存下来的那份 `payload`：页面上看到什么，执行的就是什么。
+    执行走各域自己的 service，所以校验、留痕与页面录入完全一致；`audit_note` 会标明
+    这条数据是「经 AI 助手提议、由本人确认」来的——留痕要能区分人和助手。
+    """
+    proposal = _load_proposal(session, proposal_id, actor)
+    if proposal.status is not AssistantProposalStatus.PENDING:
+        raise BusinessRuleError(f"这条方案已经{proposal.status.label}了，不能重复处理")
+
+    tool = tools.TOOLS_BY_NAME.get(proposal.tool_name)
+    if tool is None or tool.execute is None:
+        raise BusinessRuleError(f"这条方案对应的操作（{proposal.tool_name}）已经不可用")
+
+    proposal.decided_by = actor.id
+    proposal.decided_at = datetime.now(get_settings().timezone)
+    try:
+        result = tool.execute(session, proposal.payload, actor=actor)
+    except (AppError, ValidationError) as error:
+        # 执行失败也要落痕：方案留在 FAILED，原因写清楚，必要时改参数重试
+        session.rollback()
+        reloaded = repository.get_proposal(session, proposal_id)
+        if reloaded is not None:
+            reloaded.status = AssistantProposalStatus.FAILED
+            # 校验错误的信息很长（pydantic 会把整条输入抄一遍），截断给界面用
+            reloaded.error = "；".join(_readable(error))[:512]
+            reloaded.decided_by = actor.id
+            reloaded.decided_at = datetime.now(get_settings().timezone)
+            session.commit()
+            return read_proposal(reloaded)
+        raise
+
+    # execute 内部会自己 commit（与页面录入同一条路径）；提交之后再落方案的结果
+    reloaded = repository.get_proposal(session, proposal_id)
+    if reloaded is None:
+        raise NotFoundError("这条方案不存在")
+    reloaded.status = AssistantProposalStatus.CONFIRMED
+    reloaded.result = result
+    reloaded.error = None
+    session.commit()
+    logger.info("方案已确认执行：%s（%s）", reloaded.title, actor.display_name)
+    return read_proposal(reloaded)
+
+
+def cancel_proposal(session: Session, *, proposal_id: UUID, actor: AuthUser) -> ProposalRead:
+    proposal = _load_proposal(session, proposal_id, actor)
+    if proposal.status is not AssistantProposalStatus.PENDING:
+        raise BusinessRuleError(f"这条方案已经{proposal.status.label}了，不能重复处理")
+    proposal.status = AssistantProposalStatus.CANCELLED
+    proposal.decided_by = actor.id
+    proposal.decided_at = datetime.now(get_settings().timezone)
+    session.commit()
+    return read_proposal(proposal)
+
+
+# ---------------------------------------------------------------------------
+# 会话：列表与详情（审计用：谁在哪个对话里让助手做了什么）
+# ---------------------------------------------------------------------------
+def read_conversation_summary(session: Session, row: AssistantConversation) -> ConversationSummary:
+    pending = sum(
+        1
+        for proposal in repository.list_proposals(session, conversation_id=row.id)
+        if proposal.status is AssistantProposalStatus.PENDING
+    )
+    return ConversationSummary(
+        id=str(row.id),
+        title=row.title,
+        user_name=row.user_name,
+        message_count=row.message_count,
+        pending_proposals=pending,
+        last_message_at=row.last_message_at,
+        created_at=row.created_at,
+    )
+
+
+def list_conversations(
+    session: Session, *, actor: AuthUser, limit: int = 20
+) -> list[ConversationSummary]:
+    """列对话。默认只看自己的；食堂管理员与学校管理方可以看全部（审计视角）。"""
+    scope_all = actor.role in {UserRole.CANTEEN_ADMIN, UserRole.SCHOOL_ADMIN}
+    rows = repository.list_conversations(
+        session, user_id=None if scope_all else actor.id, limit=limit
+    )
+    return [read_conversation_summary(session, row) for row in rows]
+
+
+def get_conversation(
+    session: Session, *, conversation_id: UUID, actor: AuthUser
+) -> ConversationDetail:
+    row = repository.get_conversation(session, conversation_id)
+    if row is None:
+        raise NotFoundError("对话不存在")
+    scope_all = actor.role in {UserRole.CANTEEN_ADMIN, UserRole.SCHOOL_ADMIN}
+    if not scope_all and row.user_id is not None and row.user_id != actor.id:
+        raise BusinessRuleError("这是别人的对话，只有食堂管理员与学校管理方可以查阅")
+    summary = read_conversation_summary(session, row)
+    messages = repository.list_messages(session, conversation_id=row.id)
+    return ConversationDetail(
+        **summary.model_dump(),
+        messages=[
+            ChatMessageRead(
+                id=str(message.id),
+                role=message.role.value,
+                role_label=message.role.label,
+                content=message.content,
+                tool_calls=[ToolCallTrace(**trace) for trace in (message.tool_calls or [])],
+                truncated=message.truncated,
+                model=message.model,
+                created_at=message.created_at,
+            )
+            for message in messages
+        ],
+        proposals=[
+            read_proposal(proposal)
+            for proposal in repository.list_proposals(session, conversation_id=row.id)
+        ],
     )

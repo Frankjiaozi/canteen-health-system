@@ -97,7 +97,13 @@ def create_ingredient(
     *,
     actor_id: UUID | None = None,
     actor_name: str | None = None,
+    audit_note: str | None = None,
 ) -> Ingredient:
+    """新增食材。`audit_note` 用来标出这条数据是怎么来的。
+
+    AI 助手代录时传「经 AI 助手提议、由本人确认后创建」——留痕里要能分清
+    「人自己在页面上录的」与「助手提议、人确认的」，否则审计时看不出差别。
+    """
     if repository.find_by_name(session, payload.name) is not None:
         raise ConflictError(f"食材「{payload.name}」已存在")
 
@@ -113,6 +119,7 @@ def create_ingredient(
         actor_id=actor_id,
         actor_name=actor_name,
         after=_snapshot(ingredient),
+        note=audit_note,
     )
     session.commit()
     return ingredient

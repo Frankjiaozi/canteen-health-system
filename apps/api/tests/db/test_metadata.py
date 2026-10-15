@@ -37,6 +37,10 @@ EXPECTED_TABLES = {
     "menu_suggestions",
     # 法定节假日日历：预测的修正依据
     "holidays",
+    # AI 助手：对话留痕与写操作的待确认方案
+    "assistant_conversations",
+    "assistant_messages",
+    "assistant_proposals",
 }
 
 

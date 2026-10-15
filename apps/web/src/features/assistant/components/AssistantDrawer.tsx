@@ -1,60 +1,35 @@
-import { RobotOutlined, SendOutlined } from '@ant-design/icons';
-import { Alert, Button, Drawer, Empty, Input, Space, Spin, Tag, Typography } from 'antd';
-import { useRef, useState } from 'react';
-import { useAssistantStatus, useAskAssistant } from '../hooks/useAssistant';
-import { AnswerBody } from './AnswerBody';
+import { HistoryOutlined, RobotOutlined, SendOutlined } from '@ant-design/icons';
+import { Alert, Button, Drawer, Empty, Input, List, Space, Spin, Tag, Typography } from 'antd';
+import dayjs from 'dayjs';
+import { useState } from 'react';
 import {
-  SUGGESTIONS,
-  buildHistory,
-  describeToolRun,
-  nextMessageId,
-  type ChatMessage,
-} from '../lib/chat';
+  useAskAssistant,
+  useAssistantStatus,
+  useConversation,
+  useConversations,
+  useDecideProposal,
+} from '../hooks/useAssistant';
+import { SUGGESTIONS, describeToolRun, nextMessageId, type ChatMessage } from '../lib/chat';
+import type { ProposalRead } from '../types';
+import { AnswerBody } from './AnswerBody';
+import { ProposalCard } from './ProposalCard';
 
 /**
- * AI 助手抽屉（阶段一：只读问答）。
+ * AI 助手抽屉。
 
- * 回答里会带上「刚才查了什么」——只给一段像模像样的话，用户没法核对；
- * 而这一版的分界线就是**不编数据**，所以查询过程要摆在明面上。
+ * 三件事在这里交汇：对话（历史由服务端存，审计要查得到）、工具调用痕迹（答案从哪来）、
+ * 以及写操作的**确认卡片**——助手只能提方案，真正写库要用户点一下。
  */
 export function AssistantDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const status = useAssistantStatus();
-  const ask = useAskAssistant();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [draft, setDraft] = useState('');
-  const seed = useRef(0);
+  const [showHistory, setShowHistory] = useState(false);
+  //: 要看哪次历史对话；`newToken` 用来强制换一块新对话面板
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [newToken, setNewToken] = useState(0);
 
+  const conversations = useConversations(open && showHistory);
+  const opened = useConversation(openId);
   const enabled = status.data?.enabled === true;
-
-  const send = async (question: string) => {
-    const text = question.trim();
-    if (!text || ask.isPending) return;
-    const history = buildHistory(messages);
-    seed.current += 1;
-    const userMessage: ChatMessage = {
-      id: nextMessageId(seed.current),
-      role: 'user',
-      content: text,
-    };
-    setMessages((current) => [...current, userMessage]);
-    setDraft('');
-    try {
-      const reply = await ask.mutateAsync({ question: text, history });
-      seed.current += 1;
-      setMessages((current) => [
-        ...current,
-        {
-          id: nextMessageId(seed.current),
-          role: 'assistant',
-          content: reply.reply,
-          toolCalls: reply.tool_calls ?? [],
-          truncated: reply.truncated,
-        },
-      ]);
-    } catch {
-      // 失败提示已经在 mutation 里给了；把刚才那句话留在对话里，方便改一改再问
-    }
-  };
 
   return (
     <Drawer
@@ -70,9 +45,30 @@ export function AssistantDrawer({ open, onClose }: { open: boolean; onClose: () 
         </Space>
       }
       placement="right"
-      size={460}
+      size={480}
       open={open}
       onClose={onClose}
+      extra={
+        <Space>
+          <Button
+            size="small"
+            icon={<HistoryOutlined />}
+            onClick={() => setShowHistory((value) => !value)}
+          >
+            历史对话
+          </Button>
+          <Button
+            size="small"
+            onClick={() => {
+              setOpenId(null);
+              setNewToken((value) => value + 1);
+              setShowHistory(false);
+            }}
+          >
+            新对话
+          </Button>
+        </Space>
+      }
       styles={{ body: { display: 'flex', flexDirection: 'column', gap: 12 } }}
     >
       {status.isPending ? <Spin description="正在检查助手状态…" /> : null}
@@ -86,14 +82,129 @@ export function AssistantDrawer({ open, onClose }: { open: boolean; onClose: () 
         />
       ) : null}
 
-      {status.data && enabled ? (
-        <Typography.Text type="secondary">
-          目前只能查数据（食材、菜品配方、某天的菜单、看板指标、最近采集），还不能替你录入或修改。
-        </Typography.Text>
+      {showHistory ? (
+        <List
+          size="small"
+          header={<Typography.Text type="secondary">最近对话（含助手做过的操作）</Typography.Text>}
+          bordered
+          loading={conversations.isLoading}
+          dataSource={conversations.data ?? []}
+          locale={{ emptyText: '还没有对话记录' }}
+          renderItem={(row) => (
+            <List.Item
+              actions={[
+                <Button
+                  key="open"
+                  type="link"
+                  size="small"
+                  onClick={() => {
+                    setOpenId(row.id);
+                    setShowHistory(false);
+                  }}
+                >
+                  打开
+                </Button>,
+              ]}
+            >
+              <List.Item.Meta
+                title={row.title}
+                description={
+                  <Space size={8} wrap>
+                    <span>{dayjs(row.last_message_at).format('MM-DD HH:mm')}</span>
+                    <span>{row.user_name ?? '—'}</span>
+                    <span>{row.message_count} 条消息</span>
+                    {row.pending_proposals > 0 ? (
+                      <Tag color="orange">{row.pending_proposals} 条待确认</Tag>
+                    ) : null}
+                  </Space>
+                }
+              />
+            </List.Item>
+          )}
+        />
       ) : null}
 
+      {openId && opened.isPending ? (
+        <Spin description="正在读这次对话…" />
+      ) : (
+        <ConversationPane
+          // 换一次对话就换一块面板：初始值直接来自 props，省掉 effect 里同步状态那一次级联渲染
+          key={openId ?? `new-${newToken}`}
+          conversationId={openId}
+          initialMessages={(opened.data?.messages ?? []).map((message) => ({
+            id: message.id,
+            role: message.role === 'USER' ? 'user' : 'assistant',
+            content: message.content,
+            toolCalls: message.tool_calls ?? [],
+            truncated: message.truncated,
+          }))}
+          initialProposals={opened.data?.proposals ?? []}
+          enabled={enabled}
+          onTurnFinished={() => void conversations.refetch()}
+        />
+      )}
+    </Drawer>
+  );
+}
+
+interface PaneProps {
+  conversationId: string | null;
+  initialMessages: ChatMessage[];
+  initialProposals: ProposalRead[];
+  enabled: boolean;
+  onTurnFinished: () => void;
+}
+
+/** 一块对话面板：自己管消息与方案，可以接着上次的对话问下去。 */
+function ConversationPane({
+  conversationId,
+  initialMessages,
+  initialProposals,
+  enabled,
+  onTurnFinished,
+}: PaneProps) {
+  const ask = useAskAssistant();
+  const decide = useDecideProposal();
+  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+  const [proposals, setProposals] = useState<ProposalRead[]>(initialProposals);
+  const [activeId, setActiveId] = useState<string | null>(conversationId);
+  const [draft, setDraft] = useState('');
+
+  const send = async (question: string) => {
+    const text = question.trim();
+    if (!text || ask.isPending) return;
+    setMessages((current) => [
+      ...current,
+      { id: nextMessageId(current.length + 1), role: 'user', content: text },
+    ]);
+    setDraft('');
+    try {
+      const reply = await ask.mutateAsync({ question: text, conversationId: activeId });
+      // 第一次提问之后服务端才给出对话 id，之后接着它问
+      setActiveId(reply.conversation_id);
+      setMessages((current) => [
+        ...current,
+        {
+          id: nextMessageId(current.length + 1),
+          role: 'assistant',
+          content: reply.reply,
+          toolCalls: reply.tool_calls ?? [],
+          truncated: reply.truncated,
+        },
+      ]);
+      if ((reply.proposals ?? []).length > 0) {
+        setProposals((current) => [...current, ...(reply.proposals ?? [])]);
+      }
+      onTurnFinished();
+    } catch {
+      // 失败提示已在 mutation 里给了；刚问的那句留在对话里，方便改一改再问
+    }
+  };
+
+  return (
+    <>
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-        {messages.length === 0 ? (
+        {messages.length === 0 && proposals.length === 0 ? (
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
             description={enabled ? '问点什么试试' : '接上模型后就能用了'}
@@ -117,6 +228,24 @@ export function AssistantDrawer({ open, onClose }: { open: boolean; onClose: () 
           <Space orientation="vertical" size={12} style={{ width: '100%' }}>
             {messages.map((message) => (
               <MessageBubble key={message.id} message={message} />
+            ))}
+            {proposals.map((proposal) => (
+              <ProposalCard
+                key={proposal.id}
+                proposal={proposal}
+                deciding={decide.isPending}
+                onDecide={(action) =>
+                  decide.mutate(
+                    { id: proposal.id, action },
+                    {
+                      onSuccess: (updated) =>
+                        setProposals((current) =>
+                          current.map((row) => (row.id === updated.id ? updated : row)),
+                        ),
+                    },
+                  )
+                }
+              />
             ))}
             {ask.isPending ? (
               <Typography.Text type="secondary">
@@ -145,7 +274,7 @@ export function AssistantDrawer({ open, onClose }: { open: boolean; onClose: () 
           问
         </Button>
       </Space.Compact>
-    </Drawer>
+    </>
   );
 }
 
