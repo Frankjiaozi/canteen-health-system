@@ -48,7 +48,7 @@ services:
       # 内网正式部署默认关闭自助注册，账号由管理员开通
       ALLOW_OPEN_REGISTRATION: ${ALLOW_OPEN_REGISTRATION:-false}
       # AI 助手。留空即「未接模型」：界面上会如实显示，不会摆一个点了没反应的输入框。
-      # 正式部署建议指向校内模型端点（数据不出校），演示可指向云端兼容端点。
+      # 云端端点或校内 vLLM / Ollama 都行；助手会把菜品级数据发给所配置的模型服务方。
       ASSISTANT_BASE_URL: ${ASSISTANT_BASE_URL:-}
       ASSISTANT_API_KEY: ${ASSISTANT_API_KEY:-}
       ASSISTANT_MODEL: ${ASSISTANT_MODEL:-}

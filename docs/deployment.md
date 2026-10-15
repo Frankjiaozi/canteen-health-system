@@ -1,6 +1,7 @@
 # 部署指南
 
-系统面向**学校内网自部署**：数据不出校，是方案与云端产品的核心差异点。
+系统面向**学校内网自部署**：程序与数据库都在校内，数据由学校自己保管。
+唯一对外的调用是 AI 助手（把菜品级数据发给所配置的模型服务方），不配置模型即为关闭。
 编排文件在 `infra/`，一条命令拉起数据库、后端与前端。
 
 ## 一、单机部署
@@ -122,7 +123,7 @@ docker run --rm -v canteen-pg:/data -v "$PWD:/backup" alpine \
 | `POSTGRES_PASSWORD` / `JWT_SECRET` | 内置默认值 | 必须替换 |
 | `COOKIE_SECURE` | `false` | 有 HTTPS 时必须为 `true` |
 | `ALLOW_OPEN_REGISTRATION` | `true`（方便现场注册试用） | **必须为 `false`**，账号由管理员开通 |
-| `ASSISTANT_*`（AI 助手） | 可以留空（助手显示「未接模型」） | 指向**内网**模型端点，数据不出校 |
+| `ASSISTANT_*`（AI 助手） | 可以留空（助手显示「未接模型」） | 用云端端点也行；按学校要求选提供方，并把数据流向告知使用者 |
 | 种子脚本 | 可直接执行 | 需要 `ALLOW_DEMO_SEED=true` 显式放行 |
 
 种子脚本会写入口令已知的演示账号，因此生产环境默认拒绝执行；
@@ -133,16 +134,20 @@ docker run --rm -v canteen-pg:/data -v "$PWD:/backup" alpine \
 助手（管理端右上角「AI 助手」）走**任何 OpenAI 兼容的 `/chat/completions`**，因此接哪一家由环境变量决定：
 
 ```bash
-# 内网自部署（推荐：数据不出校）
-ASSISTANT_BASE_URL=http://127.0.0.1:8001/v1
-ASSISTANT_MODEL=Qwen3-8B-Instruct
-ASSISTANT_API_KEY=              # 内网端点通常不需要
-
-# 或云端兼容端点（仅演示；正式部署要按学校的数据要求评估）
+# 云端端点（默认用法）
 ASSISTANT_BASE_URL=https://api.example.com/v1
 ASSISTANT_API_KEY=sk-...
 ASSISTANT_MODEL=example-model
+
+# 或者校内自部署的模型（vLLM / Ollama）
+ASSISTANT_BASE_URL=http://127.0.0.1:8001/v1
+ASSISTANT_MODEL=Qwen3-8B-Instruct
+ASSISTANT_API_KEY=              # 内网端点通常不需要
 ```
+
+**数据流向要说清楚**：助手提问时会把查出来的菜品级数据（菜名、营养、成本、指标）
+随请求发给所配置的模型服务方。选云端就意味着这些内容会出校——按学校的要求选提供方，
+并在使用说明里告知使用者。不需要助手时把这三项留空即可，界面上会显示「未接模型」。
 
 可选：`ASSISTANT_TIMEOUT_SECONDS`（默认 60）、`ASSISTANT_MAX_TOOL_ROUNDS`（默认 4，
 一次提问里最多来回几轮工具调用）、`ASSISTANT_TEMPERATURE`（默认 0.2）。
