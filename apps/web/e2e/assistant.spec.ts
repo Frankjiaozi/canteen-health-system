@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import dayjs from 'dayjs';
 import { loginAs } from './helpers';
 
 /**
@@ -63,4 +64,28 @@ test('接了模型时：边查边回，工具痕迹与文字都进对话', async
   // 回答与对话都落了库：刷新抽屉（历史对话）还能读到这次问答
   await drawer.getByRole('button', { name: /历史对话/ }).click();
   await expect(drawer.getByText(/条消息/).first()).toBeVisible({ timeout: 30_000 });
+});
+
+test('接了模型时：说「排一下菜单」就把确认卡片直接摆出来', async ({ page }) => {
+  await loginAs(page, 'recorder');
+  const status = await (await page.request.get('/api/v1/assistant/status')).json();
+  test.skip(!status.enabled, '没有配置模型端点，跳过真实对话');
+  test.setTimeout(300_000);
+
+  // 挑一个没有采集记录的日子：已录采集的日子「同步」会被拒（菜单以实际供应为准）
+  const target = dayjs().add(50, 'day').format('YYYY-MM-DD');
+  await page.getByRole('button', { name: 'AI 助手' }).click();
+  const drawer = page.getByRole('dialog');
+  await expect(drawer).toBeVisible();
+
+  await drawer.getByPlaceholder(/最近两周盐用超了吗/).fill(`帮我排一下 ${target} 的午餐菜单`);
+  await drawer.getByRole('button', { name: '问' }).click();
+
+  // 用户只说了一句「排菜单」，确认卡片应当自己出现——不用他再补一句「同步」
+  await expect(drawer.getByRole('button', { name: '确认执行' }).last()).toBeVisible({
+    timeout: 180_000,
+  });
+  await expect(drawer.getByText(/同步菜单到当日数据/).last()).toBeVisible();
+  // 排菜单与同步两步的痕迹都该在
+  await expect(drawer.getByText(/排菜单/).last()).toBeVisible();
 });

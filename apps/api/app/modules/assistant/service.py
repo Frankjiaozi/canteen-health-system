@@ -69,6 +69,10 @@ SYSTEM_PROMPT = """你是「知味 · 校园智慧膳食平台」里的助手，
   （要新增什么、关键字段是什么、有没有对不上的地方），并请他**在界面上点确认**。
 - **绝不要说「已经建好了」**——没确认之前什么都没发生。没确认时你可以说「我准备好了方案，请你确认」。
 - 方案里有「食材库里没有某某」这类提示时，先把这件事讲清楚，建议用户先建那条食材。
+- **用户明确要「排/定某天某餐的菜单」时，要在同一轮里把确认卡片直接摆出来**：
+  先 generate_menu_plan 排方案，紧接着 sync_menu_plan 生成待确认的方案，
+  然后告诉用户「方案好了，确认就写进去」。不要只给方案让他再说一句「同步」——
+  那一步纯属多余。反过来，用户只是随口问「明天吃什么好」时不要弹卡片，给方案就行。
 
 录入、修改、删除超出这两个写工具的其它操作，说明要在对应页面手动完成。
 """
@@ -97,8 +101,18 @@ def _tool_message(call_id: str, payload: dict[str, Any], ok: bool) -> dict[str, 
 
 
 def _summarize(tool: tools.Tool, payload: dict[str, Any]) -> str:
+    """工具痕迹那一行话。
+
+    必须短：它是给人扫一眼「刚才在干什么」的，把整段 JSON 印出来就变成噪音了
+    （实测：排菜单的结果整坨铺在对话里，把确认卡片顶到看不见）。
+    """
     if "error" in payload:
         return str(payload["error"])
+    if isinstance(payload.get("菜品"), list):
+        dishes = payload["菜品"]
+        purchase = payload.get("采购") or {}
+        money = f"，采购 {purchase.get('项数', '—')} 项 {purchase.get('合计金额_元', '—')} 元"
+        return f"{tool.label}：{len(dishes)} 道菜{money}"
     if "items" in payload:
         return f"{tool.label}：返回 {len(payload['items'])} 条（共 {payload.get('total', '—')} 条）"
     if "菜品" in payload:
@@ -107,6 +121,8 @@ def _summarize(tool: tools.Tool, payload: dict[str, Any]) -> str:
         return f"{tool.label}：统计最近 {payload.get('统计天数', '—')} 天"
     if "日期" in payload:
         return f"{tool.label}：{payload['日期']} {payload.get('餐次', '')}"
+    if "接口" in payload:
+        return f"{tool.label}：{payload['接口']}"
     return f"{tool.label}：已查"
 
 

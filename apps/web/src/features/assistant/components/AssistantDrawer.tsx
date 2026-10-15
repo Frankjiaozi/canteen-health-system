@@ -1,7 +1,7 @@
 import { HistoryOutlined, RobotOutlined, SendOutlined } from '@ant-design/icons';
 import { Alert, Button, Drawer, Empty, Input, Space, Spin, Tag, Typography } from 'antd';
 import dayjs from 'dayjs';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   useAskAssistant,
   useAssistantStatus,
@@ -199,6 +199,14 @@ function ConversationPane({
   const [proposals, setProposals] = useState<ProposalRead[]>(initialProposals);
   const [activeId, setActiveId] = useState<string | null>(conversationId);
   const [draft, setDraft] = useState('');
+  const scroller = useRef<HTMLDivElement | null>(null);
+
+  // 新内容（尤其是确认卡片）出现在下面时要自动滚到底：
+  // 排菜单的回答本身就不短，卡片会被顶到看不见的地方，而它恰恰是要点的那个
+  useEffect(() => {
+    const node = scroller.current;
+    if (node) node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' });
+  }, [messages, proposals]);
   const [pending, setPending] = useState(false);
   //: 正在查什么。工具是逐个跑的，先把「在查」显示出来，再补上结果
   const [running, setRunning] = useState<string | null>(null);
@@ -254,7 +262,7 @@ function ConversationPane({
 
   return (
     <>
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+      <div ref={scroller} style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         {messages.length === 0 && proposals.length === 0 ? (
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
