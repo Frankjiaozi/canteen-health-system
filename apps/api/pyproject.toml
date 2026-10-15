@@ -25,8 +25,8 @@ dependencies = [
     # 菜单推荐的整数规划。**上界卡在 3 以下**：PuLP 4.x 不再自带求解器
     # （装完 listSolvers 是空的），参数名也换了一套；需求要的是「自带 CBC」的那一版。
     "pulp>=2.9,<3",
-    # 周报月报导出 PDF。选它是纯 Python 实现、Windows 上不需要额外系统库。
-    "reportlab>=4.4",
+    # 周报月报导出 PDF 会用到 reportlab（纯 Python、Windows 不需要额外系统库），
+    # 那个模块还没做，所以先不引入——装一个没人用的依赖只会拖慢构建
     # AI 助手调用模型端点（任何 OpenAI 兼容的 /chat/completions）
     "httpx>=0.28.1",
     "tzdata>=2026.1",

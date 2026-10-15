@@ -30,7 +30,6 @@ from app.modules.dish import service as dish_service
 from app.modules.ingredient import service as ingredient_service
 from app.modules.seasoning import service as seasoning_service
 from app.shared.enums import DishCategory, IngredientCategory, MealType, UserRole
-from app.shared.nutrition_values import VALUE_TYPE_DESCRIPTIONS
 
 #: 一次最多回几条：助手是给人看结论的，不是导数据用的。要全量请去对应页面。
 MAX_ROWS = 20
@@ -265,8 +264,8 @@ class Tool:
     label: str
     description: str
     parameters: dict[str, Any]
-    #: 读工具：调用即查询。写工具：调用只生成方案，`handler` 不参与执行
-    handler: Callable[..., dict[str, Any]]
+    #: 读工具的实现：调用即查询。写工具没有它——写工具只能出方案（`build_draft`）然后执行
+    handler: Callable[..., dict[str, Any]] | None = None
     read_only: bool = True
     #: 写工具专用：把参数整理成一份给人看的方案 + 将要执行的参数
     build_draft: Callable[..., dict[str, Any]] | None = None
@@ -637,7 +636,6 @@ TOOLS: tuple[Tool, ...] = (
             },
             required=["name", "category", "data_source"],
         ),
-        handler=create_ingredient_draft,
         read_only=False,
         build_draft=create_ingredient_draft,
         execute=create_ingredient_execute,
@@ -695,7 +693,6 @@ TOOLS: tuple[Tool, ...] = (
             },
             required=["name", "category", "cooking_method", "standard_serving_g", "recipe_items"],
         ),
-        handler=create_dish_draft,
         read_only=False,
         build_draft=create_dish_draft,
         execute=create_dish_execute,
@@ -723,6 +720,8 @@ def assert_write_boundary() -> None:
     """
     for tool in TOOLS:
         if tool.read_only:
+            if tool.handler is None:
+                raise AssertionError(f"读工具 {tool.name} 没有实现")
             if tool.execute is not None or tool.build_draft is not None:
                 raise AssertionError(f"读工具 {tool.name} 不该带写操作入口")
             continue
@@ -730,6 +729,8 @@ def assert_write_boundary() -> None:
             raise AssertionError(
                 f"写工具 {tool.name} 必须同时提供方案与执行两步，否则可以绕过人工确认"
             )
+        if tool.handler is not None:
+            raise AssertionError(f"写工具 {tool.name} 不该有直接执行入口 handler")
 
 
 def tool_payload() -> list[dict[str, Any]]:
@@ -745,8 +746,3 @@ def tool_payload() -> list[dict[str, Any]]:
         }
         for tool in TOOLS
     ]
-
-
-def describe_value_types() -> dict[str, str]:
-    """营养值「来自哪一层」的说法，交给模型解释时用。"""
-    return {str(key): value for key, value in VALUE_TYPE_DESCRIPTIONS.items()}

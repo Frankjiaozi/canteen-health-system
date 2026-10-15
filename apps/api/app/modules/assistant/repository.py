@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.modules.assistant.models import (
@@ -13,7 +13,6 @@ from app.modules.assistant.models import (
     AssistantMessage,
     AssistantProposal,
 )
-from app.shared.enums import AssistantProposalStatus
 
 
 def create_conversation(
@@ -122,16 +121,4 @@ def list_proposals(session: Session, *, conversation_id: UUID) -> list[Assistant
             .where(AssistantProposal.conversation_id == conversation_id)
             .order_by(AssistantProposal.created_at)
         ).all()
-    )
-
-
-def count_pending_proposals(session: Session) -> int:
-    """全局待确认方案数。界面上的「有几件事等你确认」用它。"""
-    return int(
-        session.scalar(
-            select(func.count())
-            .select_from(AssistantProposal)
-            .where(AssistantProposal.status == AssistantProposalStatus.PENDING)
-        )
-        or 0
     )

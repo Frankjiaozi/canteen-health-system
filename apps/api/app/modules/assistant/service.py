@@ -138,6 +138,8 @@ def _run_tool(
 
     try:
         if tool.read_only:
+            if tool.handler is None:  # 由 assert_write_boundary 兜住，这里只为类型收窄
+                raise BusinessRuleError(f"工具 {tool.name} 没有实现")
             payload = tool.handler(session, **arguments)
         else:
             payload = _propose(
