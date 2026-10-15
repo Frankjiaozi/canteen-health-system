@@ -239,6 +239,23 @@ def latest_diner_count(session: Session, *, on_date: date) -> int:
     return repository.load_latest_diner_count(session, on_date=on_date)
 
 
+def reopen_suggestion(session: Session, *, suggestion_id: UUID) -> MenuSuggestionRead:
+    """把一版推荐改回「待确认」。
+
+    只给「撤回同步」用：菜单已经退回原样了，推荐记录却还写着「已采纳」的话，
+    两处状态就对不上——而这种对不上最难查。
+    """
+    suggestion = repository.get_suggestion(session, suggestion_id)
+    if suggestion is None:
+        raise NotFoundError("推荐不存在")
+    suggestion.status = SuggestionStatus.PENDING
+    suggestion.rejected_reason = None
+    suggestion.decided_by = None
+    suggestion.decided_at = None
+    session.commit()
+    return read_suggestion(suggestion)
+
+
 @dataclass(frozen=True, slots=True)
 class PlannedDish:
     """一版菜单里的一道菜：做哪道 + 计划做多少份。"""

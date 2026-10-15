@@ -33,7 +33,15 @@ from app.modules.dish import service as dish_service
 from app.modules.dish.models import Dish
 from app.modules.ingredient.models import Ingredient
 from app.modules.nutrition.models import DishNutrition
-from app.shared.enums import AssistantProposalStatus, AuditAction, MealType, NutrientCaliber
+from app.modules.recommendation import repository as recommendation_repository
+from app.modules.recommendation import service as recommendation_service
+from app.shared.enums import (
+    AssistantProposalStatus,
+    AuditAction,
+    MealType,
+    NutrientCaliber,
+    SuggestionStatus,
+)
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
@@ -491,16 +499,134 @@ def test_dish_write_tool_reports_ingredients_missing_from_the_library(
 # ---------------------------------------------------------------------------
 # 一句话录一餐
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# 排菜单与同步：这是用户最先问到的一处缺口
+# ---------------------------------------------------------------------------
+def test_generate_menu_plan_answers_in_one_call(
+    as_recorder: TestClient, db_session: Session
+) -> None:
+    """「排一下菜单」应当一次调用就出结果：菜品 + 预测份数 + 差距 + 采购汇总。
+
+    这件事只产出建议，不改当天的菜单与采集，所以不需要人确认就能跑。
+    """
+    target = _free_day(db_session)
+    result = tools.generate_menu_plan(db_session, on_date=target.isoformat(), meal_type="LUNCH")
+
+    assert result["日期"] == target.isoformat()
+    assert result["菜品"], "排出来的菜单不该是空的"
+    first = result["菜品"][0]
+    assert first["菜品"] and first["预测份数"]
+    assert result["与营养目标的差距"] and result["推荐理由"]
+    assert result["采购"]["项数"] > 0
+    # 没同步之前，当天的菜单日不该被写进去
+    assert (
+        collection_service.has_collection(db_session, on_date=target, meal_type=MealType.LUNCH)
+        is False
+    )
+    assert tools._menu_snapshot(db_session, on_date=target, meal_type=MealType.LUNCH) == [], (
+        "排菜单只出方案，不写菜单日"
+    )
+
+
+def test_sync_menu_plan_requires_a_generated_plan_first(
+    as_recorder: TestClient, db_session: Session
+) -> None:
+    """还没排过就要同步：说清先做什么，而不是报一个看不懂的错。"""
+    target = _free_day(db_session)
+
+    with pytest.raises(BusinessRuleError) as error:
+        tools.sync_menu_plan_draft(db_session, on_date=target.isoformat(), meal_type="LUNCH")
+
+    assert "还没有生成过菜单" in str(error.value)
+    assert "generate_menu_plan" in str(error.value)
+
+
+def test_sync_menu_plan_writes_the_day_and_can_be_reverted(
+    as_recorder: TestClient, db_session: Session, actor
+) -> None:
+    """同步之后采集页与大屏都会跟着变；撤回要把菜单退回原样、推荐记录也回到待确认。"""
+    target = _free_day(db_session)
+    tools.generate_menu_plan(db_session, on_date=target.isoformat(), meal_type="LUNCH")
+
+    draft = tools.sync_menu_plan_draft(db_session, on_date=target.isoformat(), meal_type="LUNCH")
+    assert draft["preview"]["菜品"], "方案里要列出将写入的菜"
+    outcome = tools.sync_menu_plan_execute(db_session, draft["payload"], actor=actor)
+    assert outcome.result["菜品数"] > 0
+
+    db_session.expire_all()
+    planned = tools._menu_snapshot(db_session, on_date=target, meal_type=MealType.LUNCH)
+    assert len(planned) == outcome.result["菜品数"]
+    suggestion_id = UUID(str(draft["payload"]["suggestion_id"]))
+    assert (
+        recommendation_repository.get_suggestion(db_session, suggestion_id).status
+        is SuggestionStatus.ACCEPTED
+    )
+
+    assert [step.tool for step in outcome.undo] == ["restore_menu_day", "reopen_suggestion"]
+    for step in outcome.undo:
+        tools.TOOLS_BY_NAME[step.tool].execute(db_session, step.payload, actor=actor)
+
+    db_session.expire_all()
+    assert tools._menu_snapshot(db_session, on_date=target, meal_type=MealType.LUNCH) == []
+    assert (
+        recommendation_repository.get_suggestion(db_session, suggestion_id).status
+        is SuggestionStatus.PENDING
+    ), "菜单退回去了，推荐记录也该回到待确认，否则两处状态对不上"
+
+
+def test_sync_menu_plan_refuses_days_that_are_already_collected(
+    as_recorder: TestClient, db_session: Session, actor
+) -> None:
+    target = _free_day(db_session)
+    tools.generate_menu_plan(db_session, on_date=target.isoformat(), meal_type="LUNCH")
+    collected = tools.save_collection_draft(
+        db_session,
+        on_date=target.isoformat(),
+        meal_type="LUNCH",
+        diner_count=300,
+        dishes=[{"dish_name": "米饭", "servings": "280"}],
+    )
+    tools.save_collection_execute(db_session, collected["payload"], actor=actor)
+
+    with pytest.raises(BusinessRuleError) as error:
+        tools.sync_menu_plan_draft(db_session, on_date=target.isoformat(), meal_type="LUNCH")
+
+    assert "已经录过采集" in str(error.value)
+
+
 def _fresh_day(offset: int = 30) -> date:
     """种子历史之外的一天：这些用例会往将来写菜单与采集，不能落在演示数据上。"""
     return today_local() + timedelta(days=offset)
+
+
+def _free_day(session: Session, *, start: int = 40, span: int = 20) -> date:
+    """找一个**既没有采集也没有菜单**的将来日期。
+
+    写死偏移踩过两次：`+41` 被端到端用例写过采集，于是「先排菜单再同步」的用例
+    在同步那一步拿到的是「已经录过采集」，跟它要验的东西完全不相干。
+    这些用例需要的是「一个干净的将来日子」，那就按这个条件去找，而不是猜一个数字。
+    """
+    for offset in range(start, start + span):
+        day = today_local() + timedelta(days=offset)
+        if collection_service.has_collection(session, on_date=day, meal_type=MealType.LUNCH):
+            continue
+        if tools._menu_snapshot(session, on_date=day, meal_type=MealType.LUNCH):
+            continue
+        # 有推荐记录也不行：本模块前面的用例会往将来日期排菜单，
+        # 复用同一天会让「还没排过」这类断言拿到反例
+        if recommendation_service.latest_suggestion_id(
+            session, on_date=day, meal_type=MealType.LUNCH
+        ):
+            continue
+        return day
+    raise AssertionError(f"在 +{start}~+{start + span} 天里找不到干净的日子")
 
 
 def test_save_collection_draft_shows_what_will_be_written(
     as_recorder: TestClient, db_session: Session
 ) -> None:
     """录用采集的预览要摆全：日期、人次、油盐糖、每道菜多少份；对不上的菜名要点出来。"""
-    target = _fresh_day(31)
+    target = _free_day(db_session)
     draft = tools.save_collection_draft(
         db_session,
         on_date=target.isoformat(),
@@ -529,7 +655,7 @@ def test_save_collection_execute_then_revert_discards_the_log(
     as_recorder: TestClient, db_session: Session, actor
 ) -> None:
     """原来没有采集记录时，撤回 = 把这条误录整份丢掉（连人均营养结果）。"""
-    target = _fresh_day(32)
+    target = _free_day(db_session)
     draft = tools.save_collection_draft(
         db_session,
         on_date=target.isoformat(),
@@ -575,7 +701,7 @@ def test_save_collection_over_an_existing_log_reverts_to_the_old_values(
     as_recorder: TestClient, db_session: Session, actor
 ) -> None:
     """原来就有采集时，撤回 = 写回原来那条（人次、油盐糖、份数都要回去）。"""
-    target = _fresh_day(33)
+    target = _free_day(db_session)
     first = tools.save_collection_draft(
         db_session,
         on_date=target.isoformat(),
@@ -614,7 +740,7 @@ def test_set_menu_day_refuses_days_that_are_already_collected(
     as_recorder: TestClient, db_session: Session, actor
 ) -> None:
     """已经录过采集的日子不能再单独改菜单——那一天的菜单以实际供应为准。"""
-    target = _fresh_day(34)
+    target = _free_day(db_session)
     draft = tools.save_collection_draft(
         db_session,
         on_date=target.isoformat(),
@@ -637,7 +763,7 @@ def test_set_menu_day_writes_the_plan_and_can_be_reverted(
     as_recorder: TestClient, db_session: Session, actor
 ) -> None:
     """没录采集的日子可以调菜单：写进去之后采集页与大屏都会按它走，且可撤回。"""
-    target = _fresh_day(35)
+    target = _free_day(db_session)
     before = tools.set_menu_day_draft(
         db_session, on_date=target.isoformat(), meal_type="LUNCH", dish_names=["米饭"]
     )
@@ -663,10 +789,12 @@ def test_set_menu_day_writes_the_plan_and_can_be_reverted(
 
 
 def test_revoke_of_a_collection_proposal_through_the_endpoint(
-    as_recorder: TestClient, install_provider: Callable[[ScriptedProvider], ScriptedProvider]
+    as_recorder: TestClient,
+    db_session: Session,
+    install_provider: Callable[[ScriptedProvider], ScriptedProvider],
 ) -> None:
     """整条链路的收尾：让助手录一餐 → 确认 → 撤回，采集记录应当没了。"""
-    target = _fresh_day(36)
+    target = _free_day(db_session)
     install_provider(
         ScriptedProvider(
             [

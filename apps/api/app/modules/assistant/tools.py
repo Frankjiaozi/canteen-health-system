@@ -31,6 +31,8 @@ from app.modules.collection import service as collection_service
 from app.modules.dish import service as dish_service
 from app.modules.ingredient import service as ingredient_service
 from app.modules.menu import service as menu_service
+from app.modules.menuplan import service as menuplan_service
+from app.modules.recommendation import service as recommendation_service
 from app.modules.seasoning import service as seasoning_service
 from app.shared.enums import DishCategory, IngredientCategory, MealType, UserRole
 
@@ -1577,6 +1579,166 @@ def deactivate_ingredient_execute(
     )
 
 
+# ---------------------------------------------------------------------------
+# 排菜单：一句话出方案，确认后落到当日数据
+# ---------------------------------------------------------------------------
+def generate_menu_plan(
+    session: Session,
+    *,
+    on_date: str | None = None,
+    meal_type: str | None = None,
+    diner_count: int | None = None,
+) -> dict[str, Any]:
+    """排一份菜单：在营养目标下选菜 → 按历史与日历预测份数 → 算出要买多少料。
+
+    这件事**只出方案**，不改当天的菜单、不进采集：它产出的是一版建议
+    （外加一条推荐记录，供页面上再看与采纳）。所以它不需要人确认就能跑——
+    真正的写入是另一个工具（`sync_menu_plan`），那个要确认。
+    """
+    target = _date_arg(on_date)
+    meal = _meal_arg(meal_type)
+    plan = menuplan_service.build_menu_plan(
+        session, on_date=target, meal_type=meal, diner_count=diner_count
+    )
+    if collection_service.has_collection(session, on_date=target, meal_type=meal):
+        # 这一天已经录过采集：方案还能算，但同步不进去（菜单以实际供应为准）
+        note = f"注意：{target} {meal.label} 已经录过采集，这一版只能参考，同步不进去"
+    else:
+        note = "这一版还只是建议：确认之后用 sync_menu_plan 写进当天的当日数据"
+    return {
+        "日期": target.isoformat(),
+        "餐次": meal.label,
+        "就餐人次": plan.diner_count,
+        "菜品": [
+            {
+                "菜品": dish.dish_name,
+                "类别": dish.category_label,
+                "做法": dish.cooking_method_label,
+                "预测份数": dish.predicted_servings,
+                "预测依据": dish.predicted_basis_label,
+                "单份能量_千卡": dish.energy_kcal,
+                "单份食盐_克": dish.salt_g,
+                "营养取自": dish.nutrition_basis,
+            }
+            for dish in plan.dishes
+        ],
+        "与营养目标的差距": [
+            {"指标": gap.label, "目标": gap.target_text, "实际": gap.actual, "结论": gap.status}
+            for gap in plan.gaps
+        ],
+        "推荐理由": [reason.text for reason in plan.reasons],
+        "采购": {
+            "项数": len(plan.requirements),
+            "合计金额_元": plan.total_cost,
+            "预算_元": plan.budget,
+            "明细": [
+                {"食材": row.name, "数量_公斤": row.quantity, "金额_元": row.estimated_cost}
+                for row in plan.requirements[:10]
+            ],
+        },
+        "规则": plan.servings_note,
+        "提示": [*plan.notes, *plan.calendar_notes, note],
+    }
+
+
+def sync_menu_plan_draft(
+    session: Session, *, on_date: str | None = None, meal_type: str | None = None
+) -> dict[str, Any]:
+    """把最近生成的那一版菜单写进当天的当日数据（菜单日 + 营养 + 记为已采纳）。"""
+    target = _date_arg(on_date)
+    meal = _meal_arg(meal_type)
+    suggestion_id = recommendation_service.latest_suggestion_id(
+        session, on_date=target, meal_type=meal
+    )
+    if suggestion_id is None:
+        raise BusinessRuleError(
+            f"{target} {meal.label} 还没有生成过菜单。先用 generate_menu_plan 排一版，再来同步"
+        )
+    if collection_service.has_collection(session, on_date=target, meal_type=meal):
+        raise BusinessRuleError(
+            f"{target} {meal.label} 已经录过采集了，菜单以实际供应为准；"
+            "要改这一餐请用「录入采集」那个工具"
+        )
+    suggestion = recommendation_service.get_suggestion(session, suggestion_id)
+    warnings = [
+        "这一步会写进当日数据：每日采集页的供应菜品按它勾好，公开大屏当天就会显示它，"
+        "并按配方算出这天的单份营养；同时那一版菜单会被记为「已采纳」",
+        "确认之后可以「撤回」：菜单恢复成现在这几道菜",
+    ]
+    return {
+        "title": f"同步菜单到当日数据：{target} {meal.label}",
+        "summary": f"把最近生成的那一版菜单（{len(suggestion.dishes)} 道菜）写进 {target} {meal.label} 的当日数据",
+        "preview": {
+            "将写入": {
+                "日期": target.isoformat(),
+                "餐次": meal.label,
+                "菜品数": len(suggestion.dishes),
+            },
+            "菜品": [
+                {"菜品": dish.dish_name, "类别": dish.category_label} for dish in suggestion.dishes
+            ],
+            "提示": warnings,
+        },
+        "payload": {
+            "on_date": target.isoformat(),
+            "meal_type": meal.value,
+            "suggestion_id": str(suggestion_id),
+        },
+    }
+
+
+def sync_menu_plan_execute(
+    session: Session, payload: dict[str, Any], *, actor: Any
+) -> ExecutionOutcome:
+    target = date.fromisoformat(str(payload["on_date"]))
+    meal = MealType(str(payload["meal_type"]))
+    previous_menu = _menu_snapshot(session, on_date=target, meal_type=meal)
+    result = menuplan_service.sync_to_day(
+        session,
+        on_date=target,
+        meal_type=meal,
+        suggestion_id=UUID(str(payload["suggestion_id"])),
+        actor_id=actor.id,
+    )
+    return ExecutionOutcome(
+        result={
+            "实体": "菜单日",
+            "日期": target.isoformat(),
+            "餐次": meal.label,
+            "菜品数": result.dish_count,
+            "营养结果": result.nutrition_rows,
+        },
+        # 撤回两步：菜单恢复原样，再把那一版推荐记录改回「待确认」——
+        # 否则会出现「菜单退回去了，推荐记录却还写着已采纳」这种对不上的状态
+        undo=(
+            UndoStep(
+                tool="restore_menu_day",
+                payload={
+                    "on_date": target.isoformat(),
+                    "meal_type": meal.value,
+                    "items": previous_menu,
+                },
+            ),
+            UndoStep(
+                tool="reopen_suggestion",
+                payload={"suggestion_id": str(payload["suggestion_id"])},
+            ),
+        ),
+    )
+
+
+def reopen_suggestion_execute(
+    session: Session, payload: dict[str, Any], *, actor: Any
+) -> ExecutionOutcome:
+    """撤回「同步菜单」时把推荐记录改回待确认。只给撤回用。"""
+    suggestion = recommendation_service.reopen_suggestion(
+        session, suggestion_id=UUID(str(payload["suggestion_id"]))
+    )
+    return ExecutionOutcome(
+        result={"实体": "菜单推荐记录", "id": suggestion.id, "状态": "回到待确认"}
+    )
+
+
 def _schema(properties: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
     schema: dict[str, Any] = {
         "type": "object",
@@ -1938,6 +2100,56 @@ TOOLS: tuple[Tool, ...] = (
         read_only=False,
         build_draft=lambda session, **kwargs: kwargs,
         execute=reactivate_dish_execute,
+        hidden=True,
+    ),
+    Tool(
+        name="generate_menu_plan",
+        label="排菜单",
+        description=(
+            "排一份菜单：在营养目标下选出做哪几道菜 → 按同星期历史与节假日日历预测每道菜做多少份 → "
+            "算出要买多少料。用户说「排一下明天的菜单」「今天午饭做什么」时用它。"
+            "**它只出方案，不改当天的菜单**，所以不需要确认就能跑；"
+            "要真的写进当日数据（采集页与大屏都跟着变）再用 sync_menu_plan，那个要人确认。"
+        ),
+        parameters=_schema(
+            {
+                "on_date": {"type": "string", "description": "日期 YYYY-MM-DD，默认今天"},
+                "meal_type": {"type": "string", "description": "餐次：BREAKFAST / LUNCH / DINNER"},
+                "diner_count": {
+                    "type": "integer",
+                    "description": "就餐人次；不填则用最近一次采集的人次",
+                },
+            }
+        ),
+        handler=generate_menu_plan,
+    ),
+    Tool(
+        name="sync_menu_plan",
+        label="同步菜单到当日数据",
+        description=(
+            "把最近生成的那一版菜单写进某天某一餐的当日数据：采集页的供应菜品按它勾好、"
+            "公开大屏当天就显示、并按配方算出那天的单份营养，同时记为「已采纳」。"
+            "**写操作：调用只生成待确认的方案**，确认后才执行；确认后可撤回。"
+            "已经录过采集的日子会被拒绝（菜单以实际供应为准）。"
+        ),
+        parameters=_schema(
+            {
+                "on_date": {"type": "string", "description": "日期 YYYY-MM-DD，默认今天"},
+                "meal_type": {"type": "string", "description": "餐次"},
+            }
+        ),
+        read_only=False,
+        build_draft=sync_menu_plan_draft,
+        execute=sync_menu_plan_execute,
+    ),
+    Tool(
+        name="reopen_suggestion",
+        label="推荐记录改回待确认",
+        description="撤回「同步菜单」时用。不直接暴露给模型。",
+        parameters=_schema({"suggestion_id": {"type": "string"}}, required=["suggestion_id"]),
+        read_only=False,
+        build_draft=lambda session, **kwargs: kwargs,
+        execute=reopen_suggestion_execute,
         hidden=True,
     ),
     Tool(
