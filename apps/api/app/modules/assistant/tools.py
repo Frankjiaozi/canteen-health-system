@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -40,10 +41,35 @@ def today() -> date:
 
 
 def _num(value: Decimal | None) -> str | None:
-    """小数按人看得懂的方式给：去掉无意义的尾零。"""
+    """小数按人看得懂的方式给：去掉无意义的尾零，且**不要科学计数法**。
+
+    `Decimal("150.000").normalize()` 会得到 `1.5E+2`——那是给机器看的，
+    模型和用户看到「标准份量 1.5E+2 克」只会一头雾水。`format(..., "f")` 强制普通写法。
+    """
     if value is None:
         return None
-    return str(value.normalize()) if value == value.to_integral_value() else str(value)
+    return format(value.normalize(), "f")
+
+
+def _raw(value: Any) -> Any:
+    """撤回快照要能存进 JSONB，所以 Decimal 之类的统一转成字符串。"""
+    if isinstance(value, Decimal):
+        return str(value)
+    return value
+
+
+def _display(value: Any) -> str | None:
+    """把字段值变成给人看的样子。
+
+    字段里既有 Decimal（营养值、单价），也有枚举（类别、做法）和纯文本（来源、备注），
+    所以不能一律当成小数处理——早期版本对文本调 `normalize()` 会直接崩。
+    """
+    if value is None:
+        return None
+    if isinstance(value, Decimal):
+        return _num(value)
+    label = getattr(value, "label", None)
+    return str(label) if label is not None else str(value)
 
 
 def _enum_arg(enum_type: Any, value: str | None, label: str) -> Any | None:
@@ -270,7 +296,29 @@ class Tool:
     #: 写工具专用：把参数整理成一份给人看的方案 + 将要执行的参数
     build_draft: Callable[..., dict[str, Any]] | None = None
     #: 写工具专用：用户确认之后才执行
-    execute: Callable[..., dict[str, Any]] | None = None
+    execute: Callable[..., ExecutionOutcome] | None = None
+    #: 只给「撤回」用、不给模型看的工具（例如重新启用、退回上一条采集）
+    hidden: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class UndoStep:
+    """撤回时要执行的一步。存成数据而不是闭包，才能落库、跨进程重放。"""
+
+    tool: str
+    payload: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class ExecutionOutcome:
+    """一次确认执行的结果，外加「怎么撤回」。
+
+    `undo` 由 execute 在执行**当时**给出：撤回要把数据改回执行之前的样子，
+    而那套值只有在那一刻是准确的（事后再去推，推出来的不敢往下写）。
+    """
+
+    result: dict[str, Any]
+    undo: tuple[UndoStep, ...] = ()
 
 
 def _ingredient_by_exact_name(session: Session, name: str) -> Any | None:
@@ -359,7 +407,7 @@ def create_ingredient_draft(
 
 def create_ingredient_execute(
     session: Session, payload: dict[str, Any], *, actor: Any
-) -> dict[str, Any]:
+) -> ExecutionOutcome:
     """确认之后真正写库。走的是食材域自己的 service，审计与校验与页面录入完全一致。"""
     from app.modules.ingredient.schemas import IngredientCreate
 
@@ -370,7 +418,16 @@ def create_ingredient_execute(
         actor_name=actor.display_name,
         audit_note="经「AI 助手」提议、由本人确认后创建",
     )
-    return {"实体": "食材", "id": str(created.id), "名称": created.name}
+    return ExecutionOutcome(
+        result={"实体": "食材", "id": str(created.id), "名称": created.name},
+        # 撤回「新增」= 停用它（软删除）。不物理删除：被配方引用过的数据要留得住
+        undo=(
+            UndoStep(
+                tool="deactivate_ingredient",
+                payload={"ingredient_id": str(created.id), "reason": "撤回助手新建的食材"},
+            ),
+        ),
+    )
 
 
 def create_dish_draft(
@@ -478,7 +535,9 @@ def create_dish_draft(
     }
 
 
-def create_dish_execute(session: Session, payload: dict[str, Any], *, actor: Any) -> dict[str, Any]:
+def create_dish_execute(
+    session: Session, payload: dict[str, Any], *, actor: Any
+) -> ExecutionOutcome:
     from app.modules.dish.schemas import DishCreate, RecipePayload
 
     created = dish_service.create_dish(
@@ -499,12 +558,488 @@ def create_dish_execute(session: Session, payload: dict[str, Any], *, actor: Any
         actor_name=actor.display_name,
         audit_note="经「AI 助手」提议、由本人确认后创建",
     )
-    return {
-        "实体": "菜品",
-        "id": str(created.id),
-        "菜品": created.name,
-        "单份能量_千卡": None if created.nutrition is None else created.nutrition.energy_kcal,
+    return ExecutionOutcome(
+        result={
+            "实体": "菜品",
+            "id": str(created.id),
+            "菜品": created.name,
+            "单份能量_千卡": None if created.nutrition is None else created.nutrition.energy_kcal,
+        },
+        undo=(
+            UndoStep(
+                tool="deactivate_dish",
+                payload={"dish_id": str(created.id), "reason": "撤回助手新建的菜品"},
+            ),
+        ),
+    )
+
+
+#: 菜品可改的基础字段（配方是另一条路：整体替换）
+DISH_EDITABLE = {
+    "category": "类别",
+    "cooking_method": "做法",
+    "standard_serving_g": "标准份量_克",
+    "servings_per_pot": "单锅制作份数",
+    "note": "备注",
+}
+
+
+def update_dish_draft(
+    session: Session,
+    *,
+    name: str,
+    category: str | None = None,
+    cooking_method: str | None = None,
+    standard_serving_g: str | None = None,
+    servings_per_pot: str | None = None,
+    note: str | None = None,
+    recipe_items: list[dict[str, Any]] | None = None,
+    seasoning_items: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """修改菜品：基础信息按字段改，配方是**整体替换**（与页面上同一个语义）。"""
+    dish = _dish_or_fail(session, name)
+    changes = {
+        field: value
+        for field, value in (
+            ("category", category),
+            ("cooking_method", cooking_method),
+            ("standard_serving_g", standard_serving_g),
+            ("servings_per_pot", servings_per_pot),
+            ("note", note),
+        )
+        if value not in (None, "")
     }
+    warnings: list[str] = []
+    recipe_payload: dict[str, Any] | None = None
+    resolved: list[dict[str, Any]] = []
+    if recipe_items:
+        payload_items: list[dict[str, Any]] = []
+        for line in recipe_items:
+            ingredient_name = str(line.get("ingredient_name") or "").strip()
+            quantity = str(line.get("quantity_per_serving_g") or "").strip()
+            matched = (
+                _ingredient_by_exact_name(session, ingredient_name) if ingredient_name else None
+            )
+            if matched is None:
+                warnings.append(f"食材库里没有「{ingredient_name}」，先建这条食材再改配方")
+            resolved.append(
+                {
+                    "食材": ingredient_name,
+                    "单份用量_克": quantity,
+                    "库里匹配": None if matched is None else matched.name,
+                }
+            )
+            if matched is not None and quantity:
+                payload_items.append(
+                    {"ingredient_id": str(matched.id), "quantity_per_serving_g": quantity}
+                )
+        payload_seasonings: list[dict[str, Any]] = []
+        for line in seasoning_items or []:
+            seasoning_name = str(line.get("seasoning_name") or "").strip()
+            matched_seasoning = (
+                _seasoning_by_exact_name(session, seasoning_name) if seasoning_name else None
+            )
+            if matched_seasoning is None:
+                warnings.append(f"调味料库里没有「{seasoning_name}」")
+                continue
+            payload_seasonings.append(
+                {
+                    "seasoning_id": str(matched_seasoning.id),
+                    "quantity_per_serving_g": line.get("quantity_per_serving_g"),
+                }
+            )
+        recipe_payload = {"ingredients": payload_items, "seasonings": payload_seasonings}
+        warnings.append(
+            f"配方是**整体替换**：原来的配方会被这一份（{len(resolved)} 行食材）换掉，版本号 +1，"
+            "并重算历史上所有用过它的日子的营养结果"
+        )
+    if not changes and recipe_payload is None:
+        warnings.append("没有给出任何要改的内容")
+
+    detail = dish_service.get_dish_detail(session, dish.id)
+    return {
+        "title": f"修改菜品：{dish.name}",
+        "summary": (
+            f"改菜品「{dish.name}」的 " + "、".join(DISH_EDITABLE[field] for field in changes)
+            if changes and recipe_payload is None
+            else (
+                f"替换菜品「{dish.name}」的配方"
+                if recipe_payload is not None and not changes
+                else f"改菜品「{dish.name}」的基础信息并替换配方"
+            )
+        ),
+        "preview": {
+            "将修改": [
+                {
+                    "字段": DISH_EDITABLE[field],
+                    "现在": _display(getattr(dish, field)),
+                    "改成": value,
+                }
+                for field, value in changes.items()
+            ],
+            "新配方食材": resolved or None,
+            "当前配方": None
+            if detail.recipe is None
+            else [
+                {"食材": item.ingredient_name, "单份用量_克": item.quantity_per_serving_g}
+                for item in detail.recipe.ingredients
+            ],
+            "提示": [*warnings, "确认后可以在这条方案上「撤回」，改回原来的字段与配方"],
+        },
+        "payload": {
+            "dish_id": str(dish.id),
+            "changes": changes,
+            "recipe": recipe_payload,
+        },
+    }
+
+
+def update_dish_execute(
+    session: Session, payload: dict[str, Any], *, actor: Any
+) -> ExecutionOutcome:
+    from app.modules.dish.schemas import DishUpdate, RecipePayload
+
+    dish_id = UUID(str(payload["dish_id"]))
+    changes: dict[str, Any] = dict(payload.get("changes") or {})
+    recipe_payload: dict[str, Any] | None = payload.get("recipe")
+    detail_before = dish_service.get_dish_detail(session, dish_id)
+    before_fields = {field: _raw(getattr(detail_before, field)) for field in changes}
+    before_recipe = (
+        None
+        if detail_before.recipe is None
+        else {
+            "ingredients": [
+                {
+                    "ingredient_id": str(item.ingredient_id),
+                    "quantity_per_serving_g": str(item.quantity_per_serving_g),
+                }
+                for item in detail_before.recipe.ingredients
+            ],
+            "seasonings": [
+                {
+                    "seasoning_id": str(item.seasoning_id),
+                    "quantity_per_serving_g": str(item.quantity_per_serving_g),
+                }
+                for item in detail_before.recipe.seasonings
+            ],
+        }
+    )
+
+    note = "经「AI 助手」提议、由本人确认后修改"
+    if changes:
+        dish_service.update_dish(
+            session,
+            dish_id,
+            DishUpdate(**changes),
+            actor_id=actor.id,
+            actor_name=actor.display_name,
+            audit_note=note,
+        )
+    recomputed = 0
+    if recipe_payload:
+        result = dish_service.replace_recipe(
+            session,
+            dish_id,
+            RecipePayload(
+                ingredients=recipe_payload["ingredients"],
+                seasonings=recipe_payload.get("seasonings") or [],
+            ),
+            actor_id=actor.id,
+            actor_name=actor.display_name,
+            audit_note=note,
+        )
+        recomputed = result.recomputed_rows
+
+    after = dish_service.get_dish_detail(session, dish_id)
+    undo_steps: list[UndoStep] = []
+    if before_recipe is not None or recipe_payload is not None:
+        undo_steps.append(
+            UndoStep(
+                tool="update_dish",
+                payload={
+                    "dish_id": str(dish_id),
+                    "changes": before_fields,
+                    "recipe": before_recipe,
+                },
+            )
+        )
+    elif before_fields:
+        undo_steps.append(
+            UndoStep(
+                tool="update_dish",
+                payload={"dish_id": str(dish_id), "changes": before_fields},
+            )
+        )
+    return ExecutionOutcome(
+        result={
+            "实体": "菜品",
+            "id": str(dish_id),
+            "菜品": after.name,
+            "改了": list(changes) + (["配方"] if recipe_payload else []),
+            "重算营养结果": recomputed,
+        },
+        undo=tuple(undo_steps),
+    )
+
+
+def deactivate_dish_draft(
+    session: Session, *, name: str, reason: str | None = None
+) -> dict[str, Any]:
+    """停用菜品（软删除）。预览里说明它被历史菜单引用过多少次。"""
+    dish = _dish_or_fail(session, name)
+    used = dish_service.dish_menu_usage(session, dish.id)
+    warnings = [
+        f"有 {used} 天供应过它；停用之后它不再出现在菜单与推荐里，历史数据与营养结果都保留（可以再启用）"
+    ]
+    if reason:
+        warnings.append(f"理由：{reason}")
+    return {
+        "title": f"停用菜品：{dish.name}",
+        "summary": f"把菜品「{dish.name}」停用（软删除，历史菜单引用 {used} 次）",
+        "preview": {
+            "将停用": {"菜品": dish.name, "类别": dish.category_label, "被引用": used},
+            "提示": [*warnings, "可以撤回"],
+        },
+        "payload": {"dish_id": str(dish.id), "reason": reason},
+    }
+
+
+def deactivate_dish_execute(
+    session: Session, payload: dict[str, Any], *, actor: Any
+) -> ExecutionOutcome:
+    dish_id = UUID(str(payload["dish_id"]))
+    reason = payload.get("reason") or None
+    note = "经「AI 助手」提议、由本人确认后停用"
+    if reason:
+        note = f"{note}（{reason}）"
+    stopped = dish_service.deactivate_dish(
+        session,
+        dish_id,
+        actor_id=actor.id,
+        actor_name=actor.display_name,
+        audit_note=note,
+    )
+    return ExecutionOutcome(
+        result={"实体": "菜品", "id": str(dish_id), "菜品": stopped.name, "状态": "已停用"},
+        undo=(UndoStep(tool="reactivate_dish", payload={"dish_id": str(dish_id)}),),
+    )
+
+
+def reactivate_ingredient_execute(
+    session: Session, payload: dict[str, Any], *, actor: Any
+) -> ExecutionOutcome:
+    """撤回「停用食材」时要走的那一步。只给撤回用，不暴露给模型。"""
+    ingredient_id = UUID(str(payload["ingredient_id"]))
+    restored = ingredient_service.reactivate_ingredient(
+        session,
+        ingredient_id,
+        actor_id=actor.id,
+        actor_name=actor.display_name,
+        audit_note="撤回 AI 助手的停用：重新启用",
+    )
+    return ExecutionOutcome(
+        result={"实体": "食材", "id": str(restored.id), "名称": restored.name, "状态": "已启用"}
+    )
+
+
+def reactivate_dish_execute(
+    session: Session, payload: dict[str, Any], *, actor: Any
+) -> ExecutionOutcome:
+    """撤回「停用菜品」时要走的那一步。只给撤回用。"""
+    dish_id = UUID(str(payload["dish_id"]))
+    restored = dish_service.reactivate_dish(
+        session,
+        dish_id,
+        actor_id=actor.id,
+        actor_name=actor.display_name,
+        audit_note="撤回 AI 助手的停用：重新启用",
+    )
+    return ExecutionOutcome(
+        result={"实体": "菜品", "id": str(dish_id), "菜品": restored.name, "状态": "已启用"}
+    )
+
+
+# 改与停用：同样是「先出方案、确认后执行」，但要多给两样东西
+# ---------------------------------------------------------------------------
+#: 改与停用的预览都要带上「影响面」与「怎么撤回」——这两样缺了，用户就是在盲签
+INGREDIENT_EDITABLE = {
+    "energy_kcal": "能量_千卡每100克",
+    "protein_g": "蛋白质_克每100克",
+    "fat_g": "脂肪_克每100克",
+    "carb_g": "碳水_克每100克",
+    "sodium_mg": "钠_毫克每100克",
+    "edible_ratio": "可食部比例",
+    "unit_price": "单价_元每公斤市品",
+    "data_source": "数据来源",
+    "source_version": "来源版本",
+    "note": "备注",
+}
+
+
+def _ingredient_or_fail(session: Session, name: str) -> Any:
+    ingredient = _ingredient_by_exact_name(session, name)
+    if ingredient is None:
+        raise BusinessRuleError(f"食材库里没有「{name}」，先确认名字（可以先查一下食材库）")
+    return ingredient
+
+
+def _dish_or_fail(session: Session, name: str) -> Any:
+    page = dish_service.list_dishes(session, keyword=name, page=1, page_size=MAX_ROWS)
+    dish = next((row for row in page.items if row.name == name), None)
+    if dish is None:
+        raise BusinessRuleError(f"菜品库里没有「{name}」，先确认名字（可以先查一下菜品）")
+    return dish
+
+
+def update_ingredient_draft(
+    session: Session,
+    *,
+    name: str,
+    energy_kcal: str | None = None,
+    protein_g: str | None = None,
+    fat_g: str | None = None,
+    carb_g: str | None = None,
+    sodium_mg: str | None = None,
+    edible_ratio: str | None = None,
+    unit_price: str | None = None,
+    data_source: str | None = None,
+    source_version: str | None = None,
+    note: str | None = None,
+) -> dict[str, Any]:
+    """修改食材。预览里把「现在的值 → 改成什么」逐项列出来。"""
+    ingredient = _ingredient_or_fail(session, name)
+    changes = {
+        field: value
+        for field, value in (
+            ("energy_kcal", energy_kcal),
+            ("protein_g", protein_g),
+            ("fat_g", fat_g),
+            ("carb_g", carb_g),
+            ("sodium_mg", sodium_mg),
+            ("edible_ratio", edible_ratio),
+            ("unit_price", unit_price),
+            ("data_source", data_source),
+            ("source_version", source_version),
+            ("note", note),
+        )
+        if value not in (None, "")
+    }
+    current = {
+        "名称": ingredient.name,
+        **{
+            label: _display(getattr(ingredient, field))
+            for field, label in INGREDIENT_EDITABLE.items()
+        },
+    }
+    warnings: list[str] = []
+    if not changes:
+        warnings.append("没有给出任何要修改的字段，请说明改哪一项、改成多少")
+    if "energy_kcal" in changes or "data_source" in changes:
+        warnings.append(
+            "改了营养成分或来源之后，用到这个食材的菜品营养结果需要重算才准"
+            "（保存时系统会按配方重算历史结果）"
+        )
+    return {
+        "title": f"修改食材：{ingredient.name}",
+        "summary": f"把食材「{ingredient.name}」的 "
+        + "、".join(INGREDIENT_EDITABLE[field] for field in changes)
+        + " 改掉",
+        "preview": {
+            "将修改": [
+                {
+                    "字段": INGREDIENT_EDITABLE[field],
+                    "现在": current.get(INGREDIENT_EDITABLE[field], "—"),
+                    "改成": value,
+                }
+                for field, value in changes.items()
+            ],
+            "当前值": current,
+            "提示": [*warnings, "确认后可以在这条方案上「撤回」，改回原来的值"],
+        },
+        "payload": {"ingredient_id": str(ingredient.id), "changes": changes},
+    }
+
+
+def update_ingredient_execute(
+    session: Session, payload: dict[str, Any], *, actor: Any
+) -> ExecutionOutcome:
+    from app.modules.ingredient.schemas import IngredientUpdate
+
+    ingredient_id = UUID(str(payload["ingredient_id"]))
+    changes: dict[str, Any] = dict(payload["changes"])
+    # 撤回要把这些字段改回原样，所以先记下它们「原来是什么」。
+    # 这份快照只在执行这一刻是准的，因此由 execute 给出、随方案一起落库
+    current = ingredient_service.get_ingredient(session, ingredient_id)
+    before = {field: _raw(getattr(current, field)) for field in changes}
+
+    updated = ingredient_service.update_ingredient(
+        session,
+        ingredient_id,
+        IngredientUpdate(**changes),
+        actor_id=actor.id,
+        actor_name=actor.display_name,
+        audit_note="经「AI 助手」提议、由本人确认后修改",
+    )
+    return ExecutionOutcome(
+        result={"实体": "食材", "id": str(updated.id), "名称": updated.name, "改了": list(changes)},
+        undo=(
+            UndoStep(
+                tool="update_ingredient",
+                payload={"ingredient_id": str(ingredient_id), "changes": before},
+            ),
+        ),
+    )
+
+
+def deactivate_ingredient_draft(
+    session: Session, *, name: str, reason: str | None = None
+) -> dict[str, Any]:
+    """停用食材（软删除）。预览里说明它被多少配方用着——这就是影响面。"""
+    ingredient = _ingredient_or_fail(session, name)
+    used = dish_service.count_recipes_using_ingredient(session, ingredient.id)
+    warnings = [
+        f"有 {used} 个配方在用它；停用之后这些菜品的营养计算会缺这一项（数据不删除，可以再启用）"
+    ]
+    if reason:
+        warnings.append(f"理由：{reason}")
+    return {
+        "title": f"停用食材：{ingredient.name}",
+        "summary": f"把食材「{ingredient.name}」停用（软删除，{used} 个配方引用中）",
+        "preview": {
+            "将停用": {"名称": ingredient.name, "类别": ingredient.category_label, "被引用": used},
+            "提示": [
+                *warnings,
+                "停用只是从可选清单里拿掉，历史记录与营养结果都保留；可以撤回",
+            ],
+        },
+        "payload": {"ingredient_id": str(ingredient.id), "reason": reason},
+    }
+
+
+def deactivate_ingredient_execute(
+    session: Session, payload: dict[str, Any], *, actor: Any
+) -> ExecutionOutcome:
+    ingredient_id = UUID(str(payload["ingredient_id"]))
+    reason = payload.get("reason") or None
+    note = "经「AI 助手」提议、由本人确认后停用"
+    if reason:
+        note = f"{note}（{reason}）"
+    stopped = ingredient_service.deactivate_ingredient(
+        session,
+        ingredient_id,
+        actor_id=actor.id,
+        actor_name=actor.display_name,
+        audit_note=note,
+    )
+    return ExecutionOutcome(
+        result={"实体": "食材", "id": str(stopped.id), "名称": stopped.name, "状态": "已停用"},
+        undo=(
+            UndoStep(
+                tool="reactivate_ingredient",
+                payload={"ingredient_id": str(ingredient_id)},
+            ),
+        ),
+    )
 
 
 def _schema(properties: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
@@ -697,6 +1232,141 @@ TOOLS: tuple[Tool, ...] = (
         build_draft=create_dish_draft,
         execute=create_dish_execute,
     ),
+    Tool(
+        name="update_ingredient",
+        label="修改食材",
+        description=(
+            "修改食材库里的营养值、可食部、单价、来源或备注。"
+            "**写操作：调用只生成待确认的方案**（含「现在的值 → 改成什么」），要用户确认后才执行。"
+            "用 name 定位食材（库里叫什么就写什么），其余字段只给要改的。"
+        ),
+        parameters=_schema(
+            {
+                "name": {"type": "string", "description": "要改的食材名称（库里现有名字）"},
+                "energy_kcal": {"type": "string", "description": "能量（千卡/100 克可食部）"},
+                "protein_g": {"type": "string"},
+                "fat_g": {"type": "string"},
+                "carb_g": {"type": "string"},
+                "sodium_mg": {"type": "string"},
+                "edible_ratio": {"type": "string", "description": "可食部比例 0~1"},
+                "unit_price": {"type": "string", "description": "单价（元/公斤市品）"},
+                "data_source": {"type": "string", "description": "数据来源（改了要能追溯）"},
+                "source_version": {"type": "string"},
+                "note": {"type": "string"},
+            },
+            required=["name"],
+        ),
+        read_only=False,
+        build_draft=update_ingredient_draft,
+        execute=update_ingredient_execute,
+    ),
+    Tool(
+        name="deactivate_ingredient",
+        label="停用食材",
+        description=(
+            "把食材停用（软删除：从可选清单里拿掉，历史数据保留、可以再启用）。"
+            "**写操作：调用只生成待确认的方案**，方案里会写明有多少个配方在用它。"
+        ),
+        parameters=_schema(
+            {
+                "name": {"type": "string", "description": "食材名称"},
+                "reason": {"type": "string", "description": "停用理由（会记进留痕）"},
+            },
+            required=["name"],
+        ),
+        read_only=False,
+        build_draft=deactivate_ingredient_draft,
+        execute=deactivate_ingredient_execute,
+    ),
+    Tool(
+        name="update_dish",
+        label="修改菜品与配方",
+        description=(
+            "改菜品的类别、做法、标准份量等；也可以**整体替换配方**（给 recipe_items 时）。"
+            "**写操作：调用只生成待确认的方案**。配方是整体替换语义，方案里会列出原配方与新配方。"
+        ),
+        parameters=_schema(
+            {
+                "name": {"type": "string", "description": "菜品名称（库里现有名字）"},
+                "category": {
+                    "type": "string",
+                    "description": "类别代码：STAPLE/SOUP/MEAT/HALF_MEAT/VEGETABLE/OTHER",
+                },
+                "cooking_method": {
+                    "type": "string",
+                    "description": "做法代码：STEAM/BOIL/STIR_FRY/DEEP_FRY/BRAISE/COLD_MIX",
+                },
+                "standard_serving_g": {"type": "string"},
+                "servings_per_pot": {"type": "string"},
+                "note": {"type": "string"},
+                "recipe_items": {
+                    "type": "array",
+                    "description": "给了就整体替换配方；每行一份单份用量（克，市品重量）",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "ingredient_name": {"type": "string"},
+                            "quantity_per_serving_g": {"type": "string"},
+                        },
+                        "required": ["ingredient_name", "quantity_per_serving_g"],
+                    },
+                },
+                "seasoning_items": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "seasoning_name": {"type": "string"},
+                            "quantity_per_serving_g": {"type": "string"},
+                        },
+                        "required": ["seasoning_name", "quantity_per_serving_g"],
+                    },
+                },
+            },
+            required=["name"],
+        ),
+        read_only=False,
+        build_draft=update_dish_draft,
+        execute=update_dish_execute,
+    ),
+    Tool(
+        name="deactivate_dish",
+        label="停用菜品",
+        description=(
+            "把菜品停用（软删除：不再出现在菜单与推荐里，历史营养结果保留、可以再启用）。"
+            "**写操作：调用只生成待确认的方案**，方案里会写明被历史菜单引用过多少次。"
+        ),
+        parameters=_schema(
+            {
+                "name": {"type": "string", "description": "菜品名称"},
+                "reason": {"type": "string", "description": "停用理由（会记进留痕）"},
+            },
+            required=["name"],
+        ),
+        read_only=False,
+        build_draft=deactivate_dish_draft,
+        execute=deactivate_dish_execute,
+    ),
+    Tool(
+        name="reactivate_ingredient",
+        label="重新启用食材",
+        description="撤回「停用食材」时用。不直接暴露给模型调用。",
+        parameters=_schema({"ingredient_id": {"type": "string"}}, required=["ingredient_id"]),
+        read_only=False,
+        build_draft=lambda session, **kwargs: kwargs,
+        execute=reactivate_ingredient_execute,
+        hidden=True,
+    ),
+    Tool(
+        name="reactivate_dish",
+        label="重新启用菜品",
+        description="撤回「停用菜品」时用。不直接暴露给模型调用。",
+        parameters=_schema({"dish_id": {"type": "string"}}, required=["dish_id"]),
+        read_only=False,
+        build_draft=lambda session, **kwargs: kwargs,
+        execute=reactivate_dish_execute,
+        hidden=True,
+    ),
 )
 
 TOOLS_BY_NAME: dict[str, Tool] = {tool.name: tool for tool in TOOLS}
@@ -734,7 +1404,11 @@ def assert_write_boundary() -> None:
 
 
 def tool_payload() -> list[dict[str, Any]]:
-    """给模型看的工具清单（OpenAI 的函数调用格式）。"""
+    """给模型看的工具清单（OpenAI 的函数调用格式）。
+
+    隐藏工具不在这里出现：它们只服务于「撤回」，模型自己调没有意义——
+    那会让「撤回」变成模型的一次自由发挥，而不是用户点按钮的结果。
+    """
     return [
         {
             "type": "function",
@@ -745,4 +1419,8 @@ def tool_payload() -> list[dict[str, Any]]:
             },
         }
         for tool in TOOLS
+        if not tool.hidden
     ]
+
+
+# ---------------------------------------------------------------------------

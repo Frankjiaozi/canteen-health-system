@@ -132,7 +132,13 @@ def update_ingredient(
     *,
     actor_id: UUID | None = None,
     actor_name: str | None = None,
+    audit_note: str | None = None,
 ) -> Ingredient:
+    """局部更新。
+
+    `audit_note` 用来标出这条改动的来源（例如「经 AI 助手提议、由本人确认后修改」）——
+    与 create 保持同一个口径，审计时才能一眼分清人改的还是助手代改的。
+    """
     ingredient = get_ingredient(session, ingredient_id)
     changes = payload.model_dump(exclude_unset=True)
 
@@ -158,6 +164,7 @@ def update_ingredient(
             actor_name=actor_name,
             before=before,
             after=after,
+            note=audit_note,
         )
     session.commit()
     return ingredient
@@ -170,6 +177,7 @@ def deactivate_ingredient(
     actor_id: UUID | None = None,
     actor_name: str | None = None,
     note: str | None = None,
+    audit_note: str | None = None,
 ) -> Ingredient:
     """停用（软删除）食材。
 
@@ -191,7 +199,42 @@ def deactivate_ingredient(
         actor_id=actor_id,
         actor_name=actor_name,
         before=_snapshot(ingredient),
-        note=note or "停用食材（软删除）",
+        note=audit_note or note or "停用食材（软删除）",
+    )
+    session.commit()
+    return ingredient
+
+
+def reactivate_ingredient(
+    session: Session,
+    ingredient_id: UUID,
+    *,
+    actor_id: UUID | None = None,
+    actor_name: str | None = None,
+    audit_note: str | None = None,
+) -> Ingredient:
+    """重新启用被停用的食材。
+
+    停用是软删除，所以是**可以退回来**的；而「撤回一次误停用」正是最需要退回来的那种操作
+    （助手或人点错一下，食材在库里就消失了）。这条路径原来只有界面上的「编辑」能间接做到
+    （改 is_active 而不是靠 update 载荷），所以在这里显式补上。
+    """
+    ingredient = get_ingredient(session, ingredient_id)
+    if ingredient.is_active:
+        return ingredient
+
+    ingredient.is_active = True
+    session.flush()
+
+    audit_service.record(
+        session,
+        entity_type=ENTITY_TYPE,
+        entity_id=ingredient.id,
+        action=AuditAction.UPDATE,
+        actor_id=actor_id,
+        actor_name=actor_name,
+        after=_snapshot(ingredient),
+        note=audit_note or "重新启用食材",
     )
     session.commit()
     return ingredient

@@ -72,6 +72,9 @@ class ProposalRead(BaseModel):
     #: 执行结果（新建出来的实体与关键字段），失败时是原因
     result: dict[str, Any] | None = None
     error: str | None = None
+    #: 能不能撤回：已执行 + 留下了撤回步骤。界面据此决定给不给「撤回」按钮
+    can_revoke: bool = False
+    revoked_at: datetime | None = None
 
 
 class ConversationSummary(BaseModel):

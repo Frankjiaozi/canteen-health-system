@@ -58,6 +58,15 @@ export async function cancelProposal(id: string): Promise<ProposalRead> {
   );
 }
 
+/** 撤回已执行的方案：把数据改回执行之前的样子。 */
+export async function revokeProposal(id: string): Promise<ProposalRead> {
+  return unwrap(
+    await api.POST('/api/v1/assistant/proposals/{proposal_id}/revoke', {
+      params: { path: { proposal_id: id } },
+    }),
+  );
+}
+
 export interface StreamHandlers {
   onStart?: (conversationId: string) => void;
   onToolStart?: (name: string, label: string) => void;

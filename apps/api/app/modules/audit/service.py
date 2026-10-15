@@ -6,9 +6,11 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
@@ -44,3 +46,17 @@ def record(
     )
     session.add(entry)
     return entry
+
+
+def has_change_after(session: Session, *, entity_id: UUID | str, since: datetime) -> bool:
+    """这条数据在 `since` 之后有没有被改过。
+
+    「撤回」靠它守一条底线：如果同一条数据在执行之后又被别人改过，
+    撤回就会把那次改动一起抹掉。宁可拒绝撤回并让人手工核对，也不要悄悄覆盖别人的活。
+    """
+    total = session.scalar(
+        select(func.count())
+        .select_from(AuditLog)
+        .where(AuditLog.entity_id == str(entity_id), AuditLog.created_at > since)
+    )
+    return bool(total)

@@ -19,6 +19,7 @@ from typing import Any
 from uuid import UUID
 
 import pytest
+from app.core.errors import BusinessRuleError
 from app.db.session import get_session_factory
 from app.modules.assistant import providers, repository, service, tools
 from app.modules.assistant.router import get_chat_provider
@@ -26,8 +27,10 @@ from app.modules.assistant.schemas import ChatRequest
 from app.modules.audit.models import AuditLog
 from app.modules.auth.repository import get_by_username
 from app.modules.auth.service import to_auth_user
+from app.modules.dish import service as dish_service
 from app.modules.dish.models import Dish
 from app.modules.ingredient.models import Ingredient
+from app.modules.nutrition.models import DishNutrition
 from app.shared.enums import AssistantProposalStatus, AuditAction
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -59,11 +62,16 @@ def cleanup_assistant_rows() -> Iterator[None]:
     """用例造出来的助手数据（含确认后真的建出来的食材/菜品）用完就删。
 
     这些行会留在开发库里影响后续用例与演示；按名字前缀能安全地只删自己造的。
+    **顺序不能反**：营养结果与配方都以外键指着菜品/食材（RESTRICT），
+    先删菜品会报外键冲突——实测踩到过。营养结果 → 菜品（配方随菜品 CASCADE）→ 食材。
     """
     yield
     with get_session_factory()() as session:
-        session.execute(delete(Ingredient).where(Ingredient.name.like("助手测试%")))
+        dish_ids = list(session.scalars(select(Dish.id).where(Dish.name.like("助手测试%"))))
+        if dish_ids:
+            session.execute(delete(DishNutrition).where(DishNutrition.dish_id.in_(dish_ids)))
         session.execute(delete(Dish).where(Dish.name.like("助手测试%")))
+        session.execute(delete(Ingredient).where(Ingredient.name.like("助手测试%")))
         session.commit()
 
 
@@ -157,9 +165,22 @@ def test_write_tools_cannot_bypass_confirmation() -> None:
     tools.assert_write_boundary()
 
     write_tools = [tool for tool in tools.TOOLS if not tool.read_only]
-    assert {tool.name for tool in write_tools} == {"create_ingredient", "create_dish_with_recipe"}
+    assert {tool.name for tool in write_tools} >= {
+        "create_ingredient",
+        "update_ingredient",
+        "deactivate_ingredient",
+        "create_dish_with_recipe",
+        "update_dish",
+        "deactivate_dish",
+    }
     read_tools = [tool for tool in tools.TOOLS if tool.read_only]
     assert len(read_tools) >= 6
+
+    # 撤回专用的工具不给模型看：撤回必须是「用户点了按钮」的结果，
+    # 不能变成模型自己的一次自由发挥
+    offered = {item["function"]["name"] for item in tools.tool_payload()}
+    assert {"reactivate_ingredient", "reactivate_dish"} <= set(tools.TOOLS_BY_NAME)
+    assert not {"reactivate_ingredient", "reactivate_dish"} & offered
 
 
 def test_write_tool_only_creates_a_pending_proposal(db_session: Session, actor) -> None:
@@ -337,6 +358,287 @@ def test_dish_write_tool_reports_ingredients_missing_from_the_library(
 # ---------------------------------------------------------------------------
 # 对话落库（审计）
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# 改与删，以及撤回
+# ---------------------------------------------------------------------------
+def _make_ingredient(client: TestClient, name: str, **overrides: Any) -> dict:
+    """用接口建一条测试用食材（走的是与人一样的录入路径）。"""
+    payload = {
+        "name": name,
+        "category": "VEGETABLE",
+        "data_source": "助手测试来源",
+        "energy_kcal": "36",
+        "unit_price": "6.0",
+        **overrides,
+    }
+    response = client.post("/api/v1/ingredients", json=payload)
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+def _proposal_of(scripted: ScriptedProvider, actor, session: Session, message: str = "改一下"):
+    return _ask(session, actor, scripted, message)
+
+
+def test_update_ingredient_shows_before_and_after_without_writing(
+    as_recorder: TestClient, db_session: Session, actor
+) -> None:
+    """改食材的方案要把「现在的值 → 改成什么」摆出来，而且**一个字都不写**。"""
+    _make_ingredient(as_recorder, "助手测试单价菜", unit_price="6.0")
+
+    scripted = ScriptedProvider(
+        [
+            _call(
+                "update_ingredient",
+                '{"name": "助手测试单价菜", "unit_price": "7.5"}',
+            ),
+            providers.ProviderReply(text="方案好了，请确认。"),
+        ]
+    )
+    reply = _proposal_of(scripted, actor, db_session, "把助手测试单价菜的单价改成 7.5")
+
+    preview = reply.proposals[0].preview
+    assert preview["将修改"] == [{"字段": "单价_元每公斤市品", "现在": "6", "改成": "7.5"}]
+
+    row = db_session.scalar(select(Ingredient).where(Ingredient.name == "助手测试单价菜"))
+    db_session.refresh(row)
+    assert str(row.unit_price) == "6.00", "待确认阶段不该写库"
+
+
+def test_update_ingredient_execute_then_revoke_restores_the_value(
+    as_recorder: TestClient, db_session: Session, actor
+) -> None:
+    """改完之后撤回，要回到原来的值。"""
+    _make_ingredient(as_recorder, "助手测试回滚菜", unit_price="6.0")
+    ingredient_id = db_session.scalar(
+        select(Ingredient.id).where(Ingredient.name == "助手测试回滚菜")
+    )
+
+    outcome = tools.update_ingredient_execute(
+        db_session,
+        {"ingredient_id": str(ingredient_id), "changes": {"unit_price": "9.9"}},
+        actor=actor,
+    )
+    db_session.expire_all()
+    assert (
+        str(db_session.scalar(select(Ingredient).where(Ingredient.id == ingredient_id)).unit_price)
+        == "9.90"
+    )
+    assert outcome.undo and outcome.undo[0].tool == "update_ingredient"
+
+    # 撤回步骤直接执行一次（界面上是点「撤回」，走的是同一条路径）
+    tools.TOOLS_BY_NAME["update_ingredient"].execute(
+        db_session, outcome.undo[0].payload, actor=actor
+    )
+    db_session.expire_all()
+    assert (
+        str(db_session.scalar(select(Ingredient).where(Ingredient.id == ingredient_id)).unit_price)
+        == "6.00"
+    )
+
+
+def test_update_dish_draft_lists_fields_and_recipe(
+    as_recorder: TestClient, db_session: Session
+) -> None:
+    """改菜品的方案要把基础字段与「原配方 → 新配方」都摆出来（这里专门盯 draft 路径）。"""
+    created = _make_ingredient(as_recorder, "助手测试草案配料", energy_kcal="100")
+    dish = as_recorder.post(
+        "/api/v1/dishes",
+        json={
+            "name": "助手测试草案菜",
+            "category": "VEGETABLE",
+            "cooking_method": "STIR_FRY",
+            "standard_serving_g": "150",
+            "servings_per_pot": "10",
+            "recipe": {
+                "ingredients": [{"ingredient_id": created["id"], "quantity_per_serving_g": "80"}],
+                "seasonings": [],
+            },
+        },
+    )
+    assert dish.status_code == 201, dish.text
+
+    draft = tools.update_dish_draft(
+        db_session,
+        name="助手测试草案菜",
+        standard_serving_g="180",
+        recipe_items=[{"ingredient_name": "助手测试草案配料", "quantity_per_serving_g": "120"}],
+    )
+
+    assert draft["preview"]["将修改"] == [{"字段": "标准份量_克", "现在": "150", "改成": "180"}]
+    assert draft["preview"]["当前配方"] == [{"食材": "助手测试草案配料", "单份用量_克": "80.000"}]
+    assert draft["preview"]["新配方食材"][0]["库里匹配"] == "助手测试草案配料"
+    assert any("整体替换" in hint for hint in draft["preview"]["提示"])
+
+
+def test_deactivate_ingredient_reports_impact_and_can_be_reverted(
+    as_recorder: TestClient, db_session: Session, actor
+) -> None:
+    """停用是软删除：方案里要写出影响面，撤回就是重新启用。"""
+    created = _make_ingredient(as_recorder, "助手测试停用菜")
+    ingredient_id = UUID(created["id"])
+
+    draft = tools.deactivate_ingredient_draft(db_session, name="助手测试停用菜")
+    assert "被引用" in draft["preview"]["将停用"]
+    assert any("可以撤回" in hint for hint in draft["preview"]["提示"])
+
+    outcome = tools.deactivate_ingredient_execute(
+        db_session, {"ingredient_id": str(ingredient_id), "reason": "用例"}, actor=actor
+    )
+    db_session.expire_all()
+    assert (
+        db_session.scalar(select(Ingredient).where(Ingredient.id == ingredient_id)).is_active
+        is False
+    )
+    assert outcome.undo and outcome.undo[0].tool == "reactivate_ingredient"
+
+    tools.TOOLS_BY_NAME["reactivate_ingredient"].execute(
+        db_session, outcome.undo[0].payload, actor=actor
+    )
+    db_session.expire_all()
+    assert (
+        db_session.scalar(select(Ingredient).where(Ingredient.id == ingredient_id)).is_active
+        is True
+    )
+
+
+def test_update_dish_recipe_can_be_reverted(
+    as_recorder: TestClient, db_session: Session, actor
+) -> None:
+    """改配方是整体替换，撤回要把原来那份配方放回去。"""
+    created = _make_ingredient(as_recorder, "助手测试配料", energy_kcal="100")
+    dish = as_recorder.post(
+        "/api/v1/dishes",
+        json={
+            "name": "助手测试回滚菜",
+            "category": "VEGETABLE",
+            "cooking_method": "STIR_FRY",
+            "standard_serving_g": "150",
+            "servings_per_pot": "10",
+            "recipe": {
+                "ingredients": [{"ingredient_id": created["id"], "quantity_per_serving_g": "80"}],
+                "seasonings": [],
+            },
+        },
+    )
+    assert dish.status_code == 201, dish.text
+    dish_id = UUID(dish.json()["id"])
+
+    outcome = tools.update_dish_execute(
+        db_session,
+        {
+            "dish_id": str(dish_id),
+            "changes": {},
+            "recipe": {
+                "ingredients": [{"ingredient_id": created["id"], "quantity_per_serving_g": "120"}],
+                "seasonings": [],
+            },
+        },
+        actor=actor,
+    )
+    assert outcome.undo and outcome.undo[0].payload["recipe"] is not None
+    after = dish_service.get_dish_detail(db_session, dish_id)
+    assert after.recipe is not None
+    assert after.recipe.ingredients[0].quantity_per_serving_g == "120.000"
+
+    tools.TOOLS_BY_NAME["update_dish"].execute(db_session, outcome.undo[0].payload, actor=actor)
+    restored = dish_service.get_dish_detail(db_session, dish_id)
+    assert restored.recipe is not None
+    assert restored.recipe.ingredients[0].quantity_per_serving_g == "80.000"
+
+
+def test_revoke_refuses_when_someone_changed_the_data_afterwards(
+    as_recorder: TestClient, db_session: Session, actor
+) -> None:
+    """执行之后别人又改过同一条数据时，撤回要拒绝——否则会把那次改动一起抹掉。"""
+    created = _make_ingredient(as_recorder, "助手测试抢改菜", unit_price="6.0")
+    ingredient_id = UUID(created["id"])
+
+    scripted = ScriptedProvider(
+        [
+            _call(
+                "update_ingredient",
+                '{"name": "助手测试抢改菜", "unit_price": "7.5"}',
+            ),
+            providers.ProviderReply(text="请确认。"),
+        ]
+    )
+    reply = _proposal_of(scripted, actor, db_session, "改单价")
+    proposal_id = UUID(reply.proposals[0].id)
+    service.confirm_proposal(db_session, proposal_id=proposal_id, actor=actor)
+
+    # 别人（同一个账号也行）后来又改了一次同一条数据
+    as_recorder.patch(f"/api/v1/ingredients/{ingredient_id}", json={"unit_price": "8.8"})
+
+    with pytest.raises(BusinessRuleError) as error:
+        service.revoke_proposal(db_session, proposal_id=proposal_id, actor=actor)
+
+    assert "又被改过" in str(error.value)
+
+
+def test_revoke_only_applies_to_confirmed_proposals(
+    as_recorder: TestClient, db_session: Session, actor
+) -> None:
+    """待确认的撤不了（取消即可），已撤回的不能再来一次。"""
+    _make_ingredient(as_recorder, "助手测试状态菜", unit_price="6.0")
+    scripted = ScriptedProvider(
+        [
+            _call("update_ingredient", '{"name": "助手测试状态菜", "unit_price": "7"}'),
+            providers.ProviderReply(text="请确认。"),
+        ]
+    )
+    reply = _proposal_of(scripted, actor, db_session, "改单价")
+    proposal_id = UUID(reply.proposals[0].id)
+
+    with pytest.raises(BusinessRuleError) as pending_error:
+        service.revoke_proposal(db_session, proposal_id=proposal_id, actor=actor)
+    assert "不能撤回" in str(pending_error.value)
+
+    service.confirm_proposal(db_session, proposal_id=proposal_id, actor=actor)
+    first = service.revoke_proposal(db_session, proposal_id=proposal_id, actor=actor)
+    assert first.status is AssistantProposalStatus.REVERTED
+    assert first.revoked_at is not None
+
+    with pytest.raises(BusinessRuleError) as again:
+        service.revoke_proposal(db_session, proposal_id=proposal_id, actor=actor)
+    assert "已经撤回" in str(again.value)
+
+
+def test_revoke_endpoint_works_for_the_owner(
+    as_recorder: TestClient, install_provider: Callable[[ScriptedProvider], ScriptedProvider]
+) -> None:
+    as_recorder.post(
+        "/api/v1/ingredients",
+        json={
+            "name": "助手测试接口撤回",
+            "category": "VEGETABLE",
+            "data_source": "助手测试来源",
+            "unit_price": "6.0",
+        },
+    )
+    install_provider(
+        ScriptedProvider(
+            [
+                _call(
+                    "update_ingredient",
+                    '{"name": "助手测试接口撤回", "unit_price": "9.0"}',
+                ),
+                providers.ProviderReply(text="请确认。"),
+            ]
+        )
+    )
+    created = as_recorder.post(f"{BASE}/chat", json={"message": "改单价"}).json()
+    proposal_id = created["proposals"][0]["id"]
+
+    confirmed = as_recorder.post(f"{BASE}/proposals/{proposal_id}/confirm").json()
+    assert confirmed["can_revoke"] is True
+
+    reverted = as_recorder.post(f"{BASE}/proposals/{proposal_id}/revoke")
+    assert reverted.status_code == 200, reverted.text
+    assert reverted.json()["status"] == "REVERTED"
+    assert reverted.json()["status_label"] == "已撤回"
+
+
 def test_conversation_and_messages_are_persisted(db_session: Session, actor) -> None:
     scripted = ScriptedProvider([providers.ProviderReply(text="今天供应 5 道菜。")])
 
@@ -748,8 +1050,14 @@ def test_school_admin_can_read_all_conversations(
     assert rows, "学校管理方应当能看到对话列表"
 
 
-def test_no_tool_can_delete_anything(as_recorder: TestClient) -> None:
-    """助手这一版能新增，不能删改——删数据的工具必须等更严的闸门才谈得上。"""
-    assert not any(
-        verb in tool.name for tool in tools.TOOLS for verb in ("delete", "remove", "deactivate")
-    )
+def test_destructive_tools_are_soft_delete_only(as_recorder: TestClient) -> None:
+    """助手能做的最「狠」的事是停用（软删除），而且必须能撤回。
+
+    物理删除在域层就不存在（食材/菜品都是软删），助手也够不到；
+    这里把这条钉住：名字里带 deactivate 的工具都在，且都留下了撤回步骤的机制。
+    """
+    destructive = [tool for tool in tools.TOOLS if tool.name.startswith("deactivate_")]
+    assert {tool.name for tool in destructive} == {"deactivate_ingredient", "deactivate_dish"}
+    assert all(tool.execute is not None for tool in destructive)
+    # 配套的「重新启用」必须存在，否则撤回无从谈起
+    assert {"reactivate_ingredient", "reactivate_dish"} <= set(tools.TOOLS_BY_NAME)

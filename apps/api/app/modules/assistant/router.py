@@ -176,3 +176,16 @@ def cancel_proposal(
     actor: AuthUser = Depends(get_current_user),
 ) -> ProposalRead:
     return service.cancel_proposal(session, proposal_id=proposal_id, actor=actor)
+
+
+@router.post(
+    "/proposals/{proposal_id}/revoke",
+    response_model=ProposalRead,
+    summary="撤回已执行的方案（把数据改回执行之前）",
+)
+def revoke_proposal(
+    proposal_id: UUID,
+    session: Session = Depends(get_session),
+    actor: AuthUser = Depends(get_current_user),
+) -> ProposalRead:
+    return service.revoke_proposal(session, proposal_id=proposal_id, actor=actor)

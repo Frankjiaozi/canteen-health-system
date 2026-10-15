@@ -211,6 +211,8 @@ class AssistantProposalStatus(LabelledStrEnum):
     CONFIRMED = "CONFIRMED"
     CANCELLED = "CANCELLED"
     FAILED = "FAILED"
+    #: 确认执行之后又撤回来的。撤回本身也是一次写入，所以它同样是留痕的一部分
+    REVERTED = "REVERTED"
 
 
 # ---------------------------------------------------------------------------
@@ -320,6 +322,7 @@ ENUM_LABELS: dict[tuple[type[LabelledStrEnum], str], str] = {
     (AssistantProposalStatus, AssistantProposalStatus.CONFIRMED.value): "已确认并执行",
     (AssistantProposalStatus, AssistantProposalStatus.CANCELLED.value): "已取消",
     (AssistantProposalStatus, AssistantProposalStatus.FAILED.value): "执行失败",
+    (AssistantProposalStatus, AssistantProposalStatus.REVERTED.value): "已撤回",
 }
 
 

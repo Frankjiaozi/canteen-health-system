@@ -34,6 +34,7 @@ from app.modules.assistant.schemas import (
     ProposalRead,
     ToolCallTrace,
 )
+from app.modules.audit import service as audit_service
 from app.modules.auth.schemas import AuthUser
 from app.shared.enums import AssistantMessageRole, AssistantProposalStatus, UserRole
 
@@ -426,6 +427,12 @@ def read_proposal(row: AssistantProposal) -> ProposalRead:
         decided_at=row.decided_at,
         result=row.result,
         error=row.error,
+        can_revoke=(
+            row.status is AssistantProposalStatus.CONFIRMED
+            and bool(row.undo)
+            and row.revoked_at is None
+        ),
+        revoked_at=row.revoked_at,
     )
 
 
@@ -456,7 +463,7 @@ def confirm_proposal(session: Session, *, proposal_id: UUID, actor: AuthUser) ->
     proposal.decided_by = actor.id
     proposal.decided_at = datetime.now(get_settings().timezone)
     try:
-        result = tool.execute(session, proposal.payload, actor=actor)
+        outcome = tool.execute(session, proposal.payload, actor=actor)
     except (AppError, ValidationError) as error:
         # 执行失败也要落痕：方案留在 FAILED，原因写清楚，必要时改参数重试
         session.rollback()
@@ -476,7 +483,13 @@ def confirm_proposal(session: Session, *, proposal_id: UUID, actor: AuthUser) ->
     if reloaded is None:
         raise NotFoundError("这条方案不存在")
     reloaded.status = AssistantProposalStatus.CONFIRMED
-    reloaded.result = result
+    reloaded.result = outcome.result
+    # 撤回要做的事跟着结果一起落库：它只有在执行这一刻是准的
+    reloaded.undo = (
+        [{"tool": step.tool, "payload": step.payload} for step in outcome.undo]
+        if outcome.undo
+        else None
+    )
     reloaded.error = None
     session.commit()
     logger.info("方案已确认执行：%s（%s）", reloaded.title, actor.display_name)
@@ -492,6 +505,56 @@ def cancel_proposal(session: Session, *, proposal_id: UUID, actor: AuthUser) -> 
     proposal.decided_at = datetime.now(get_settings().timezone)
     session.commit()
     return read_proposal(proposal)
+
+
+def revoke_proposal(session: Session, *, proposal_id: UUID, actor: AuthUser) -> ProposalRead:
+    """撤回一条已经执行的方案：把数据改回执行之前的样子。
+
+    这是「误操作」的出口，所以它本身也要有边界：
+
+    - 只有**已执行**的方案能撤回（待确认的直接取消就行，什么也没发生）；
+    - 执行时没给出撤回步骤的（例如将来某些不可逆的操作）如实说不能撤回；
+    - **同一条数据在执行之后又被别人改过的话，拒绝撤回**——否则会把别人那一次改动一起抹掉。
+      宁可让人手工核对，也不做这种「静默覆盖」。
+    """
+    proposal = _load_proposal(session, proposal_id, actor)
+    if proposal.status is AssistantProposalStatus.REVERTED:
+        raise BusinessRuleError("这条方案已经撤回过了")
+    if proposal.status is not AssistantProposalStatus.CONFIRMED:
+        raise BusinessRuleError(f"这条方案是「{proposal.status.label}」，不能撤回")
+    if not proposal.undo:
+        raise BusinessRuleError("这条操作没有留下撤回步骤（不可逆），请到对应页面手工订正")
+
+    decided_at = proposal.decided_at or proposal.updated_at
+    for step in proposal.undo:
+        entity_id = next(
+            (value for key, value in (step.get("payload") or {}).items() if key.endswith("_id")),
+            None,
+        )
+        if entity_id and audit_service.has_change_after(
+            session, entity_id=entity_id, since=decided_at
+        ):
+            raise BusinessRuleError(
+                "这条数据在执行之后又被改过了，撤回会连那一次改动一起抹掉；"
+                "请先看清当前值，需要的话手工改回去"
+            )
+
+    for step in proposal.undo:
+        tool = tools.TOOLS_BY_NAME.get(str(step.get("tool")))
+        if tool is None or tool.execute is None:
+            raise BusinessRuleError(f"撤回步骤「{step.get('tool')}」已经不可用")
+        tool.execute(session, dict(step.get("payload") or {}), actor=actor)
+
+    reloaded = repository.get_proposal(session, proposal_id)
+    if reloaded is None:
+        raise NotFoundError("这条方案不存在")
+    reloaded.status = AssistantProposalStatus.REVERTED
+    reloaded.revoked_by = actor.id
+    reloaded.revoked_at = datetime.now(get_settings().timezone)
+    reloaded.error = None
+    session.commit()
+    logger.info("方案已撤回：%s（%s）", reloaded.title, actor.display_name)
+    return read_proposal(reloaded)
 
 
 # ---------------------------------------------------------------------------

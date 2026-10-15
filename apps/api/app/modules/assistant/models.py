@@ -118,5 +118,13 @@ class AssistantProposal(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     #: 执行结果（新建出来的实体 id 与关键字段），失败时是错误原因
     result: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     error: Mapped[str | None] = mapped_column(String(512))
+    #: 撤回这份方案要做的事（一串 {tool, payload}），执行成功时由 execute 给出。
+    #: 存下来而不是执行时现算：**撤回必须把数据改回「执行之前」的样子**，
+    #: 而那套值只有执行的那一刻拿得到——事后推测出来的东西不敢往下写。
+    undo: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
+    revoked_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (enum_check("status", AssistantProposalStatus),)

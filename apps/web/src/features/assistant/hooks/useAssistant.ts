@@ -7,6 +7,7 @@ import {
   fetchAssistantStatus,
   fetchConversation,
   fetchConversations,
+  revokeProposal,
   streamAssistantMessage,
 } from '../api/assistantApi';
 import type { ToolCallTrace } from '../types';
@@ -84,20 +85,27 @@ export function useDecideProposal() {
   const { message } = App.useApp();
 
   return useMutation({
-    mutationFn: (input: { id: string; action: 'confirm' | 'cancel' }) =>
-      input.action === 'confirm' ? confirmProposal(input.id) : cancelProposal(input.id),
+    mutationFn: (input: { id: string; action: 'confirm' | 'cancel' | 'revoke' }) =>
+      input.action === 'confirm'
+        ? confirmProposal(input.id)
+        : input.action === 'cancel'
+          ? cancelProposal(input.id)
+          : revokeProposal(input.id),
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: assistantKeys.conversations });
       await queryClient.invalidateQueries({ queryKey: ['ingredient'] });
       await queryClient.invalidateQueries({ queryKey: ['dish'] });
       await queryClient.invalidateQueries({ queryKey: ['collection'] });
       const ok = result.status === 'CONFIRMED';
-      void message[ok || result.status === 'CANCELLED' ? 'success' : 'error'](
+      const done = ok || result.status === 'CANCELLED' || result.status === 'REVERTED';
+      void message[done ? 'success' : 'error'](
         ok
           ? `${result.title}：已执行`
           : result.status === 'CANCELLED'
             ? '已取消，什么也没有发生'
-            : (result.error ?? '执行失败'),
+            : result.status === 'REVERTED'
+              ? `${result.title}：已撤回，数据改回原来的样子`
+              : (result.error ?? '执行失败'),
         6,
       );
     },

@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Space, Table, Tag, Typography } from 'antd';
+import { Alert, Button, Card, Popconfirm, Space, Table, Tag, Typography } from 'antd';
 import { describeProposalStatus, toPreviewBlocks } from '../lib/proposal';
 import type { ProposalRead } from '../types';
 
@@ -17,7 +17,7 @@ export function ProposalCard({
 }: {
   proposal: ProposalRead;
   deciding: boolean;
-  onDecide: (action: 'confirm' | 'cancel') => void;
+  onDecide: (action: 'confirm' | 'cancel' | 'revoke') => void;
 }) {
   const verdict = describeProposalStatus(proposal.status, proposal.status_label);
   const blocks = toPreviewBlocks(proposal.preview ?? {});
@@ -101,15 +101,49 @@ export function ProposalCard({
       ) : null}
 
       {proposal.status === 'CONFIRMED' && proposal.result ? (
+        <>
+          <Alert
+            type="success"
+            showIcon
+            style={{ marginTop: 12 }}
+            message={`已执行：${Object.entries(proposal.result)
+              .filter(([key]) => key !== 'id')
+              .map(([key, value]) => `${key} ${String(value)}`)
+              .join('，')}`}
+            description={`由 ${proposal.created_by_name ?? '—'} 确认`}
+          />
+          {proposal.can_revoke ? (
+            <Popconfirm
+              title="撤回这次操作？"
+              description={
+                <div style={{ maxWidth: 280 }}>
+                  把这条数据改回执行之前的样子。如果它在这之后又被改过，撤回会被拒绝——
+                  那种情况请手工核对后再改。
+                </div>
+              }
+              okText="撤回"
+              cancelText="算了"
+              onConfirm={() => onDecide('revoke')}
+            >
+              <Button style={{ marginTop: 12 }} loading={deciding}>
+                撤回这次操作
+              </Button>
+            </Popconfirm>
+          ) : null}
+        </>
+      ) : null}
+
+      {proposal.status === 'REVERTED' ? (
         <Alert
-          type="success"
+          type="info"
           showIcon
           style={{ marginTop: 12 }}
-          message={`已执行：${Object.entries(proposal.result)
-            .filter(([key]) => key !== 'id')
-            .map(([key, value]) => `${key} ${String(value)}`)
-            .join('，')}`}
-          description={`由 ${proposal.created_by_name ?? '—'} 确认`}
+          message="已撤回"
+          description={`数据已经改回执行之前的样子${
+            proposal.revoked_at
+              ? `（${new Date(proposal.revoked_at).toLocaleString('zh-CN')}）`
+              : ''
+          }`}
         />
       ) : null}
 
