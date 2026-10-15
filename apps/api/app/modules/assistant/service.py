@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -209,7 +210,35 @@ def chat(
     payload: ChatRequest,
     provider: providers.ChatProvider,
 ) -> ChatReply:
-    """跑一轮对话（可能来回几次工具调用），返回最终回答、用到的工具与待确认方案。"""
+    """跑一轮对话并返回最终结果。**实现只有一套**——它就是 `chat_stream` 的薄包装：
+
+    非流式只是「把流抽干再返回最后一个事件」。两条路各写一遍的话，
+    迟早出现「流式那版忘了落库」这类只在其中一条路上发生的 bug。
+    """
+    reply: ChatReply | None = None
+    for event in chat_stream(session, actor=actor, payload=payload, provider=provider):
+        if event["type"] == "done":
+            reply = ChatReply(**event["reply"])
+        elif event["type"] == "error":
+            raise BusinessRuleError(str(event["message"]))
+    if reply is None:
+        raise BusinessRuleError("助手没有返回结果")
+    return reply
+
+
+def chat_stream(
+    session: Session,
+    *,
+    actor: AuthUser,
+    payload: ChatRequest,
+    provider: providers.ChatProvider,
+) -> Iterator[dict[str, Any]]:
+    """跑一轮对话，边跑边把过程吐出来。
+
+    事件类型：`start`（对话 id）、`tool_start`（开始查什么）、`tool`（查得怎么样）、
+    `delta`（回答的一个片段）、`done`（最终结果，含待确认方案）、`error`。
+    界面上「正在查食材库…」和逐字出现的回答都来自这里；`done` 之后才落库与提交。
+    """
     max_rounds = get_settings().assistant_max_tool_rounds
     now = datetime.now(get_settings().timezone)
     conversation = _resolve_conversation(session, actor=actor, payload=payload, now=now)
@@ -227,13 +256,22 @@ def chat(
         content=payload.message,
         now=now,
     )
+    yield {"type": "start", "conversation_id": str(conversation.id)}
 
     traces: list[ToolCallTrace] = []
     proposals: list[AssistantProposal] = []
     for round_index in range(1, max_rounds + 1):
-        reply = provider.complete(messages=messages, tools=tools.tool_payload())
+        reply: providers.ProviderReply | None = None
+        for chunk in provider.stream(messages=messages, tools=tools.tool_payload()):
+            if chunk.text:
+                yield {"type": "delta", "text": chunk.text}
+            if chunk.reply is not None:
+                reply = chunk.reply
+        if reply is None:
+            raise BusinessRuleError("模型没有返回结果")
+
         if not reply.tool_calls:
-            return _finish(
+            answered = _finish(
                 session,
                 conversation=conversation,
                 text=reply.text.strip() or "（模型没有给出回答）",
@@ -244,6 +282,8 @@ def chat(
                 truncated=False,
                 now=now,
             )
+            yield {"type": "done", "reply": answered.model_dump(mode="json")}
+            return
 
         messages.append(
             {
@@ -260,14 +300,21 @@ def chat(
             }
         )
         for call in reply.tool_calls:
-            result, trace = _run_tool(
+            tool = tools.TOOLS_BY_NAME.get(call.name)
+            yield {
+                "type": "tool_start",
+                "name": call.name,
+                "label": tool.label if tool else call.name,
+            }
+            tool_result, trace = _run_tool(
                 session, actor, call, conversation=conversation, created=proposals
             )
             traces.append(trace)
-            messages.append(_tool_message(call.id, result, trace.ok))
+            messages.append(_tool_message(call.id, tool_result, trace.ok))
+            yield {"type": "tool", "trace": trace.model_dump(mode="json")}
 
     logger.warning("助手到了工具调用轮次上限（%d 轮）仍未收敛", max_rounds)
-    return _finish(
+    final = _finish(
         session,
         conversation=conversation,
         text=(
@@ -281,6 +328,7 @@ def chat(
         truncated=True,
         now=now,
     )
+    yield {"type": "done", "reply": final.model_dump(mode="json")}
 
 
 def _resolve_conversation(

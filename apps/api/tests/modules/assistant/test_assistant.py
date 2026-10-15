@@ -83,6 +83,15 @@ class ScriptedProvider:
             return providers.ProviderReply(text="（剧本用完了）")
         return self._script.pop(0)
 
+    def stream(self, *, messages, tools):  # type: ignore[no-untyped-def]
+        """按剧本流式回答：文字分两段吐，最后一块带上完整回复（含工具调用）。"""
+        reply = self.complete(messages=messages, tools=tools)
+        if reply.text:
+            half = max(1, len(reply.text) // 2)
+            yield providers.StreamChunk(text=reply.text[:half])
+            yield providers.StreamChunk(text=reply.text[half:])
+        yield providers.StreamChunk(reply=reply)
+
 
 def _call(name: str, arguments: str = "{}", call_id: str = "call-1") -> providers.ProviderReply:
     return providers.ProviderReply(
@@ -117,6 +126,11 @@ def forbid_real_model(api_app: FastAPI) -> Iterator[None]:
         model = None
 
         def complete(self, *, messages, tools):  # type: ignore[no-untyped-def]
+            raise AssertionError(
+                "测试里不许调用真实模型，请用 install_provider 注入脚本化 provider"
+            )
+
+        def stream(self, *, messages, tools):  # type: ignore[no-untyped-def]
             raise AssertionError(
                 "测试里不许调用真实模型，请用 install_provider 注入脚本化 provider"
             )
@@ -510,6 +524,104 @@ def test_chat_stops_at_the_round_limit(db_session: Session, actor) -> None:
 # ---------------------------------------------------------------------------
 # 接口
 # ---------------------------------------------------------------------------
+def test_tool_call_fragments_are_assembled() -> None:
+    """流式返回的工具调用是分片的，不攒起来就会拿到半个 JSON。
+
+    半个 JSON 的后果很隐蔽：参数字典解析成空，工具以「没有参数」的方式静默跑错。
+    """
+    accumulator = providers.ToolCallAccumulator()
+    accumulator.feed(
+        [
+            {
+                "index": 0,
+                "id": "call_1",
+                "function": {"name": "get_dashboard", "arguments": '{"days"'},
+            }
+        ]
+    )
+    accumulator.feed([{"index": 0, "function": {"arguments": ": 7}"}}])
+
+    calls = accumulator.result()
+
+    assert len(calls) == 1
+    assert calls[0].name == "get_dashboard"
+    assert calls[0].arguments == '{"days": 7}'
+
+
+def test_sse_parser_skips_noise_instead_of_crashing() -> None:
+    """心跳、注释行、半截 JSON 一律跳过：一条坏块不该把整轮对话打断。"""
+    lines = [
+        "",
+        ": ping",
+        "data: not-json",
+        'data: {"choices":[{"delta":{"content":"好"}}]}',
+        "event: done",
+        "data: [DONE]",
+        'data: {"choices":[{"delta":{"content":"不该出现"}}]}',
+    ]
+
+    events = list(providers.iter_sse_data(lines))
+
+    assert len(events) == 1
+    assert events[0]["choices"][0]["delta"]["content"] == "好"
+
+
+def test_stream_emits_events_in_order(db_session: Session, actor) -> None:
+    """事件顺序：开聊 → 开始查 → 查完 → 逐段回答 → 结束（结束块里带完整结果）。"""
+    scripted = ScriptedProvider(
+        [
+            _call("get_dashboard", '{"days": 7}'),
+            providers.ProviderReply(text="最近 7 天食盐正常。"),
+        ]
+    )
+
+    events = list(
+        service.chat_stream(
+            db_session,
+            actor=actor,
+            payload=ChatRequest(message="最近七天怎么样？"),
+            provider=scripted,
+        )
+    )
+
+    kinds = [event["type"] for event in events]
+    assert kinds[0] == "start"
+    assert kinds[1] == "tool_start"
+    assert kinds[2] == "tool"
+    assert "delta" in kinds
+    assert kinds[-1] == "done"
+
+    streamed = "".join(event["text"] for event in events if event["type"] == "delta")
+    done = events[-1]["reply"]
+    assert streamed == "最近 7 天食盐正常。"
+    assert done["reply"] == streamed, "拼起来的片段必须与最终答案一致"
+    assert done["conversation_id"]
+    assert done["tool_calls"][0]["name"] == "get_dashboard"
+
+
+def test_stream_endpoint_returns_event_stream(
+    as_recorder: TestClient, install_provider: Callable[[ScriptedProvider], ScriptedProvider]
+) -> None:
+    install_provider(ScriptedProvider([providers.ProviderReply(text="今天午餐有 5 道菜。")]))
+
+    response = as_recorder.post(f"{BASE}/chat/stream", json={"message": "今天吃什么？"})
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert '"type": "delta"' in response.text
+    assert '"type": "done"' in response.text
+    assert "今天午餐有 5 道菜。" in response.text
+
+    # 流式这条路同样要落库：对话与消息都查得到
+    conversations = as_recorder.get(f"{BASE}/conversations").json()
+    assert conversations
+    detail = as_recorder.get(f"{BASE}/conversations/{conversations[0]['id']}").json()
+    assert [message["content"] for message in detail["messages"]] == [
+        "今天吃什么？",
+        "今天午餐有 5 道菜。",
+    ]
+
+
 def test_status_matches_whether_a_model_is_configured(as_recorder: TestClient) -> None:
     """状态接口说的必须与配置一致。
 

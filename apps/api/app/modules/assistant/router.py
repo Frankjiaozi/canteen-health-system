@@ -9,13 +9,18 @@
 
 from __future__ import annotations
 
+import json
+import logging
+from collections.abc import Iterator
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.db.session import get_session
+from app.core.errors import AppError
+from app.db.session import get_session, get_session_factory
 from app.modules.assistant import providers, service
 from app.modules.assistant.schemas import (
     AssistantStatus,
@@ -31,6 +36,8 @@ from app.modules.auth.dependencies import get_current_user
 from app.modules.auth.schemas import AuthUser
 
 router = APIRouter(prefix="/assistant", tags=["AI 助手"])
+
+logger = logging.getLogger(__name__)
 
 
 def get_chat_provider() -> providers.ChatProvider:
@@ -94,6 +101,55 @@ def chat(
     provider: providers.ChatProvider = Depends(get_chat_provider),
 ) -> ChatReply:
     return service.chat(session, actor=actor, payload=payload, provider=provider)
+
+
+def _sse(event: dict[str, object]) -> str:
+    """一条 SSE 消息。用 `data:` 单行 JSON，前端按行解析即可。"""
+    return f"data: {json.dumps(event, ensure_ascii=False, default=str)}\n\n"
+
+
+@router.post(
+    "/chat/stream",
+    summary="问助手一句话（流式：边查边回）",
+    response_class=StreamingResponse,
+)
+def chat_stream(
+    payload: ChatRequest,
+    actor: AuthUser = Depends(get_current_user),
+    provider: providers.ChatProvider = Depends(get_chat_provider),
+) -> StreamingResponse:
+    """流式问答。
+
+    数据库会话在这里自己开、自己在生成器结束时关：`Depends(get_session)` 的生命周期
+    是跟着请求走的，而流式响应要等生成器跑完才算结束——自己管更明确，不赌框架的时序。
+    """
+
+    def events() -> Iterator[str]:
+        session = get_session_factory()()
+        try:
+            for event in service.chat_stream(
+                session, actor=actor, payload=payload, provider=provider
+            ):
+                yield _sse(event)
+        except AppError as error:
+            session.rollback()
+            yield _sse({"type": "error", "message": error.message})
+        except Exception as error:
+            session.rollback()
+            logger.exception("助手流式对话失败：%s", error)
+            yield _sse({"type": "error", "message": "助手出错了，请稍后重试"})
+        finally:
+            session.close()
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={
+            # 关掉缓冲：nginx 与浏览器默认会攒一段再发，那就看不到「边查边回」了
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post(

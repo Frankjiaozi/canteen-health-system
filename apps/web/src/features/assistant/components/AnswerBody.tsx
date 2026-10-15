@@ -55,8 +55,8 @@ export function AnswerBody({ text }: { text: string }) {
               size="small"
               pagination={false}
               scroll={{ x: true }}
-              rowKey={(_, rowIndex) => String(rowIndex)}
-              dataSource={block.rows.map((cells) => ({ cells }))}
+              rowKey="key"
+              dataSource={block.rows.map((cells, index) => ({ key: `row-${index}`, cells }))}
               columns={block.header.map((title, columnIndex) => ({
                 title,
                 dataIndex: ['cells', columnIndex],

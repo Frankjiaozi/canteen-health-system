@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -42,6 +43,17 @@ class ProviderReply:
     tool_calls: list[ProviderToolCall] = field(default_factory=list)
 
 
+@dataclass(frozen=True, slots=True)
+class StreamChunk:
+    """流式返回的一小步。
+
+    `text` 是这一段新增的文字；`reply` 只在**最后**一块上给（那时工具调用才拼全）。
+    """
+
+    text: str = ""
+    reply: ProviderReply | None = None
+
+
 class ChatProvider(Protocol):
     """模型接入的最小接口。测试里用一个「照着剧本回答」的实现替掉真实网络调用。"""
 
@@ -50,6 +62,10 @@ class ChatProvider(Protocol):
     def complete(
         self, *, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
     ) -> ProviderReply: ...
+
+    def stream(
+        self, *, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
+    ) -> Iterator[StreamChunk]: ...
 
 
 class OpenAICompatibleProvider:
@@ -99,6 +115,49 @@ class OpenAICompatibleProvider:
             )
         return _parse_reply(response.json())
 
+    def stream(
+        self, *, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
+    ) -> Iterator[StreamChunk]:
+        """按 SSE 读增量。工具调用的参数是**碎片**，必须自己攒起来。"""
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": self._temperature,
+            "stream": True,
+        }
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
+
+        accumulator = ToolCallAccumulator()
+        text_parts: list[str] = []
+        try:
+            with self._client.stream("POST", self._url, json=payload) as response:
+                if response.status_code >= 400:
+                    detail = response.read().decode("utf-8", "ignore")[:300]
+                    raise ServiceUnavailableError(
+                        f"模型服务返回 {response.status_code}：{detail}。请核对 "
+                        "ASSISTANT_BASE_URL / ASSISTANT_API_KEY / ASSISTANT_MODEL 是否配对"
+                    )
+                for event in iter_sse_data(response.iter_lines()):
+                    delta = _first_delta(event)
+                    if delta is None:
+                        continue
+                    piece = delta.get("content")
+                    if piece:
+                        text_parts.append(str(piece))
+                        yield StreamChunk(text=str(piece))
+                    calls = delta.get("tool_calls")
+                    if calls:
+                        accumulator.feed(calls)
+        except httpx.HTTPError as error:
+            logger.warning("模型流式调用失败：%s", error)
+            raise ServiceUnavailableError(f"连不上模型服务（{self._url}）：{error}") from error
+
+        yield StreamChunk(
+            reply=ProviderReply(text="".join(text_parts), tool_calls=accumulator.result())
+        )
+
 
 def _parse_reply(body: dict[str, Any]) -> ProviderReply:
     """把 OpenAI 格式的响应读成我们要的形状。读不出来就报错，不猜。"""
@@ -115,6 +174,69 @@ def _parse_reply(body: dict[str, Any]) -> ProviderReply:
         for index, call in enumerate(message.get("tool_calls") or [])
     ]
     return ProviderReply(text=str(message.get("content") or ""), tool_calls=calls)
+
+
+def iter_sse_data(lines: Iterable[str]) -> Iterator[dict[str, Any]]:
+    """从 SSE 行里取出 data 载荷。
+
+    认不出来的行直接跳过（注释行、心跳、半截的 JSON）：一条坏块不该让整轮对话断掉，
+    模型那边偶尔会发出空行或非 JSON 的片段。
+    """
+    for line in lines:
+        entry = line.strip()
+        if not entry or entry.startswith(":") or not entry.startswith("data:"):
+            continue
+        payload = entry[len("data:") :].strip()
+        if payload == "[DONE]":
+            return
+        try:
+            parsed = json.loads(payload)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            yield parsed
+
+
+def _first_delta(event: dict[str, Any]) -> dict[str, Any] | None:
+    choices = event.get("choices") or []
+    if not choices:
+        return None
+    delta = choices[0].get("delta")
+    return delta if isinstance(delta, dict) else None
+
+
+class ToolCallAccumulator:
+    """把流式返回的工具调用碎片拼回完整的调用。
+
+    OpenAI 兼容协议里，工具调用是**分片**送来的：第一片带 id 与函数名，
+    参数按字符陆续到达（`{"days"` / `: 7}`）。不攒起来就会拿到半个 JSON，
+    而半个 JSON 只会让工具以「参数为空」的方式静默跑错。
+    """
+
+    def __init__(self) -> None:
+        self._parts: dict[int, dict[str, str]] = {}
+
+    def feed(self, calls: list[dict[str, Any]]) -> None:
+        for position, call in enumerate(calls):
+            index = int(call.get("index", position))
+            entry = self._parts.setdefault(index, {"id": "", "name": "", "arguments": ""})
+            if call.get("id"):
+                entry["id"] = str(call["id"])
+            function = call.get("function") or {}
+            if function.get("name"):
+                entry["name"] = str(function["name"])
+            if function.get("arguments"):
+                entry["arguments"] += str(function["arguments"])
+
+    def result(self) -> list[ProviderToolCall]:
+        return [
+            ProviderToolCall(
+                id=entry["id"] or f"call-{index}",
+                name=entry["name"],
+                arguments=entry["arguments"] or "{}",
+            )
+            for index, entry in sorted(self._parts.items())
+        ]
 
 
 def build_provider(settings: Settings) -> ChatProvider:

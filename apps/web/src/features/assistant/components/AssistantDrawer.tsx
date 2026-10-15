@@ -1,5 +1,5 @@
 import { HistoryOutlined, RobotOutlined, SendOutlined } from '@ant-design/icons';
-import { Alert, Button, Drawer, Empty, Input, List, Space, Spin, Tag, Typography } from 'antd';
+import { Alert, Button, Drawer, Empty, Input, Space, Spin, Tag, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useState } from 'react';
 import {
@@ -83,18 +83,56 @@ export function AssistantDrawer({ open, onClose }: { open: boolean; onClose: () 
       ) : null}
 
       {showHistory ? (
-        <List
-          size="small"
-          header={<Typography.Text type="secondary">最近对话（含助手做过的操作）</Typography.Text>}
-          bordered
-          loading={conversations.isLoading}
-          dataSource={conversations.data ?? []}
-          locale={{ emptyText: '还没有对话记录' }}
-          renderItem={(row) => (
-            <List.Item
-              actions={[
+        // 自己摆而不是用 antd 的 List：那个组件在当前版本已标记废弃，
+        // 为一个「几条历史」引一个待替换的组件不划算
+        <div
+          style={{
+            border: '1px solid #f0f0f0',
+            borderRadius: 8,
+            maxHeight: 240,
+            overflowY: 'auto',
+          }}
+        >
+          <div style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}>
+            <Typography.Text type="secondary">最近对话（含助手做过的操作）</Typography.Text>
+          </div>
+          {conversations.isLoading ? (
+            <div style={{ padding: 12 }}>
+              <Spin size="small" />
+            </div>
+          ) : (conversations.data ?? []).length === 0 ? (
+            <div style={{ padding: 12 }}>
+              <Typography.Text type="secondary">还没有对话记录</Typography.Text>
+            </div>
+          ) : (
+            (conversations.data ?? []).map((row) => (
+              <div
+                key={row.id}
+                style={{
+                  display: 'flex',
+                  gap: 8,
+                  alignItems: 'center',
+                  padding: '8px 12px',
+                  borderBottom: '1px solid #fafafa',
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <Typography.Text ellipsis style={{ display: 'block' }}>
+                    {row.title}
+                  </Typography.Text>
+                  <Space size={8} wrap>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                      {dayjs(row.last_message_at).format('MM-DD HH:mm')}
+                    </Typography.Text>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                      {row.user_name ?? '—'} · {row.message_count} 条消息
+                    </Typography.Text>
+                    {row.pending_proposals > 0 ? (
+                      <Tag color="orange">{row.pending_proposals} 条待确认</Tag>
+                    ) : null}
+                  </Space>
+                </div>
                 <Button
-                  key="open"
                   type="link"
                   size="small"
                   onClick={() => {
@@ -103,25 +141,11 @@ export function AssistantDrawer({ open, onClose }: { open: boolean; onClose: () 
                   }}
                 >
                   打开
-                </Button>,
-              ]}
-            >
-              <List.Item.Meta
-                title={row.title}
-                description={
-                  <Space size={8} wrap>
-                    <span>{dayjs(row.last_message_at).format('MM-DD HH:mm')}</span>
-                    <span>{row.user_name ?? '—'}</span>
-                    <span>{row.message_count} 条消息</span>
-                    {row.pending_proposals > 0 ? (
-                      <Tag color="orange">{row.pending_proposals} 条待确认</Tag>
-                    ) : null}
-                  </Space>
-                }
-              />
-            </List.Item>
+                </Button>
+              </div>
+            ))
           )}
-        />
+        </div>
       ) : null}
 
       {openId && opened.isPending ? (
@@ -169,35 +193,52 @@ function ConversationPane({
   const [proposals, setProposals] = useState<ProposalRead[]>(initialProposals);
   const [activeId, setActiveId] = useState<string | null>(conversationId);
   const [draft, setDraft] = useState('');
+  const [pending, setPending] = useState(false);
+  //: 正在查什么。工具是逐个跑的，先把「在查」显示出来，再补上结果
+  const [running, setRunning] = useState<string | null>(null);
 
   const send = async (question: string) => {
     const text = question.trim();
-    if (!text || ask.isPending) return;
+    if (!text || pending) return;
+    setPending(true);
     setMessages((current) => [
       ...current,
       { id: nextMessageId(current.length + 1), role: 'user', content: text },
     ]);
+    // 先摆一条空的助手消息，流式的文字与工具痕迹都往上叠
+    setMessages((current) => [
+      ...current,
+      { id: nextMessageId(current.length + 1), role: 'assistant', content: '', toolCalls: [] },
+    ]);
+    const patchLast = (patch: (message: ChatMessage) => ChatMessage) =>
+      setMessages((current) =>
+        current.map((item, index) => (index === current.length - 1 ? patch(item) : item)),
+      );
     setDraft('');
     try {
-      const reply = await ask.mutateAsync({ question: text, conversationId: activeId });
-      // 第一次提问之后服务端才给出对话 id，之后接着它问
-      setActiveId(reply.conversation_id);
-      setMessages((current) => [
-        ...current,
-        {
-          id: nextMessageId(current.length + 1),
-          role: 'assistant',
-          content: reply.reply,
-          toolCalls: reply.tool_calls ?? [],
-          truncated: reply.truncated,
+      const reply = await ask.ask(text, activeId, {
+        onStart: (id) => setActiveId(id),
+        onToolStart: (label) => setRunning(label),
+        onTool: (trace) => {
+          setRunning(null);
+          patchLast((item) => ({ ...item, toolCalls: [...(item.toolCalls ?? []), trace] }));
         },
-      ]);
+        onDelta: (chunk) => patchLast((item) => ({ ...item, content: item.content + chunk })),
+      });
+      patchLast((item) => ({ ...item, truncated: reply.truncated }));
       if ((reply.proposals ?? []).length > 0) {
         setProposals((current) => [...current, ...(reply.proposals ?? [])]);
       }
       onTurnFinished();
     } catch {
       // 失败提示已在 mutation 里给了；刚问的那句留在对话里，方便改一改再问
+      patchLast((item) => ({
+        ...item,
+        content: item.content || '（这次没有拿到回答，请再试一次）',
+      }));
+    } finally {
+      setPending(false);
+      setRunning(null);
     }
   };
 
@@ -247,9 +288,9 @@ function ConversationPane({
                 }
               />
             ))}
-            {ask.isPending ? (
+            {pending ? (
               <Typography.Text type="secondary">
-                <Spin size="small" /> 正在查……
+                <Spin size="small" /> {running ? `正在查 ${running}……` : '正在思考……'}
               </Typography.Text>
             ) : null}
           </Space>
@@ -259,7 +300,7 @@ function ConversationPane({
       <Space.Compact style={{ width: '100%' }}>
         <Input
           value={draft}
-          disabled={!enabled || ask.isPending}
+          disabled={!enabled || pending}
           placeholder={enabled ? '例如：最近两周盐用超了吗？' : '助手未接模型'}
           onChange={(event) => setDraft(event.target.value)}
           onPressEnter={() => void send(draft)}
@@ -268,7 +309,7 @@ function ConversationPane({
           type="primary"
           icon={<SendOutlined />}
           disabled={!enabled || draft.trim().length === 0}
-          loading={ask.isPending}
+          loading={pending}
           onClick={() => void send(draft)}
         >
           问
