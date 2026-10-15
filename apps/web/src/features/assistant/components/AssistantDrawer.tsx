@@ -2,6 +2,7 @@ import { RobotOutlined, SendOutlined } from '@ant-design/icons';
 import { Alert, Button, Drawer, Empty, Input, Space, Spin, Tag, Typography } from 'antd';
 import { useRef, useState } from 'react';
 import { useAssistantStatus, useAskAssistant } from '../hooks/useAssistant';
+import { AnswerBody } from './AnswerBody';
 import {
   SUGGESTIONS,
   buildHistory,
@@ -157,7 +158,6 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         border: '1px solid #f0f0f0',
         borderRadius: 8,
         padding: '8px 12px',
-        whiteSpace: 'pre-wrap',
       }}
     >
       {(message.toolCalls ?? []).length > 0 ? (
@@ -173,7 +173,11 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           ))}
         </Space>
       ) : null}
-      <Typography.Text>{message.content}</Typography.Text>
+      {isUser ? (
+        <Typography.Text style={{ whiteSpace: 'pre-wrap' }}>{message.content}</Typography.Text>
+      ) : (
+        <AnswerBody text={message.content} />
+      )}
       {message.truncated ? (
         <div style={{ marginTop: 6 }}>
           <Tag color="orange">没查完就停了，换个更具体的问法再试</Tag>
