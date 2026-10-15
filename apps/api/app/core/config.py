@@ -56,6 +56,18 @@ class Settings(BaseSettings):
     # 开发期前端走 Vite 代理访问后端，同源即可；生产由 nginx 反代，通常留空
     cors_origins: list[str] = []
 
+    # ---- AI 助手 ----
+    #: 模型端点，指向任何 OpenAI 兼容的 /chat/completions：
+    #: 云端 API 或内网的 vLLM / Ollama 都行，换模型不用改代码。
+    #: **留空即「未配置」**：接口返回 503 并说明原因，界面上不给「看起来能用」的假象。
+    assistant_base_url: str | None = None
+    assistant_api_key: str | None = None
+    assistant_model: str | None = None
+    assistant_timeout_seconds: float = 60.0
+    #: 一次对话最多来回几轮工具调用，防止模型陷在「调工具—再调工具」的循环里
+    assistant_max_tool_rounds: int = 4
+    assistant_temperature: float = 0.2
+
     # ---- 菜单推荐的营养目标 ----
     #: 全天的能量目标（千卡）。**这是一组演示值，待核实**：
     #: 营养配餐领域常引用《学生餐营养指南》卫生行业标准，但需求文档记录

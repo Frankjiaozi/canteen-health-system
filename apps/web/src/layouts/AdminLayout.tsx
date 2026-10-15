@@ -8,13 +8,15 @@ import {
   DesktopOutlined,
   ExperimentOutlined,
   FormOutlined,
+  RobotOutlined,
   LogoutOutlined,
   ScheduleOutlined,
 } from '@ant-design/icons';
 import { App, Avatar, Button, Layout, Menu, Space, Tag, Tooltip, Typography } from 'antd';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useCurrentUser, useLogout } from '@/features/auth/hooks/useAuth';
+import { AssistantDrawer } from '@/features/assistant/components/AssistantDrawer';
 import { usePendingCount, useSyncOfflineQueue } from '@/features/collection/hooks/useOfflineQueue';
 import { OfflineNotice } from '@/shared/components/OfflineNotice';
 import { findNavGroupKey, HOME_NAV, NAV_GROUPS, type NavGroup } from '@/shared/config/navigation';
@@ -58,6 +60,7 @@ export function AdminLayout() {
   const { data: user } = useCurrentUser();
   const logoutMutation = useLogout();
   const activeGroup = findNavGroupKey(location.pathname);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   // 待同步的采集单挂在应用外壳上补交：录入员停在任何管理页都会自动补上
   useSyncOfflineQueue();
   const pendingCount = usePendingCount();
@@ -111,6 +114,11 @@ export function AdminLayout() {
           <Typography.Text type="secondary">营养核算 · 采购预测 · 决策支持</Typography.Text>
 
           <Space size={12} wrap>
+            <Tooltip title="用一句话问数据：食材、配方、菜单、指标">
+              <Button icon={<RobotOutlined />} onClick={() => setAssistantOpen(true)}>
+                AI 助手
+              </Button>
+            </Tooltip>
             <Tooltip title="免登录打开的食堂公开大屏">
               <Button
                 icon={<DesktopOutlined />}
@@ -143,6 +151,7 @@ export function AdminLayout() {
           <Outlet />
         </Content>
       </Layout>
+      <AssistantDrawer open={assistantOpen} onClose={() => setAssistantOpen(false)} />
     </Layout>
   );
 }

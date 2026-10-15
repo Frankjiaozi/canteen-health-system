@@ -122,7 +122,33 @@ docker run --rm -v canteen-pg:/data -v "$PWD:/backup" alpine \
 | `POSTGRES_PASSWORD` / `JWT_SECRET` | 内置默认值 | 必须替换 |
 | `COOKIE_SECURE` | `false` | 有 HTTPS 时必须为 `true` |
 | `ALLOW_OPEN_REGISTRATION` | `true`（方便现场注册试用） | **必须为 `false`**，账号由管理员开通 |
+| `ASSISTANT_*`（AI 助手） | 可以留空（助手显示「未接模型」） | 指向**内网**模型端点，数据不出校 |
 | 种子脚本 | 可直接执行 | 需要 `ALLOW_DEMO_SEED=true` 显式放行 |
 
 种子脚本会写入口令已知的演示账号，因此生产环境默认拒绝执行；
 内网首次部署确实需要初始化演示数据时，按上面的命令显式放行一次即可。
+
+## 八、AI 助手接哪个模型
+
+助手（管理端右上角「AI 助手」）走**任何 OpenAI 兼容的 `/chat/completions`**，因此接哪一家由环境变量决定：
+
+```bash
+# 内网自部署（推荐：数据不出校）
+ASSISTANT_BASE_URL=http://127.0.0.1:8001/v1
+ASSISTANT_MODEL=Qwen3-8B-Instruct
+ASSISTANT_API_KEY=              # 内网端点通常不需要
+
+# 或云端兼容端点（仅演示；正式部署要按学校的数据要求评估）
+ASSISTANT_BASE_URL=https://api.example.com/v1
+ASSISTANT_API_KEY=sk-...
+ASSISTANT_MODEL=example-model
+```
+
+可选：`ASSISTANT_TIMEOUT_SECONDS`（默认 60）、`ASSISTANT_MAX_TOOL_ROUNDS`（默认 4，
+一次提问里最多来回几轮工具调用）、`ASSISTANT_TEMPERATURE`（默认 0.2）。
+
+**不配也能部署**：接口返回 503 并说明该配什么，界面上显示「未接模型」，
+不会出现「点了没反应」的输入框。想验证链路是否通，配好之后点一次助手问「今天吃什么」即可——
+它会调用只读工具去查库，回答里会列出查了哪些工具。
+
+**阶段一只能查、不能写。** 录入与修改类操作要等下一阶段（配确认卡片与审计）才开放。

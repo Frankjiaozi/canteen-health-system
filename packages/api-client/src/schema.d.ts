@@ -720,6 +720,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/assistant/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 助手是否可用、能做什么 */
+        get: operations["read_status_api_v1_assistant_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assistant/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 问助手一句话 */
+        post: operations["chat_api_v1_assistant_chat_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -744,6 +778,17 @@ export interface components {
             label: string;
             /** System */
             system: boolean;
+        };
+        /** AssistantStatus */
+        AssistantStatus: {
+            /** Enabled */
+            enabled: boolean;
+            /** Model */
+            model?: string | null;
+            /** Note */
+            note?: string | null;
+            /** Tools */
+            tools?: components["schemas"]["ToolInfo"][];
         };
         /**
          * AuthUser
@@ -851,6 +896,45 @@ export interface components {
          * @enum {string}
          */
         CalibrationSource: "DAILY_CLOSURE" | "SAMPLING";
+        /** ChatReply */
+        ChatReply: {
+            /** Reply */
+            reply: string;
+            /** Tool Calls */
+            tool_calls?: components["schemas"]["ToolCallTrace"][];
+            /**
+             * Rounds
+             * @default 0
+             */
+            rounds: number;
+            /** Model */
+            model?: string | null;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+        };
+        /** ChatRequest */
+        ChatRequest: {
+            /** Message */
+            message: string;
+            /** History */
+            history?: components["schemas"]["ChatTurn"][];
+        };
+        /**
+         * ChatTurn
+         * @description 一轮历史对话。客户端带上最近几轮，服务端不落库（阶段一不做会话持久化）。
+         */
+        ChatTurn: {
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "user" | "assistant";
+            /** Content */
+            content: string;
+        };
         /**
          * ClosureCheckRead
          * @description 当天实际总量与拟合预测的对照。
@@ -2995,6 +3079,46 @@ export interface components {
             rejected_reason?: string | null;
         };
         /**
+         * ToolCallTrace
+         * @description 助手这一轮调了哪个工具、参数是什么、结果如何。
+         *
+         *     暴露出来有两个用处：界面上能显示「正在查食材库…」，用户也能看见答案是从哪来的——
+         *     只给一段像模像样的话，没法核对。
+         */
+        ToolCallTrace: {
+            /** Name */
+            name: string;
+            /** Label */
+            label: string;
+            /** Arguments */
+            arguments?: {
+                [key: string]: unknown;
+            };
+            /** Ok */
+            ok: boolean;
+            /** Summary */
+            summary: string;
+            /** Error */
+            error?: string | null;
+        };
+        /**
+         * ToolInfo
+         * @description 一个工具能做什么。给界面做「助手能做什么」的说明，也便于排查。
+         */
+        ToolInfo: {
+            /** Name */
+            name: string;
+            /** Label */
+            label: string;
+            /** Description */
+            description: string;
+            /**
+             * Read Only
+             * @default true
+             */
+            read_only: boolean;
+        };
+        /**
          * TrendPoint
          * @description 某一天的油盐糖用量。
          */
@@ -3101,12 +3225,16 @@ export interface components {
 }
 export type SchemaAnomalyFlag = components['schemas']['AnomalyFlag'];
 export type SchemaAnomalyRead = components['schemas']['AnomalyRead'];
+export type SchemaAssistantStatus = components['schemas']['AssistantStatus'];
 export type SchemaAuthUser = components['schemas']['AuthUser'];
 export type SchemaBacktestPoint = components['schemas']['BacktestPoint'];
 export type SchemaBacktestResult = components['schemas']['BacktestResult'];
 export type SchemaBodyImportDishesApiV1ImportDishesPost = components['schemas']['Body_import_dishes_api_v1_import_dishes_post'];
 export type SchemaCalibrationFactorRead = components['schemas']['CalibrationFactorRead'];
 export type SchemaCalibrationSource = components['schemas']['CalibrationSource'];
+export type SchemaChatReply = components['schemas']['ChatReply'];
+export type SchemaChatRequest = components['schemas']['ChatRequest'];
+export type SchemaChatTurn = components['schemas']['ChatTurn'];
 export type SchemaClosureCheckRead = components['schemas']['ClosureCheckRead'];
 export type SchemaClosureFactorRead = components['schemas']['ClosureFactorRead'];
 export type SchemaClosureRunResponse = components['schemas']['ClosureRunResponse'];
@@ -3190,6 +3318,8 @@ export type SchemaStandardTarget = components['schemas']['StandardTarget'];
 export type SchemaSuggestionReason = components['schemas']['SuggestionReason'];
 export type SchemaSuggestionStatus = components['schemas']['SuggestionStatus'];
 export type SchemaSuggestionSummary = components['schemas']['SuggestionSummary'];
+export type SchemaToolCallTrace = components['schemas']['ToolCallTrace'];
+export type SchemaToolInfo = components['schemas']['ToolInfo'];
 export type SchemaTrendPoint = components['schemas']['TrendPoint'];
 export type SchemaTrendsResponse = components['schemas']['TrendsResponse'];
 export type SchemaUserRole = components['schemas']['UserRole'];
@@ -4819,6 +4949,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NutritionComparison"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_status_api_v1_assistant_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantStatus"];
+                };
+            };
+        };
+    };
+    chat_api_v1_assistant_chat_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatReply"];
                 };
             };
             /** @description Validation Error */
