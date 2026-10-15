@@ -137,6 +137,19 @@ def _rounded_parts(theoretical: DishNutrition) -> tuple[Decimal, Decimal]:
     return ingredient, seasoning
 
 
+def _seasoning_rounding_budget(theoretical: DishNutrition) -> Decimal:
+    """调味料合计允许相差多少：**只是一个取整余量，不是宽容度**。
+
+    引擎把「按类别的调味料贡献」逐类取整到两位小数再写进快照，而这里要跟
+    「先求和再取整」的 SQL 原值比，两种口径天生差一点：每类最多差半分钱，
+    合计自身再差半分钱。上界就是 ``0.005 × (类别数 + 1)``。
+
+    真把公式写错不会只差这点——差一个系数是几十千卡的量级。
+    """
+    categories = len(theoretical.computation_trace["seasoning_part"])
+    return Decimal("0.005") * (categories + 1)
+
+
 def _sampling_factor_count(session: Session, dish_id: UUID) -> int:
     """这道菜身上现有多少条抽样纠偏系数——用于断言「有没有多写一条」。"""
     session.expire_all()
@@ -166,7 +179,10 @@ def test_derived_factor_matches_hand_calculation(
 
     # 快照里的食材/调味料拆分必须与独立重算一致，否则下面的系数就是照着一个错基准算的
     assert ingredient_rounded == ingredient_energy.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    assert seasoning_rounded == seasoning_energy.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    seasoning_sql = seasoning_energy.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    assert abs(seasoning_rounded - seasoning_sql) <= _seasoning_rounding_budget(theoretical), (
+        f"调味料拆分的基准对不上：快照 {seasoning_rounded} vs 独立重算 {seasoning_sql}"
+    )
     assert seasoning_energy > 0, "这道菜必须有调味料，否则测不出「只缩放调味料」这件事"
 
     # 故意让实测比推算多吃了 1.2 倍的调味料贡献

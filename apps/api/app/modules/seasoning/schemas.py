@@ -27,6 +27,9 @@ class SeasoningBase(BaseModel):
 
     unit_price: Decimal | None = Field(default=None, ge=0, description="单价（元/千克）")
     data_source: str | None = Field(default=None, max_length=128)
+    source_version: str | None = Field(
+        default=None, max_length=64, description="来源版本，例如「豆油 · 条目 1497」"
+    )
     note: str | None = Field(default=None, max_length=255)
 
 
@@ -49,6 +52,7 @@ class SeasoningUpdate(BaseModel):
     sodium_mg: Decimal | None = Field(default=None, ge=0)
     unit_price: Decimal | None = Field(default=None, ge=0)
     data_source: str | None = Field(default=None, max_length=128)
+    source_version: str | None = Field(default=None, max_length=64)
     note: str | None = Field(default=None, max_length=255)
 
 

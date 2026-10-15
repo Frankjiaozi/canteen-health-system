@@ -67,14 +67,14 @@ def test_compute_creates_both_calibers(db_session: Session) -> None:
 def test_persisted_per_serving_matches_independent_hand_calculation(db_session: Session) -> None:
     """米饭配方：大米 80 克、无调味料，可食部比例 1.0。
 
-    能量 0.8×346=276.8、蛋白质 0.8×7.4=5.92、脂肪 0.8×0.8=0.64、
+    能量 0.8×352.06=281.65、蛋白质 0.8×7.4=5.92、脂肪 0.8×0.8=0.64、
     碳水 0.8×77.9=62.32、钠 0.8×3.8=3.04。
     """
     rows = _rows_for(db_session, dish_name="米饭", caliber=NutrientCaliber.PER_SERVING)
     assert rows, "米饭的单份营养结果应当已写入"
 
     row = rows[0]
-    assert row.energy_kcal == Decimal("276.80")
+    assert row.energy_kcal == Decimal("281.65")
     assert row.protein_g == Decimal("5.920")
     assert row.fat_g == Decimal("0.640")
     assert row.carb_g == Decimal("62.320")
@@ -130,9 +130,9 @@ def test_trace_records_recipe_snapshot_and_missing_data(db_session: Session) -> 
     assert {"大豆油", "食盐", "白砂糖"} <= seasoning_names
     # 演示数据里成分齐全，不该出现缺失项
     assert rows[0].uncertainty["missing_nutrients"] == []
-    # 149.38 × 0.85 = 126.973 → 126.97；149.38 × 1.15 = 171.787 → 171.79
-    assert rows[0].uncertainty["ranges"]["energy_kcal"]["lower"] == "126.97"
-    assert rows[0].uncertainty["ranges"]["energy_kcal"]["upper"] == "171.79"
+    # 单份能量 150.62 × 0.85 = 128.027 → 128.03；150.62 × 1.15 = 173.213 → 173.21
+    assert rows[0].uncertainty["ranges"]["energy_kcal"]["lower"] == "128.03"
+    assert rows[0].uncertainty["ranges"]["energy_kcal"]["upper"] == "173.21"
 
 
 def test_recompute_is_idempotent(db_session: Session) -> None:

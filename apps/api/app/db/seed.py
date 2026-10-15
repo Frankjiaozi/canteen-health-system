@@ -11,18 +11,27 @@
 
 ## 关于内置营养数值
 
-脚本里的食材成分是**演示占位值**，不是权威数据。正式参赛前必须逐条与
-《中国食物成分表（标准版第 6 版）》核对，并把 `data_source` 改成真实来源——
-系统要求任何营养数据都能点开看到来源与版本，这条要求在演示阶段就必须成立，
-因此这里宁可如实标注「待核对」，也不填写一个看起来权威却没有依据的出处。
+食材与调味料的五项营养成分、可食部比例**不写在本文件里**，统一取自
+`app/db/nutrition_reference.json`——那是从「食物营养成分查询平台」
+（中国疾病预防控制中心营养与健康所）逐条取数后落盘的快照，随仓库提交。
+
+取数与校验的工具是 `apps/api/tools/nutrition_reference.py`（`pnpm nutrition:fetch`
+/ `pnpm nutrition:verify`），映射表（我方食材 → 平台条目 ID）在
+`apps/api/tools/nutrition_sources.json`。**运行期不联网**：第三方站点改版、限流、下线
+都不会影响系统；而每一条数值都能回溯到具体条目（`source_version`）与换算过程（`note`）。
+
+本文件只维护「我们自己的东西」：业务名、类别、单价。单价平台没有，
+仍是演示值（元/公斤市品），会在备注里单独说明。
 """
 
 from __future__ import annotations
 
+import json
 import os
 import random
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+from pathlib import Path
 from typing import Any, NamedTuple
 from uuid import UUID, uuid5
 
@@ -200,383 +209,111 @@ def seed_users(session: Session, tally: _Tally) -> dict[str, UUID]:
 
 
 # ---------------------------------------------------------------------------
-# 食材库
+# 营养数据的来源：平台快照
+# ---------------------------------------------------------------------------
+# 从「食物营养成分查询平台」（中国疾控中心营养与健康所）逐条取数、审过一遍之后
+# 落盘的快照。它随仓库提交，**运行期不联网**——第三方站点改版、限流、下线都不影响
+# 系统；而每一条数值都能顺着 source_version 回溯到具体条目、顺着 note 回溯换算过程。
+NUTRITION_REFERENCE_PATH = Path(__file__).with_name("nutrition_reference.json")
+
+#: 数据来源标注：写进每一条食材与调味料，界面上点得开、看得见
+PLATFORM_DATA_SOURCE = "中国食物成分表·食物营养成分查询平台（中国疾控中心营养与健康所）"
+
+
+def _load_nutrition_reference() -> dict[str, Any]:
+    with NUTRITION_REFERENCE_PATH.open(encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+_NUTRITION_REFERENCE = _load_nutrition_reference()
+_NUTRITION_ITEMS: dict[str, dict[str, Any]] = _NUTRITION_REFERENCE["items"]
+_NUTRITION_QUERIED_AT: str = _NUTRITION_REFERENCE["source"]["queried_at"]
+
+
+def _optional_decimal(raw: str | None) -> Decimal | None:
+    """快照里的 null 表示平台未检测——落库为 NULL 而不是 0，写 0 会静默失真。"""
+    return None if raw is None else Decimal(raw)
+
+
+def _nutrition_values(key: str, *, include_edible_ratio: bool = True) -> dict[str, Any]:
+    """把快照里的一条记录转成模型字段。
+
+    平台上没有对应条目的（目前只有蚝油）如实退回「演示占位值，待核对」：
+    宁可标着待核对，也不编一个看起来权威的出处。
+    """
+    record = _NUTRITION_ITEMS.get(key)
+    if record is None:
+        return {
+            "data_source": DEMO_DATA_SOURCE,
+            "source_version": DEMO_SOURCE_VERSION,
+            "note": "平台无对应条目，保留人工维护的演示值；单价同为演示值（元/公斤市品），待核价",
+        }
+
+    note_parts = [f"能量原始值 {record['energy_kj']} kJ（1 kcal = 4.184 kJ 换算）"]
+    if record["zero_filled"]:
+        listed = "、".join(record["zero_filled"])
+        note_parts.append(f"平台未列 {listed}，按该物质不含该成分记 0")
+    note_parts.append(f"查询日期 {_NUTRITION_QUERIED_AT}")
+    note_parts.append("单价为演示值（元/公斤市品），待核价")
+
+    values: dict[str, Any] = {
+        "energy_kcal": Decimal(record["energy_kcal"]),
+        "protein_g": _optional_decimal(record["protein_g"]),
+        "fat_g": _optional_decimal(record["fat_g"]),
+        "carb_g": _optional_decimal(record["carb_g"]),
+        "sodium_mg": _optional_decimal(record["sodium_mg"]),
+        "data_source": PLATFORM_DATA_SOURCE,
+        "source_version": f"{record['entry_name']} · 条目 {record['food_id']}",
+        "note": "；".join(note_parts),
+    }
+    if include_edible_ratio:
+        values["edible_ratio"] = Decimal(record["edible_ratio"])
+    return values
+
+
+# ---------------------------------------------------------------------------
+# 食材
 # ---------------------------------------------------------------------------
 class _IngredientRow(NamedTuple):
     key: str
     name: str
     category: IngredientCategory
-    energy_kcal: str
-    protein_g: str
-    fat_g: str
-    carb_g: str
-    sodium_mg: str
-    edible_ratio: str
     unit_price: str
 
 
-# 每 100 克可食部的营养值
+# 营养值与可食部不写在这里：统一从 nutrition_reference.json 取，见 _nutrition_values()。
+# 这里只维护「我们自己的东西」——业务名、类别、单价（元/公斤市品，演示值）。
 _INGREDIENTS: list[_IngredientRow] = [
-    _IngredientRow(
-        "rice",
-        "大米",
-        IngredientCategory.GRAIN,
-        "346.0",
-        "7.4",
-        "0.8",
-        "77.9",
-        "3.8",
-        "1.0000",
-        "5.60",
-    ),
-    _IngredientRow(
-        "flour",
-        "小麦粉",
-        IngredientCategory.GRAIN,
-        "354.0",
-        "11.2",
-        "1.5",
-        "73.6",
-        "3.1",
-        "1.0000",
-        "4.20",
-    ),
-    _IngredientRow(
-        "potato",
-        "马铃薯",
-        IngredientCategory.GRAIN,
-        "81.0",
-        "2.6",
-        "0.2",
-        "17.8",
-        "2.7",
-        "0.9400",
-        "3.00",
-    ),
-    _IngredientRow(
-        "cabbage",
-        "大白菜",
-        IngredientCategory.VEGETABLE,
-        "17.0",
-        "1.5",
-        "0.1",
-        "3.2",
-        "57.5",
-        "0.8900",
-        "1.60",
-    ),
-    _IngredientRow(
-        "broccoli",
-        "西兰花",
-        IngredientCategory.VEGETABLE,
-        "36.0",
-        "4.1",
-        "0.6",
-        "4.3",
-        "18.8",
-        "0.8300",
-        "6.00",
-    ),
-    _IngredientRow(
-        "tomato",
-        "番茄",
-        IngredientCategory.VEGETABLE,
-        "20.0",
-        "0.9",
-        "0.2",
-        "4.0",
-        "5.0",
-        "1.0000",
-        "4.50",
-    ),
-    _IngredientRow(
-        "cucumber",
-        "黄瓜",
-        IngredientCategory.VEGETABLE,
-        "16.0",
-        "0.8",
-        "0.2",
-        "2.9",
-        "4.9",
-        "0.9200",
-        "3.60",
-    ),
-    _IngredientRow(
-        "carrot",
-        "胡萝卜",
-        IngredientCategory.VEGETABLE,
-        "39.0",
-        "1.0",
-        "0.2",
-        "8.8",
-        "71.4",
-        "0.9600",
-        "3.20",
-    ),
-    _IngredientRow(
-        "green_pepper",
-        "青椒",
-        IngredientCategory.VEGETABLE,
-        "22.0",
-        "1.4",
-        "0.3",
-        "5.4",
-        "3.3",
-        "0.9600",
-        "5.00",
-    ),
-    _IngredientRow(
-        "onion",
-        "洋葱",
-        IngredientCategory.VEGETABLE,
-        "40.0",
-        "1.1",
-        "0.2",
-        "9.0",
-        "4.4",
-        "0.8800",
-        "3.40",
-    ),
-    _IngredientRow(
-        "bok_choy",
-        "油菜",
-        IngredientCategory.VEGETABLE,
-        "25.0",
-        "1.8",
-        "0.5",
-        "3.8",
-        "55.8",
-        "0.8700",
-        "3.80",
-    ),
-    _IngredientRow(
-        "wood_ear",
-        "木耳（干）",
-        IngredientCategory.FUNGUS_ALGAE,
-        "265.0",
-        "12.1",
-        "1.5",
-        "65.6",
-        "48.5",
-        "1.0000",
-        "32.00",
-    ),
-    _IngredientRow(
-        "nori",
-        "紫菜（干）",
-        IngredientCategory.FUNGUS_ALGAE,
-        "250.0",
-        "26.7",
-        "1.1",
-        "44.1",
-        "710.3",
-        "1.0000",
-        "40.00",
-    ),
-    _IngredientRow(
-        "egg",
-        "鸡蛋",
-        IngredientCategory.EGG,
-        "144.0",
-        "13.3",
-        "8.8",
-        "2.8",
-        "131.5",
-        "0.8500",
-        "9.60",
-    ),
-    _IngredientRow(
-        "pork_lean",
-        "猪肉（瘦）",
-        IngredientCategory.LIVESTOCK_POULTRY,
-        "143.0",
-        "20.3",
-        "6.2",
-        "1.5",
-        "57.5",
-        "1.0000",
-        "26.00",
-    ),
-    _IngredientRow(
-        "chicken_breast",
-        "鸡胸肉",
-        IngredientCategory.LIVESTOCK_POULTRY,
-        "133.0",
-        "19.4",
-        "5.0",
-        "2.5",
-        "34.4",
-        "1.0000",
-        "18.00",
-    ),
-    _IngredientRow(
-        "beef_lean",
-        "牛肉（瘦）",
-        IngredientCategory.LIVESTOCK_POULTRY,
-        "106.0",
-        "20.2",
-        "2.3",
-        "1.2",
-        "53.6",
-        "1.0000",
-        "62.00",
-    ),
-    _IngredientRow(
-        "prawn",
-        "对虾",
-        IngredientCategory.AQUATIC,
-        "93.0",
-        "18.6",
-        "0.8",
-        "2.8",
-        "165.2",
-        "0.6100",
-        "45.00",
-    ),
-    _IngredientRow(
-        "tofu",
-        "豆腐（北）",
-        IngredientCategory.BEAN,
-        "116.0",
-        "12.2",
-        "4.8",
-        "4.2",
-        "7.2",
-        "1.0000",
-        "5.20",
-    ),
-    _IngredientRow(
-        "apple",
-        "苹果",
-        IngredientCategory.FRUIT,
-        "53.0",
-        "0.2",
-        "0.2",
-        "13.5",
-        "1.6",
-        "0.7600",
-        "7.00",
-    ),
-    _IngredientRow(
-        "milk",
-        "牛奶",
-        IngredientCategory.DAIRY,
-        "54.0",
-        "3.0",
-        "3.2",
-        "3.4",
-        "37.2",
-        "1.0000",
-        "8.00",
-    ),
-    _IngredientRow(
-        "sesame_oil",
-        "芝麻油",
-        IngredientCategory.OIL_FAT,
-        "898.0",
-        "0.0",
-        "99.7",
-        "0.2",
-        "1.1",
-        "1.0000",
-        "26.00",
-    ),
-    _IngredientRow(
-        "pork_belly",
-        "猪肉（五花）",
-        IngredientCategory.LIVESTOCK_POULTRY,
-        "508.0",
-        "7.7",
-        "53.0",
-        "2.4",
-        "37.5",
-        "1.0000",
-        "24.00",
-    ),
-    _IngredientRow(
-        "chicken_leg",
-        "鸡腿肉",
-        IngredientCategory.LIVESTOCK_POULTRY,
-        "181.0",
-        "16.0",
-        "13.0",
-        "0.0",
-        "64.0",
-        "0.6900",
-        "16.00",
-    ),
-    _IngredientRow(
-        "pork_rib",
-        "猪大排",
-        IngredientCategory.LIVESTOCK_POULTRY,
-        "264.0",
-        "18.3",
-        "20.4",
-        "1.7",
-        "44.5",
-        "0.7500",
-        "38.00",
-    ),
-    _IngredientRow(
-        "sea_bass",
-        "鲈鱼",
-        IngredientCategory.AQUATIC,
-        "105.0",
-        "18.6",
-        "3.4",
-        "0.0",
-        "144.1",
-        "0.5800",
-        "32.00",
-    ),
-    _IngredientRow(
-        "peanut",
-        "花生仁（炒）",
-        IngredientCategory.NUT,
-        "601.0",
-        "21.7",
-        "48.0",
-        "23.8",
-        "34.8",
-        "1.0000",
-        "12.00",
-    ),
-    _IngredientRow(
-        "garlic",
-        "大蒜",
-        IngredientCategory.VEGETABLE,
-        "128.0",
-        "4.5",
-        "0.2",
-        "27.6",
-        "19.6",
-        "0.8500",
-        "9.00",
-    ),
-    _IngredientRow(
-        "green_bean",
-        "四季豆",
-        IngredientCategory.VEGETABLE,
-        "31.0",
-        "2.0",
-        "0.4",
-        "5.7",
-        "8.6",
-        "0.9600",
-        "7.00",
-    ),
-    _IngredientRow(
-        "winter_melon",
-        "冬瓜",
-        IngredientCategory.VEGETABLE,
-        "12.0",
-        "0.4",
-        "0.2",
-        "2.6",
-        "1.8",
-        "0.8000",
-        "3.00",
-    ),
+    _IngredientRow("rice", "大米", IngredientCategory.GRAIN, "5.60"),
+    _IngredientRow("flour", "小麦粉", IngredientCategory.GRAIN, "4.20"),
+    _IngredientRow("potato", "马铃薯", IngredientCategory.GRAIN, "3.00"),
+    _IngredientRow("cabbage", "大白菜", IngredientCategory.VEGETABLE, "1.60"),
+    _IngredientRow("broccoli", "西兰花", IngredientCategory.VEGETABLE, "6.00"),
+    _IngredientRow("tomato", "番茄", IngredientCategory.VEGETABLE, "4.50"),
+    _IngredientRow("cucumber", "黄瓜", IngredientCategory.VEGETABLE, "3.60"),
+    _IngredientRow("carrot", "胡萝卜", IngredientCategory.VEGETABLE, "3.20"),
+    _IngredientRow("green_pepper", "青椒", IngredientCategory.VEGETABLE, "5.00"),
+    _IngredientRow("onion", "洋葱", IngredientCategory.VEGETABLE, "3.40"),
+    _IngredientRow("bok_choy", "油菜", IngredientCategory.VEGETABLE, "3.80"),
+    _IngredientRow("wood_ear", "木耳（干）", IngredientCategory.FUNGUS_ALGAE, "32.00"),
+    _IngredientRow("nori", "紫菜（干）", IngredientCategory.FUNGUS_ALGAE, "40.00"),
+    _IngredientRow("egg", "鸡蛋", IngredientCategory.EGG, "9.60"),
+    _IngredientRow("pork_lean", "猪肉（瘦）", IngredientCategory.LIVESTOCK_POULTRY, "26.00"),
+    _IngredientRow("chicken_breast", "鸡胸肉", IngredientCategory.LIVESTOCK_POULTRY, "18.00"),
+    _IngredientRow("beef_lean", "牛肉（瘦）", IngredientCategory.LIVESTOCK_POULTRY, "62.00"),
+    _IngredientRow("prawn", "对虾", IngredientCategory.AQUATIC, "45.00"),
+    _IngredientRow("tofu", "豆腐（北）", IngredientCategory.BEAN, "5.20"),
+    _IngredientRow("apple", "苹果", IngredientCategory.FRUIT, "7.00"),
+    _IngredientRow("milk", "牛奶", IngredientCategory.DAIRY, "8.00"),
+    _IngredientRow("sesame_oil", "芝麻油", IngredientCategory.OIL_FAT, "26.00"),
+    _IngredientRow("pork_belly", "猪肉（五花）", IngredientCategory.LIVESTOCK_POULTRY, "24.00"),
+    _IngredientRow("chicken_leg", "鸡腿肉", IngredientCategory.LIVESTOCK_POULTRY, "16.00"),
+    _IngredientRow("pork_rib", "猪大排", IngredientCategory.LIVESTOCK_POULTRY, "38.00"),
+    _IngredientRow("sea_bass", "鲈鱼", IngredientCategory.AQUATIC, "32.00"),
+    _IngredientRow("peanut", "花生仁（炒）", IngredientCategory.NUT, "12.00"),
+    _IngredientRow("garlic", "大蒜", IngredientCategory.VEGETABLE, "9.00"),
+    _IngredientRow("green_bean", "四季豆", IngredientCategory.VEGETABLE, "7.00"),
+    _IngredientRow("winter_melon", "冬瓜", IngredientCategory.VEGETABLE, "3.00"),
 ]
 
 
@@ -593,15 +330,8 @@ def seed_ingredients(session: Session, tally: _Tally) -> dict[str, UUID]:
                 entity_id,
                 name=row.name,
                 category=row.category,
-                energy_kcal=Decimal(row.energy_kcal),
-                protein_g=Decimal(row.protein_g),
-                fat_g=Decimal(row.fat_g),
-                carb_g=Decimal(row.carb_g),
-                sodium_mg=Decimal(row.sodium_mg),
-                edible_ratio=Decimal(row.edible_ratio),
+                **_nutrition_values(row.key),
                 unit_price=Decimal(row.unit_price),
-                data_source=DEMO_DATA_SOURCE,
-                source_version=DEMO_SOURCE_VERSION,
                 is_active=True,
             ),
         )
@@ -616,88 +346,19 @@ class _SeasoningRow(NamedTuple):
     key: str
     name: str
     category: SeasoningCategory
-    energy_kcal: str
-    protein_g: str
-    fat_g: str
-    carb_g: str
-    sodium_mg: str
     unit_price: str
 
 
-# 每 100 克计，与食材库同一口径，便于统一计算
+# 每 100 克计，与食材库同一口径，便于统一计算。营养值同样取自平台快照。
 _SEASONINGS: list[_SeasoningRow] = [
-    _SeasoningRow(
-        "soybean_oil",
-        "大豆油",
-        SeasoningCategory.EDIBLE_OIL,
-        "899.0",
-        "0.0",
-        "99.9",
-        "0.0",
-        "0.0",
-        "12.00",
-    ),
-    _SeasoningRow(
-        "salt", "食盐", SeasoningCategory.SALT, "0.0", "0.0", "0.0", "0.0", "39311.0", "2.50"
-    ),
-    _SeasoningRow(
-        "sugar", "白砂糖", SeasoningCategory.SUGAR, "400.0", "0.0", "0.0", "99.9", "0.4", "6.00"
-    ),
-    _SeasoningRow(
-        "soy_sauce",
-        "生抽酱油",
-        SeasoningCategory.SOY_SAUCE,
-        "63.0",
-        "5.6",
-        "0.1",
-        "10.1",
-        "5757.0",
-        "8.00",
-    ),
-    _SeasoningRow(
-        "oyster_sauce",
-        "蚝油",
-        SeasoningCategory.OYSTER_SAUCE,
-        "114.0",
-        "4.0",
-        "0.3",
-        "24.0",
-        "2000.0",
-        "10.00",
-    ),
-    _SeasoningRow(
-        "corn_starch",
-        "玉米淀粉",
-        SeasoningCategory.STARCH,
-        "345.0",
-        "1.2",
-        "0.1",
-        "85.0",
-        "5.0",
-        "7.00",
-    ),
-    _SeasoningRow(
-        "bean_paste",
-        "豆瓣酱",
-        SeasoningCategory.OTHER,
-        "178.0",
-        "13.6",
-        "6.8",
-        "17.1",
-        "6012.0",
-        "12.00",
-    ),
-    _SeasoningRow(
-        "vinegar",
-        "陈醋",
-        SeasoningCategory.OTHER,
-        "31.0",
-        "2.1",
-        "0.3",
-        "4.9",
-        "262.1",
-        "5.00",
-    ),
+    _SeasoningRow("soybean_oil", "大豆油", SeasoningCategory.EDIBLE_OIL, "12.00"),
+    _SeasoningRow("salt", "食盐", SeasoningCategory.SALT, "2.50"),
+    _SeasoningRow("sugar", "白砂糖", SeasoningCategory.SUGAR, "6.00"),
+    _SeasoningRow("soy_sauce", "生抽酱油", SeasoningCategory.SOY_SAUCE, "8.00"),
+    _SeasoningRow("oyster_sauce", "蚝油", SeasoningCategory.OYSTER_SAUCE, "10.00"),
+    _SeasoningRow("corn_starch", "玉米淀粉", SeasoningCategory.STARCH, "7.00"),
+    _SeasoningRow("bean_paste", "豆瓣酱", SeasoningCategory.OTHER, "12.00"),
+    _SeasoningRow("vinegar", "陈醋", SeasoningCategory.OTHER, "5.00"),
 ]
 
 
@@ -715,13 +376,8 @@ def seed_seasonings(session: Session, tally: _Tally) -> dict[str, UUID]:
                 name=row.name,
                 category=row.category,
                 unit="g",
-                energy_kcal=Decimal(row.energy_kcal),
-                protein_g=Decimal(row.protein_g),
-                fat_g=Decimal(row.fat_g),
-                carb_g=Decimal(row.carb_g),
-                sodium_mg=Decimal(row.sodium_mg),
+                **_nutrition_values(row.key, include_edible_ratio=False),
                 unit_price=Decimal(row.unit_price),
-                data_source=DEMO_DATA_SOURCE,
                 is_active=True,
             ),
         )

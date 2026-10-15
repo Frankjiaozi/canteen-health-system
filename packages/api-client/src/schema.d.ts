@@ -3131,6 +3131,11 @@ export interface components {
             unit_price?: number | string | null;
             /** Data Source */
             data_source?: string | null;
+            /**
+             * Source Version
+             * @description 来源版本，例如「豆油 · 条目 1497」
+             */
+            source_version?: string | null;
             /** Note */
             note?: string | null;
         };
@@ -3177,6 +3182,11 @@ export interface components {
             unit_price?: string | null;
             /** Data Source */
             data_source?: string | null;
+            /**
+             * Source Version
+             * @description 来源版本，例如「豆油 · 条目 1497」
+             */
+            source_version?: string | null;
             /** Note */
             note?: string | null;
             /**
@@ -3223,6 +3233,8 @@ export interface components {
             unit_price?: number | string | null;
             /** Data Source */
             data_source?: string | null;
+            /** Source Version */
+            source_version?: string | null;
             /** Note */
             note?: string | null;
         };

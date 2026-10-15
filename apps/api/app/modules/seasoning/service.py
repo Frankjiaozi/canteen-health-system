@@ -38,6 +38,7 @@ def to_read(seasoning: Seasoning) -> SeasoningRead:
         sodium_mg=scale_field(seasoning.sodium_mg, "sodium_mg"),
         unit_price=scale_field(seasoning.unit_price, "unit_price"),
         data_source=seasoning.data_source,
+        source_version=seasoning.source_version,
         note=seasoning.note,
         is_active=seasoning.is_active,
         created_at=seasoning.created_at,
@@ -207,6 +208,7 @@ def _snapshot(seasoning: Seasoning) -> dict[str, Any]:
         "sodium_mg": snapshot(seasoning.sodium_mg),
         "unit_price": snapshot(seasoning.unit_price),
         "data_source": seasoning.data_source,
+        "source_version": seasoning.source_version,
         "note": seasoning.note,
         "is_active": seasoning.is_active,
     }

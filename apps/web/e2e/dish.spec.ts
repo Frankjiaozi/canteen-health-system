@@ -21,7 +21,7 @@ async function createDishWithRecipe(page: Page, name: string, riceGrams: string)
   await page.getByLabel('标准份量（克）').fill('200');
   await page.getByLabel('单锅份数').fill('80');
 
-  // 配方：大米 80 克、无调味料 → 0.8 × 346 = 276.80
+  // 配方：大米 80 克、无调味料 → 0.8 × 352.06（稻米(均值) 条目的能量）= 281.65
   await page.getByRole('button', { name: '添加一行' }).click();
   await page.getByLabel('配方用料').click();
   await page.getByLabel('配方用料').fill('大米');
@@ -64,8 +64,8 @@ test('菜品列表可按名称检索，并展示配方算出的单份营养', as
   // 不指望某道菜正好落在第一页：同一个库里跑一次测试就会多出几道自己造的菜，
   // 菜品只增不减，靠翻页找人迟早会失手
   const riceRow = await findDishRow(page, '米饭');
-  // 米饭配方：大米 80 克、无调味料 → 0.8 × 346 = 276.80
-  await expect(riceRow).toContainText('276.80');
+  // 米饭配方：大米 80 克、无调味料 → 0.8 × 352.06 = 281.65
+  await expect(riceRow).toContainText('281.65');
 
   await expect(await findDishRow(page, '红烧肉')).toBeVisible();
 });
@@ -80,7 +80,7 @@ test('新增菜品并录入配方后，列表上出现算出来的营养值', as
   const row = await findDishRow(page, name);
   await expect(row).toContainText('配方 v1');
   // 配方刚录完就该看到数值，不必等这道菜第一次被排进菜单
-  await expect(row).toContainText('276.80');
+  await expect(row).toContainText('281.65');
 
   // 点进去看详情，配方行确实写进去了
   await row.getByRole('button', { name: '编辑' }).click();

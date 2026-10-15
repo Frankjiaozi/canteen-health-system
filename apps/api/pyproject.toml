@@ -80,6 +80,8 @@ ignore = [
 "tests/**" = ["T20"]
 "app/db/seed.py" = ["T20"]
 "app/openapi_export.py" = ["T20"]
+# 命令行工具的输出就是它的产品，这里不用 logger
+"tools/**" = ["T20"]
 
 [tool.ruff.format]
 quote-style = "double"

@@ -12,6 +12,7 @@ import {
   Switch,
   Table,
   Tag,
+  Tooltip,
   Typography,
 } from 'antd';
 import type { TableProps } from 'antd';
@@ -40,6 +41,7 @@ interface SeasoningFormValues {
   sodium_mg: number | null;
   unit_price: number | null;
   data_source: string | null;
+  source_version: string | null;
   note: string | null;
 }
 
@@ -88,6 +90,7 @@ export function SeasoningListPage() {
         sodium_mg: Number(editing.sodium_mg ?? 0),
         unit_price: editing.unit_price === null ? null : Number(editing.unit_price),
         data_source: editing.data_source,
+        source_version: editing.source_version,
         note: editing.note,
       });
     } else {
@@ -109,6 +112,7 @@ export function SeasoningListPage() {
       sodium_mg: toDecimalString(values.sodium_mg, 2),
       unit_price: toDecimalString(values.unit_price, 2),
       data_source: values.data_source?.trim() || null,
+      source_version: values.source_version?.trim() || null,
       note: values.note?.trim() || null,
     };
     try {
@@ -127,6 +131,7 @@ export function SeasoningListPage() {
     {
       title: '调味料',
       dataIndex: 'name',
+      width: 140,
       render: (name: string, record) => (
         <Space orientation="vertical" size={0}>
           <Typography.Text strong>{name}</Typography.Text>
@@ -134,14 +139,34 @@ export function SeasoningListPage() {
         </Space>
       ),
     },
-    { title: '类别', dataIndex: 'category_label', width: 100 },
+    { title: '类别', dataIndex: 'category_label', width: 96 },
     ...NUTRIENT_COLUMNS.map((column) => ({
       title: `${column.title}（${column.unit}/100克）`,
       dataIndex: column.field,
-      width: 150,
+      width: 124,
       align: 'right' as const,
       render: (value: string | null) => formatNutrient(value, column.digits),
     })),
+    {
+      title: '数据来源',
+      dataIndex: 'data_source',
+      width: 150,
+      // 与食材库同一处理：单元格里放逐行不同的「条目名 + 条目 ID」，
+      // 来源全称放进悬停提示——它每行都一样，占着地方反而把名称列挤扁
+      ellipsis: { showTitle: false },
+      render: (value: string | null, record) => {
+        if (!value) {
+          return <Typography.Text type="secondary">—</Typography.Text>;
+        }
+        const entry = record.source_version ?? value;
+        const full = record.source_version ? `${value}（${record.source_version}）` : value;
+        return (
+          <Tooltip title={full} placement="topLeft">
+            <Typography.Text type="secondary">{entry}</Typography.Text>
+          </Tooltip>
+        );
+      },
+    },
     {
       title: '操作',
       key: 'actions',
@@ -228,7 +253,7 @@ export function SeasoningListPage() {
         loading={listQuery.isFetching}
         columns={columns}
         dataSource={listQuery.data?.items ?? []}
-        scroll={{ x: 1100 }}
+        scroll={{ x: 1146 }}
         pagination={{
           current: page,
           pageSize,
@@ -304,7 +329,14 @@ export function SeasoningListPage() {
             <InputNumber min={0} precision={2} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="data_source" label="数据来源">
-            <Input placeholder="例如：《中国食物成分表（标准版第 6 版）》" />
+            <Input placeholder="例如：中国食物成分表·食物营养成分查询平台" />
+          </Form.Item>
+          <Form.Item
+            name="source_version"
+            label="来源版本"
+            tooltip="写清是哪一条：条目名 + 条目 ID。只写「查过成分表」等于没写。"
+          >
+            <Input placeholder="例如：豆油 · 条目 1497" />
           </Form.Item>
           <Form.Item name="note" label="备注">
             <Input.TextArea rows={2} maxLength={255} />

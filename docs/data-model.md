@@ -36,6 +36,12 @@ Alembic 只依据该注册表生成迁移。
 `ingredients` 与 `seasonings` 的五项营养指标**可空**。食物成分表里部分条目确实缺项，
 把缺失写成 0 会让营养核算静默失真；计算引擎遇到空值时会记入可追溯快照并放宽误差区间。
 
+两张表的营养值与 `edible_ratio` 都取自同一份平台快照（见
+[architecture.md](./architecture.md#营养数据的来源与版本)），来源与版本记在
+`data_source` + `source_version`（食材）与 `data_source` + `source_version`（调味料）上；
+备注 `note` 里留下原始 kJ 值与查询日期。**单价例外**：平台没有价格数据，
+它是自己维护的演示值，备注里单独写明「待核价」，不和营养值混在同一个来源里。
+
 ### 菜品与配方
 
 | 表 | 说明 |

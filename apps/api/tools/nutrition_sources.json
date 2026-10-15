@@ -1,0 +1,99 @@
+{
+  "_comment": [
+    "我方食材/调味料 → 「食物营养成分查询平台」条目的映射表。",
+    "这份表是人工审过一遍的：同一个名字在平台里往往有多个近义条目",
+    "（大米 → 稻米(均值)/粳米/籼米/香大米），选错一条整条数据就错了。",
+    "所以这里记的是**条目 ID**，不是名字——平台的搜索对括号不友好，",
+    "按名字搜会漏，按 ID 取才稳。",
+    "",
+    "keyword 是拉取时用来翻页定位的搜索词，food_id 是最终选定的条目。",
+    "zero_fill 用于「平台未列该项、但该物质本身不含该成分」的情况（见文件末尾说明）。"
+  ],
+  "source": {
+    "name": "中国食物成分表 · 食物营养成分查询平台",
+    "publisher": "中国疾病预防控制中心营养与健康所",
+    "url": "https://nlc.chinanutri.cn/fq/foodlist_0_0_0_0_0_1.htm",
+    "query_url": "https://nlc.chinanutri.cn/fq/FoodInfoQueryAction!queryFoodInfoList.do",
+    "caliber": "每 100 克可食部",
+    "energy_note": "平台只给能量（kJ）。千卡按 1 kcal = 4.184 kJ 换算并保留 2 位小数，原始 kJ 值一并落盘以便复算。"
+  },
+  "items": {
+    "rice": {"keyword": "稻米", "food_id": 280},
+    "flour": {"keyword": "小麦粉", "food_id": 259},
+    "potato": {"keyword": "马铃薯", "food_id": 313},
+    "cabbage": {"keyword": "大白菜", "food_id": 450},
+    "broccoli": {"keyword": "西兰花", "food_id": 465},
+    "tomato": {"keyword": "番茄", "food_id": 405},
+    "cucumber": {"keyword": "黄瓜", "food_id": 422},
+    "carrot": {"keyword": "胡萝卜", "food_id": 380},
+    "green_pepper": {
+      "keyword": "甜椒",
+      "food_id": 410,
+      "note": "平台没有「青椒」条目。菜椒在成分表里的正式名是「甜椒[灯笼椒，柿子椒]」，业务名保持「青椒」不变。"
+    },
+    "onion": {"keyword": "洋葱", "food_id": 444},
+    "bok_choy": {"keyword": "油菜", "food_id": 457},
+    "wood_ear": {"keyword": "木耳", "food_id": 579},
+    "nori": {"keyword": "紫菜", "food_id": 611},
+    "egg": {"keyword": "鸡蛋", "food_id": 978},
+    "pork_lean": {"keyword": "猪肉", "food_id": 788},
+    "chicken_breast": {"keyword": "鸡胸", "food_id": 880},
+    "beef_lean": {"keyword": "牛肉", "food_id": 830},
+    "prawn": {"keyword": "对虾", "food_id": 1090},
+    "tofu": {"keyword": "豆腐", "food_id": 334},
+    "apple": {"keyword": "苹果", "food_id": 613},
+    "milk": {"keyword": "牛乳", "food_id": 916},
+    "sesame_oil": {"keyword": "芝麻油", "food_id": 1508, "zero_fill": ["protein_g"]},
+    "pork_belly": {
+      "keyword": "肋条",
+      "food_id": 783,
+      "note": "平台没有「五花肉」条目。五花即肋条部位，取「猪肉(肋条肉)」；业务名保持「猪肉（五花）」不变。"
+    },
+    "chicken_leg": {"keyword": "鸡腿", "food_id": 882},
+    "pork_rib": {"keyword": "猪大排", "food_id": 791},
+    "sea_bass": {"keyword": "鲈鱼", "food_id": 1050},
+    "peanut": {"keyword": "花生仁", "food_id": 764},
+    "garlic": {"keyword": "大蒜", "food_id": 436},
+    "green_bean": {"keyword": "四季豆", "food_id": 392},
+    "winter_melon": {"keyword": "冬瓜", "food_id": 419},
+
+    "soybean_oil": {"keyword": "豆油", "food_id": 1497, "zero_fill": ["protein_g"]},
+    "salt": {
+      "keyword": "盐",
+      "food_id": 1565,
+      "zero_fill": ["protein_g", "fat_g"],
+      "note": "平台条目名是「精盐」，业务名保持「食盐」。"
+    },
+    "sugar": {
+      "keyword": "糖",
+      "food_id": 1448,
+      "zero_fill": ["protein_g", "fat_g"],
+      "note": "平台条目名是「糖（白砂糖）」，业务名保持「白砂糖」。"
+    },
+    "soy_sauce": {
+      "keyword": "酱油",
+      "food_id": 1518,
+      "note": "平台条目名是「酱油(均值)」，业务名保持「生抽酱油」。"
+    },
+    "oyster_sauce": {
+      "keyword": null,
+      "food_id": null,
+      "note": "平台没有蚝油条目。保留人工维护的演示值，来源单独标注为待核对，不冒充权威出处。"
+    },
+    "corn_starch": {"keyword": "玉米淀粉", "food_id": 320},
+    "bean_paste": {"keyword": "豆瓣酱", "food_id": 1523},
+    "vinegar": {
+      "keyword": "醋",
+      "food_id": 1520,
+      "note": "平台条目名是「醋(均值)」，业务名保持「陈醋」。"
+    }
+  },
+  "zero_fill_rationale": [
+    "平台对「未检测」的单元格留空或写「—」，对「未检出」写「Tr」。",
+    "Tr 按 0 处理没有歧义（未检出就是没有）。",
+    "留空则分两种：复合食品留空是真的不知道，必须按缺失（null）落库，",
+    "写 0 会让营养核算静默失真；而豆油/食盐/白砂糖/芝麻油这类**单一成分物质**，",
+    "留空是因为该物质本身不含该成分，写 0 才是对的。",
+    "哪些条目按哪种处理，逐条写在上面的 zero_fill 里，不靠脚本猜。"
+  ]
+}

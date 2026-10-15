@@ -181,7 +181,9 @@ def test_recipe_change_recomputes_nutrition_for_historical_dates(
     """
     dish_id = _id_of(as_recorder, BASE, "清炒西兰花")
     before = _energy(db_session, dish_id)
-    assert before == Decimal("83.43")
+    # 西兰花 110 克 ×0.83 食部、胡萝卜 15 克 ×0.96 食部、大豆油 5 克、食盐 1 克
+    # → 32.95 + 5.64 + 44.17 + 0 = 82.76
+    assert before == Decimal("82.76")
 
     broccoli = _id_of(as_recorder, "/api/v1/ingredients", "西兰花")
     carrot = _id_of(as_recorder, "/api/v1/ingredients", "胡萝卜")
