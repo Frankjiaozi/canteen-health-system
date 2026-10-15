@@ -1056,6 +1056,11 @@ export interface components {
             /** Model */
             model?: string | null;
             /**
+             * Tokens Used
+             * @default 0
+             */
+            tokens_used: number;
+            /**
              * Truncated
              * @default false
              */

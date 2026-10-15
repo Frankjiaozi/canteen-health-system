@@ -1174,6 +1174,52 @@ def test_chat_stops_at_the_round_limit(db_session: Session, actor) -> None:
 # ---------------------------------------------------------------------------
 # 接口
 # ---------------------------------------------------------------------------
+def test_every_model_call_carries_an_output_limit() -> None:
+    """单次调用必须带上 max_tokens：回答再长用户也不会读完，而费用是实打实的。"""
+    provider = providers.OpenAICompatibleProvider(
+        base_url="https://example.invalid/v1",
+        api_key=None,
+        model="demo",
+        timeout_seconds=5,
+        temperature=0.2,
+        max_output_tokens=1024,
+    )
+
+    plain = provider.payload([{"role": "user", "content": "你好"}], [], stream=False)
+    streaming = provider.payload([{"role": "user", "content": "你好"}], [{"x": 1}], stream=True)
+
+    assert plain["max_tokens"] == 1024
+    assert streaming["max_tokens"] == 1024
+    assert streaming["stream"] is True and streaming["tool_choice"] == "auto"
+
+
+def test_token_estimate_counts_chinese_per_character() -> None:
+    """估算口径：中文约一字一 token，英文约四字符一 token。只用于判断预算，不用于计费。"""
+    assert providers.estimate_tokens("你好世界") >= 4
+    assert providers.estimate_tokens("hello world hello world") < 10
+    assert providers.estimate_tokens("") >= 1
+
+
+def test_turn_budget_stops_the_loop_and_says_why(
+    db_session: Session, actor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """单轮预算用完就停：不是因为轮次上限，而是因为这一轮太贵——原因要说清楚。"""
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "assistant_turn_token_budget", 50, raising=False)
+    scripted = ScriptedProvider(
+        [_call("get_dashboard", '{"days": 14}', f"c{index}") for index in range(10)]
+    )
+
+    reply = _ask(db_session, actor, scripted, "把所有数据都给我看一遍")
+
+    assert reply.truncated is True
+    assert "token" in reply.reply and "上限" in reply.reply
+    assert "把问题拆小" in reply.reply
+    assert reply.tokens_used >= 50
+
+
 def test_tool_call_fragments_are_assembled() -> None:
     """流式返回的工具调用是分片的，不攒起来就会拿到半个 JSON。
 

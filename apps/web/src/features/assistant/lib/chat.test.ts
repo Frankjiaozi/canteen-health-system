@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ToolCallTrace } from '../types';
-import { describeToolRun, nextMessageId } from './chat';
+import { TOKEN_NOTICE_THRESHOLD, describeTokens, describeToolRun, nextMessageId } from './chat';
 import { describeProposalStatus, toPreviewBlocks } from './proposal';
 
 function trace(overrides: Partial<ToolCallTrace> = {}): ToolCallTrace {
@@ -13,6 +13,18 @@ function trace(overrides: Partial<ToolCallTrace> = {}): ToolCallTrace {
     ...overrides,
   };
 }
+
+describe('用量说法', () => {
+  it('小额不显示：每句回答后面挂一串数字只会变噪音', () => {
+    expect(describeTokens(undefined)).toBeNull();
+    expect(describeTokens(TOKEN_NOTICE_THRESHOLD - 1)).toBeNull();
+  });
+
+  it('上千按 k 说，够大才说', () => {
+    expect(describeTokens(2400)).toBe('这一轮约用 2.4k token');
+    expect(describeTokens(TOKEN_NOTICE_THRESHOLD)).toBe('这一轮约用 2.0k token');
+  });
+});
 
 describe('消息 id', () => {
   it('同一个序号也各不相同，React 列表不会串', () => {

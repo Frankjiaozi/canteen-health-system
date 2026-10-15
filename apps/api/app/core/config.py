@@ -70,6 +70,13 @@ class Settings(BaseSettings):
     #: 这个上限是「别失控」的保险，不是预算。
     assistant_max_tool_rounds: int = 8
     assistant_temperature: float = 0.2
+    #: **单次**模型调用的输出上限（token）。防止一次回答跑成一篇长文：
+    #: 回答再长，用户也不会读完，而费用是实打实的。
+    assistant_max_output_tokens: int = 1024
+    #: **单轮对话**的 token 预算（输入 + 输出，跨所有工具调用轮次一起算）。
+    #: 单次调用的上限管不住「来回八轮、每轮都塞一屏数据」这种花法，所以再给一个总量闸。
+    #: 到点就停下来并说明，而不是悄悄把预算烧穿。
+    assistant_turn_token_budget: int = 60000
 
     # ---- 菜单推荐的营养目标 ----
     #: 全天的能量目标（千卡）。**这是一组演示值，待核实**：

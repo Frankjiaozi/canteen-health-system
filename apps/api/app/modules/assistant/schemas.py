@@ -41,6 +41,9 @@ class ChatReply(BaseModel):
     #: 来回了几轮工具调用（到上限就停，如实报出来）
     rounds: int = 0
     model: str | None = None
+    #: 这一轮大约花了多少 token（服务端返回了真实用量就用真实的）。
+    #: 放在响应里是为了让「花在哪儿」看得见——尤其是长对话与试探性的查询。
+    tokens_used: int = 0
     #: 到轮次上限时模型还没给出结论，这句话必须让用户看见
     truncated: bool = False
 

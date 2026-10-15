@@ -9,7 +9,13 @@ import {
   useConversations,
   useDecideProposal,
 } from '../hooks/useAssistant';
-import { SUGGESTIONS, describeToolRun, nextMessageId, type ChatMessage } from '../lib/chat';
+import {
+  SUGGESTIONS,
+  describeTokens,
+  describeToolRun,
+  nextMessageId,
+  type ChatMessage,
+} from '../lib/chat';
 import type { ProposalRead } from '../types';
 import { AnswerBody } from './AnswerBody';
 import { ProposalCard } from './ProposalCard';
@@ -225,7 +231,11 @@ function ConversationPane({
         },
         onDelta: (chunk) => patchLast((item) => ({ ...item, content: item.content + chunk })),
       });
-      patchLast((item) => ({ ...item, truncated: reply.truncated }));
+      patchLast((item) => ({
+        ...item,
+        truncated: reply.truncated,
+        tokensUsed: reply.tokens_used,
+      }));
       if ((reply.proposals ?? []).length > 0) {
         setProposals((current) => [...current, ...(reply.proposals ?? [])]);
       }
@@ -352,6 +362,11 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         <div style={{ marginTop: 6 }}>
           <Tag color="orange">没查完就停了，换个更具体的问法再试</Tag>
         </div>
+      ) : null}
+      {!isUser && describeTokens(message.tokensUsed) ? (
+        <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 6 }}>
+          {describeTokens(message.tokensUsed)}
+        </Typography.Text>
       ) : null}
     </div>
   );

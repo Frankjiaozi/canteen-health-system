@@ -8,6 +8,8 @@ export interface ChatMessage {
   toolCalls?: ToolCallTrace[];
   /** 模型到轮次上限还没查完时标记出来，界面上要如实显示 */
   truncated?: boolean;
+  /** 这一轮大约花了多少 token。够多才显示，免得每句话都挂一串数字 */
+  tokensUsed?: number;
 }
 
 /**
@@ -28,6 +30,16 @@ export function describeToolRun(trace: ToolCallTrace): string {
   // 后端给的 summary 已经带了工具名（「查食材库：返回 3 条」），这里只补「没查到」这个信号，
   // 不重复拼一遍标签
   return trace.ok ? trace.summary : `没查到 · ${trace.summary}`;
+}
+
+/** 用量说法的门槛：低于这个就不显示，免得每句回答后面都挂个小尾巴。 */
+export const TOKEN_NOTICE_THRESHOLD = 2000;
+
+export function describeTokens(tokens: number | undefined): string | null {
+  if (!tokens || tokens < TOKEN_NOTICE_THRESHOLD) return null;
+  return tokens >= 1000
+    ? `这一轮约用 ${(tokens / 1000).toFixed(1)}k token`
+    : `这一轮约用 ${tokens} token`;
 }
 
 /** 开场给的示例问题：让人一眼知道这个东西能干什么，而不是对着空框发呆。 */

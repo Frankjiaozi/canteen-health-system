@@ -61,6 +61,7 @@ describe('事件对界面意味着什么', () => {
           proposals: [],
           rounds: 1,
           truncated: false,
+          tokens_used: 1200,
         },
       }).reply?.reply,
     ).toBe('好了');

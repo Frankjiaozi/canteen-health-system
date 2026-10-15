@@ -296,6 +296,10 @@ def chat_stream(
 
     traces: list[ToolCallTrace] = []
     proposals: list[AssistantProposal] = []
+    spent = sum(
+        providers.estimate_tokens(str(message.get("content") or "")) for message in messages
+    )
+    budget = get_settings().assistant_turn_token_budget
     for round_index in range(1, max_rounds + 1):
         reply: providers.ProviderReply | None = None
         for chunk in provider.stream(messages=messages, tools=tools.tool_payload()):
@@ -305,6 +309,7 @@ def chat_stream(
                 reply = chunk.reply
         if reply is None:
             raise BusinessRuleError("模型没有返回结果")
+        spent += _usage_or_estimate(reply)
 
         if not reply.tool_calls:
             answered = _finish(
@@ -317,8 +322,31 @@ def chat_stream(
                 model=getattr(provider, "model", None),
                 truncated=False,
                 now=now,
+                tokens=spent,
             )
             yield {"type": "done", "reply": answered.model_dump(mode="json")}
+            return
+
+        if spent >= budget:
+            # 单次调用的输出上限管不住「来回几轮、每轮都塞一屏数据」这种花法，
+            # 所以在总量上再设一道闸：到点停下来并说明，而不是悄悄烧穿预算
+            logger.warning("助手单轮对话预算用完（约 %d token，上限 %d）", spent, budget)
+            stopped = _finish(
+                session,
+                conversation=conversation,
+                text=(
+                    f"这一轮要查的东西太多，已经用掉约 {spent} token（上限 {budget}），先停下来。"
+                    "把问题拆小一点再问——例如指定某一天、某一道菜、某一项指标。"
+                ),
+                traces=traces,
+                proposals=proposals,
+                rounds=round_index,
+                model=getattr(provider, "model", None),
+                truncated=True,
+                now=now,
+                tokens=spent,
+            )
+            yield {"type": "done", "reply": stopped.model_dump(mode="json")}
             return
 
         messages.append(
@@ -352,6 +380,7 @@ def chat_stream(
             )
             traces.append(trace)
             messages.append(_tool_message(call.id, tool_result, trace.ok))
+            spent += providers.estimate_tokens(str(trace.summary))
             yield {"type": "tool", "trace": trace.model_dump(mode="json")}
 
     logger.warning("助手到了工具调用轮次上限（%d 轮）仍未收敛", max_rounds)
@@ -368,8 +397,21 @@ def chat_stream(
         model=getattr(provider, "model", None),
         truncated=True,
         now=now,
+        tokens=spent,
     )
     yield {"type": "done", "reply": final.model_dump(mode="json")}
+
+
+def _usage_or_estimate(reply: providers.ProviderReply) -> int:
+    """这一轮花了多少 token：服务端给了真实用量就用它，否则按文字粗估。"""
+    usage = reply.usage or {}
+    total = usage.get("total_tokens")
+    if isinstance(total, (int, float)):
+        return int(total)
+    written = providers.estimate_tokens(reply.text)
+    return written + sum(
+        providers.estimate_tokens(f"{call.name}{call.arguments}") for call in reply.tool_calls
+    )
 
 
 def _resolve_conversation(
@@ -424,6 +466,7 @@ def _finish(
     model: str | None,
     truncated: bool,
     now: datetime,
+    tokens: int = 0,
 ) -> ChatReply:
     repository.add_message(
         session,
@@ -444,6 +487,7 @@ def _finish(
         rounds=rounds,
         model=model,
         truncated=truncated,
+        tokens_used=tokens,
     )
 
 

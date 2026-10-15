@@ -41,6 +41,8 @@ class ProviderToolCall:
 class ProviderReply:
     text: str
     tool_calls: list[ProviderToolCall] = field(default_factory=list)
+    #: 服务端返回的真实用量（有就用它，没有就由上层估算）
+    usage: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,26 +83,39 @@ class OpenAICompatibleProvider:
         model: str,
         timeout_seconds: float,
         temperature: float,
+        max_output_tokens: int,
     ) -> None:
         self.model = model
         self._temperature = temperature
+        #: 单次调用的输出上限。**每次请求都带上**——不靠模型自觉，靠参数兜住
+        self._max_output_tokens = max_output_tokens
         self._url = f"{base_url.rstrip('/')}/chat/completions"
         headers = {"Content-Type": "application/json"}
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
         self._client = httpx.Client(headers=headers, timeout=timeout_seconds)
 
-    def complete(
-        self, *, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
-    ) -> ProviderReply:
-        payload: dict[str, Any] = {
+    def payload(
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]], *, stream: bool
+    ) -> dict[str, Any]:
+        """请求体。抽出来是为了能单测「上限有没有真的带上」，不必真发请求。"""
+        body: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
             "temperature": self._temperature,
+            "max_tokens": self._max_output_tokens,
         }
         if tools:
-            payload["tools"] = tools
-            payload["tool_choice"] = "auto"
+            body["tools"] = tools
+            body["tool_choice"] = "auto"
+        if stream:
+            body["stream"] = True
+        return body
+
+    def complete(
+        self, *, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
+    ) -> ProviderReply:
+        payload = self.payload(messages, tools, stream=False)
         try:
             response = self._client.post(self._url, json=payload)
         except httpx.HTTPError as error:
@@ -119,18 +134,11 @@ class OpenAICompatibleProvider:
         self, *, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
     ) -> Iterator[StreamChunk]:
         """按 SSE 读增量。工具调用的参数是**碎片**，必须自己攒起来。"""
-        payload: dict[str, Any] = {
-            "model": self.model,
-            "messages": messages,
-            "temperature": self._temperature,
-            "stream": True,
-        }
-        if tools:
-            payload["tools"] = tools
-            payload["tool_choice"] = "auto"
+        payload = self.payload(messages, tools, stream=True)
 
         accumulator = ToolCallAccumulator()
         text_parts: list[str] = []
+        usage: dict[str, Any] | None = None
         try:
             with self._client.stream("POST", self._url, json=payload) as response:
                 if response.status_code >= 400:
@@ -140,6 +148,9 @@ class OpenAICompatibleProvider:
                         "ASSISTANT_BASE_URL / ASSISTANT_API_KEY / ASSISTANT_MODEL 是否配对"
                     )
                 for event in iter_sse_data(response.iter_lines()):
+                    # 有的服务商在最后一块里带 usage；带了就用真实的，没带就由上层估算
+                    if isinstance(event.get("usage"), dict):
+                        usage = event["usage"]
                     delta = _first_delta(event)
                     if delta is None:
                         continue
@@ -155,7 +166,9 @@ class OpenAICompatibleProvider:
             raise ServiceUnavailableError(f"连不上模型服务（{self._url}）：{error}") from error
 
         yield StreamChunk(
-            reply=ProviderReply(text="".join(text_parts), tool_calls=accumulator.result())
+            reply=ProviderReply(
+                text="".join(text_parts), tool_calls=accumulator.result(), usage=usage
+            )
         )
 
 
@@ -173,7 +186,12 @@ def _parse_reply(body: dict[str, Any]) -> ProviderReply:
         )
         for index, call in enumerate(message.get("tool_calls") or [])
     ]
-    return ProviderReply(text=str(message.get("content") or ""), tool_calls=calls)
+    usage = body.get("usage")
+    return ProviderReply(
+        text=str(message.get("content") or ""),
+        tool_calls=calls,
+        usage=usage if isinstance(usage, dict) else None,
+    )
 
 
 def iter_sse_data(lines: Iterable[str]) -> Iterator[dict[str, Any]]:
@@ -252,7 +270,25 @@ def build_provider(settings: Settings) -> ChatProvider:
         model=settings.assistant_model,
         timeout_seconds=settings.assistant_timeout_seconds,
         temperature=settings.assistant_temperature,
+        max_output_tokens=settings.assistant_max_output_tokens,
     )
+
+
+def estimate_tokens(text: str) -> int:
+    """粗估一段文字的 token 数。
+
+    中文约一字一 token，英文约四字符一 token。**只用于「别把预算烧穿」的判断**，
+    不用于计费——服务端返回了真实 usage 的话以它为准。
+    """
+    cjk = sum(
+        1
+        for char in text
+        if "\u4e00" <= char <= "\u9fff"
+        or "\u3000" <= char <= "\u303f"
+        or "\uff00" <= char <= "\uffef"
+    )
+    other = len(text) - cjk
+    return cjk + max(1, other // 4) + 1
 
 
 def parse_arguments(raw: str) -> dict[str, Any]:
