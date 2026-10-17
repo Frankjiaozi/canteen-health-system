@@ -1,0 +1,112 @@
+.zw-admin-shell > .ant-layout {
+  min-width: 0;
+  background: #f4f6f2;
+}
+.zw-admin-brand {
+  padding: 20px 20px 18px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.zw-admin-brand strong {
+  font-family: 'KaiTi', 'STKaiti', serif;
+  font-weight: 600;
+  font-size: 29px;
+  color: #315c4c;
+}
+.zw-admin-brand small {
+  font-size: 11px;
+  color: #778579;
+}
+.zw-admin-header.ant-layout-header {
+  height: auto;
+  min-height: 64px;
+  line-height: normal;
+  padding-block: 12px;
+}
+.zw-admin-caption {
+  font-size: 12px;
+  white-space: nowrap;
+}
+.zw-admin-actions {
+  margin-left: auto;
+}
+.zw-admin-menu-toggle {
+  margin-right: auto;
+}
+.zw-admin-content {
+  padding: 16px;
+  min-width: 0;
+}
+.zw-dashboard-assistant {
+  border-left: 3px solid #758f70;
+  background: #edf3e9;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.zw-dashboard-assistant h2 {
+  font-size: 18px;
+  font-weight: 550;
+  color: #315c4c;
+  margin: 0 0 7px;
+}
+.zw-dashboard-assistant p {
+  font-size: 12px;
+  color: #667b68;
+  margin: 0;
+  line-height: 1.9;
+}
+.zw-dashboard-assistant a {
+  white-space: nowrap;
+  padding: 8px 12px;
+  border: 1px solid #b1c4ae;
+  border-radius: 5px;
+  color: #315c4c;
+  font-size: 12px;
+}
+@media (max-width: 900px) {
+  .zw-admin-caption {
+    display: none;
+  }
+}
+@media (max-width: 650px) {
+  .zw-admin-demo-badge {
+    order: 3;
+    margin-left: 42px;
+    font-size: 10px;
+  }
+  .zw-admin-content {
+    padding: 12px 10px;
+  }
+  .zw-admin-header.ant-layout-header {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    padding-inline: 12px !important;
+  }
+  .zw-admin-actions {
+    gap: 8px !important;
+  }
+  .zw-admin-user .ant-avatar,
+  .zw-admin-user .ant-tag {
+    display: none;
+  }
+  .zw-admin-user .ant-typography {
+    max-width: 105px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 11px;
+  }
+  .zw-admin-actions .ant-btn {
+    font-size: 11px;
+    padding-inline: 8px;
+  }
+  .zw-dashboard-assistant {
+    padding: 14px;
+    align-items: start;
+    flex-direction: column;
+  }
+}

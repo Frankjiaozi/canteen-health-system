@@ -14,6 +14,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.modules.menu import repository
+from app.modules.menu.locking import lock_meal
 from app.shared.enums import MealType
 
 
@@ -36,6 +37,7 @@ def confirm_menu_day(
     created_by: UUID | None = None,
 ) -> UUID:
     """把当餐实际供应的菜品整份写入菜单日，返回菜单日 ID。"""
+    lock_meal(session, on_date, meal_type)
     menu_day = repository.ensure_menu_day(
         session, on_date=on_date, meal_type=meal_type, created_by=created_by
     )

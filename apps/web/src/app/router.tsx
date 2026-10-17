@@ -2,6 +2,8 @@ import { Skeleton } from 'antd';
 import { Suspense, lazy, type ReactNode } from 'react';
 import { Navigate, RouterProvider, createBrowserRouter } from 'react-router-dom';
 import { RequireAuth } from '@/features/auth/components/RequireAuth';
+import { AgentPage } from '@/features/agent/routes';
+import { IntroPreviewPage } from '@/features/intro/IntroPreviewPage';
 import { SamplingPage } from '@/features/calibration/routes';
 import { DailyLogPage } from '@/features/collection/routes';
 import { DisplayPage } from '@/features/display/routes';
@@ -40,6 +42,10 @@ const router = createBrowserRouter([
     element: lazyElement(<RegisterPage />),
   },
   {
+    path: '/intro-preview',
+    element: lazyElement(<IntroPreviewPage />),
+  },
+  {
     // 公开大屏：全系统唯一的免登录页面
     path: '/display',
     element: lazyElement(<DisplayPage />),
@@ -54,6 +60,7 @@ const router = createBrowserRouter([
     children: [
       // 首页就是数据看板：打开系统先看「今天怎么样」，再点进具体模块处理
       { index: true, element: lazyElement(<DashboardPage />) },
+      { path: 'agent', element: lazyElement(<AgentPage />) },
       { path: 'ingredients', element: lazyElement(<IngredientListPage />) },
       { path: 'dishes', element: lazyElement(<DishListPage />) },
       { path: 'seasonings', element: lazyElement(<SeasoningListPage />) },

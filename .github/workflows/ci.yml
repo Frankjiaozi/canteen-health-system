@@ -22,16 +22,16 @@ jobs:
         env:
           POSTGRES_USER: canteen
           POSTGRES_PASSWORD: canteen
-          POSTGRES_DB: canteen
+          POSTGRES_DB: canteen_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U canteen -d canteen"
+          --health-cmd "pg_isready -U canteen -d canteen_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 12
     env:
-      DATABASE_URL: postgresql+psycopg://canteen:canteen@127.0.0.1:5432/canteen
+      DATABASE_URL: postgresql+psycopg://canteen:canteen@127.0.0.1:5432/canteen_test
       JWT_SECRET: ci-only-secret
       APP_ENV: test
       ALLOW_OPEN_REGISTRATION: 'true'
@@ -86,6 +86,23 @@ jobs:
       - name: 生产构建
         run: pnpm --filter @canteen/web build
 
+  agent:
+    name: Agent · 独立协议与权限测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: 安装独立依赖
+        run: python -m pip install -e "apps/agent[dev]"
+      - name: 检查与测试（无模型密钥、无业务数据库）
+        working-directory: apps/agent
+        run: |
+          python -m ruff check .
+          python -m ruff format --check .
+          python -m pytest
+
   # ---------------------------------------------------------------------------
   # 契约：重新生成前端 API 类型并断言与仓库中一致
   #
@@ -109,10 +126,11 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
           python -m pip install -e "apps/api[dev]"
+          python -m pip install -e "apps/agent[dev]"
       - name: 重新生成 API 类型
-        run: pnpm gen:api
+        run: pnpm gen:api && pnpm gen:agent
       - name: 断言无契约漂移
-        run: git diff --exit-code -- packages/api-client/src/schema.d.ts
+        run: git diff --exit-code -- packages/api-client/src/schema.d.ts apps/web/src/features/agent/api/schema.d.ts
 
   # ---------------------------------------------------------------------------
   # 端到端：真实浏览器 + 真实后端 + 真实 PostgreSQL
@@ -126,16 +144,16 @@ jobs:
         env:
           POSTGRES_USER: canteen
           POSTGRES_PASSWORD: canteen
-          POSTGRES_DB: canteen
+          POSTGRES_DB: canteen_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U canteen -d canteen"
+          --health-cmd "pg_isready -U canteen -d canteen_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 12
     env:
-      DATABASE_URL: postgresql+psycopg://canteen:canteen@127.0.0.1:5432/canteen
+      DATABASE_URL: postgresql+psycopg://canteen:canteen@127.0.0.1:5432/canteen_test
       JWT_SECRET: ci-only-secret
       APP_ENV: test
       ALLOW_OPEN_REGISTRATION: 'true'

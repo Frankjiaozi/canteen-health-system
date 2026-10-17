@@ -224,7 +224,7 @@ class ClosureCheckRow:
     category: SeasoningCategory
     actual_g: Decimal
     predicted_g: Decimal
-    deviation: Decimal
+    deviation: Decimal | None
     status: str
 
 
@@ -525,15 +525,22 @@ def _closure_checks(
         if actual is None:
             continue
         predicted = scaled.get(category, Decimal("0"))
-        deviation = (actual - predicted) / predicted if predicted > 0 else Decimal("0")
+        # 没用糖的配方和实际都为零时是吻合；零预测却有实际用量时无法定义比例。
+        deviation = (
+            (actual - predicted) / predicted
+            if predicted > 0
+            else (Decimal("0") if actual == 0 else None)
+        )
         checks.append(
             ClosureCheckRow(
                 category=category,
                 actual_g=Decimal(actual),
                 predicted_g=quantize(predicted, 2),
-                deviation=quantize(deviation, 4),
+                deviation=quantize(deviation, 4) if deviation is not None else None,
                 status=(
-                    "ok" if predicted > 0 and abs(deviation) <= CLOSURE_CHECK_TOLERANCE else "warn"
+                    "ok"
+                    if deviation is not None and abs(deviation) <= CLOSURE_CHECK_TOLERANCE
+                    else "warn"
                 ),
             )
         )

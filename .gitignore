@@ -39,6 +39,9 @@ venv/
 # ---------- 生成物 ----------
 # OpenAPI 导出物（由 scripts/gen-api-client.mjs 生成，不入库）
 openapi.json
+agent-openapi.json
+*.sqlite3-shm
+*.sqlite3-wal
 
 # ---------- 编辑器 / 系统 ----------
 .idea/

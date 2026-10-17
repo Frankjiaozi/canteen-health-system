@@ -430,6 +430,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/menu-plan/readiness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 只读检查计划所需数据 */
+        get: operations["inspect_readiness_api_v1_menu_plan_readiness_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/menu-plan/generate": {
         parameters: {
             query?: never;
@@ -441,6 +458,23 @@ export interface paths {
         put?: never;
         /** 生成明日菜单与采购建议 */
         post: operations["generate_api_v1_menu_plan_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/menu-plan/{suggestion_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 确认并发布计算快照 */
+        post: operations["publish_api_v1_menu_plan__suggestion_id__publish_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -813,8 +847,11 @@ export interface components {
             actual_g: string;
             /** Predicted G */
             predicted_g: string;
-            /** Deviation */
-            deviation: string;
+            /**
+             * Deviation
+             * @description 相对偏差；零预测却有实际用量时为空，不能伪装成零误差
+             */
+            deviation: string | null;
             /**
              * Status
              * @description ok / warn
@@ -1896,6 +1933,13 @@ export interface components {
          * @enum {string}
          */
         MealType: "BREAKFAST" | "LUNCH" | "DINNER";
+        /** MenuPlanConstraints */
+        MenuPlanConstraints: {
+            /** Excluded Dish Ids */
+            excluded_dish_ids?: string[];
+            /** Budget Per Person */
+            budget_per_person?: number | string | null;
+        };
         /**
          * MenuPlanDish
          * @description 推荐入选的一道菜，附上它明天的预测份数。
@@ -1926,6 +1970,8 @@ export interface components {
              * @default false
              */
             prediction_fallback: boolean;
+            /** Planned Servings */
+            planned_servings?: string | null;
         };
         /** MenuPlanResponse */
         MenuPlanResponse: {
@@ -1969,6 +2015,25 @@ export interface components {
             servings_note: string;
             /** Notes */
             notes: string[];
+            /**
+             * Snapshot Token
+             * @default
+             */
+            snapshot_token: string;
+            /**
+             * Expected Menu Token
+             * @default
+             */
+            expected_menu_token: string;
+            /**
+             * Budget Per Person
+             * @default
+             */
+            budget_per_person: string;
+            /** Requested Excluded Dish Ids */
+            requested_excluded_dish_ids?: string[];
+            /** Calculation Version */
+            calculation_version?: string | null;
         };
         /** MenuSuggestionRead */
         MenuSuggestionRead: {
@@ -2182,6 +2247,69 @@ export interface components {
              */
             basis_note: string;
         };
+        /** PlanReadiness */
+        PlanReadiness: {
+            /** Checked At */
+            checked_at: string;
+            /**
+             * On Date
+             * Format: date
+             */
+            on_date: string;
+            meal_type: components["schemas"]["MealType"];
+            /** Meal Type Label */
+            meal_type_label: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "blocked" | "attention" | "ready";
+            /** Active Dish Count */
+            active_dish_count: number;
+            /** Candidate Count */
+            candidate_count: number;
+            /** Available Count */
+            available_count: number;
+            /** Excluded Count */
+            excluded_count: number;
+            /** Predicted Count */
+            predicted_count: number;
+            /**
+             * History Start
+             * Format: date
+             */
+            history_start: string;
+            /**
+             * History End
+             * Format: date
+             */
+            history_end: string;
+            /** History Record Count */
+            history_record_count: number;
+            /** Days With Records */
+            days_with_records: number;
+            /** Latest Record Date */
+            latest_record_date: string | null;
+            /** Latest Diner Count */
+            latest_diner_count: number | null;
+            /** Missing Price Count */
+            missing_price_count: number;
+            /** Missing Nutrition Count */
+            missing_nutrition_count: number;
+            /** Categories */
+            categories: components["schemas"]["ReadinessCategory"][];
+            /** Issues */
+            issues: components["schemas"]["ReadinessIssue"][];
+            /** Issue Count */
+            issue_count: number;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+            /** Note */
+            note: string;
+        };
         /** PlannedDishRead */
         PlannedDishRead: {
             /** Dish Id */
@@ -2294,6 +2422,68 @@ export interface components {
              * @description 成分数据缺失项，无则为空数组
              */
             missing_nutrients: string[];
+        };
+        /** PublishPlanReceipt */
+        PublishPlanReceipt: {
+            /** Suggestion Id */
+            suggestion_id: string;
+            /** Menu Day Id */
+            menu_day_id: string;
+            /**
+             * On Date
+             * Format: date
+             */
+            on_date: string;
+            meal_type: components["schemas"]["MealType"];
+            /** Dish Count */
+            dish_count: number;
+            /** Published At */
+            published_at: string;
+            /** Published By */
+            published_by: string;
+            /**
+             * Already Published
+             * @default false
+             */
+            already_published: boolean;
+        };
+        /** PublishPlanRequest */
+        PublishPlanRequest: {
+            /** Snapshot Token */
+            snapshot_token: string;
+            /** Expected Menu Token */
+            expected_menu_token: string;
+        };
+        /** ReadinessCategory */
+        ReadinessCategory: {
+            /** Code */
+            code: string;
+            /** Label */
+            label: string;
+            /** Available Count */
+            available_count: number;
+            /** Required Minimum */
+            required_minimum: number;
+        };
+        /** ReadinessIssue */
+        ReadinessIssue: {
+            /** Code */
+            code: string;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "blocking" | "warning";
+            /** Title */
+            title: string;
+            /** Detail */
+            detail: string;
+            /** Action */
+            action: string;
+            /** Link */
+            link: string;
+            /** Entity Id */
+            entity_id?: string | null;
         };
         /**
          * RecipeIngredientLine
@@ -2978,6 +3168,7 @@ export type SchemaLoggedDish = components['schemas']['LoggedDish'];
 export type SchemaLoggedDishWrite = components['schemas']['LoggedDishWrite'];
 export type SchemaLoginRequest = components['schemas']['LoginRequest'];
 export type SchemaMealType = components['schemas']['MealType'];
+export type SchemaMenuPlanConstraints = components['schemas']['MenuPlanConstraints'];
 export type SchemaMenuPlanDish = components['schemas']['MenuPlanDish'];
 export type SchemaMenuPlanResponse = components['schemas']['MenuPlanResponse'];
 export type SchemaMenuSuggestionRead = components['schemas']['MenuSuggestionRead'];
@@ -2987,9 +3178,14 @@ export type SchemaNutrientValue = components['schemas']['NutrientValue'];
 export type SchemaNutritionComparison = components['schemas']['NutritionComparison'];
 export type SchemaNutritionSummary = components['schemas']['NutritionSummary'];
 export type SchemaPerCapitaResponse = components['schemas']['PerCapitaResponse'];
+export type SchemaPlanReadiness = components['schemas']['PlanReadiness'];
 export type SchemaPlannedDishRead = components['schemas']['PlannedDishRead'];
 export type SchemaPublicBoard = components['schemas']['PublicBoard'];
 export type SchemaPublicDishCard = components['schemas']['PublicDishCard'];
+export type SchemaPublishPlanReceipt = components['schemas']['PublishPlanReceipt'];
+export type SchemaPublishPlanRequest = components['schemas']['PublishPlanRequest'];
+export type SchemaReadinessCategory = components['schemas']['ReadinessCategory'];
+export type SchemaReadinessIssue = components['schemas']['ReadinessIssue'];
 export type SchemaRecipeIngredientLine = components['schemas']['RecipeIngredientLine'];
 export type SchemaRecipeIngredientRead = components['schemas']['RecipeIngredientRead'];
 export type SchemaRecipePayload = components['schemas']['RecipePayload'];
@@ -4052,14 +4248,12 @@ export interface operations {
             };
         };
     };
-    generate_api_v1_menu_plan_generate_post: {
+    inspect_readiness_api_v1_menu_plan_readiness_get: {
         parameters: {
             query: {
-                /** @description 要安排的日期 */
                 on_date: string;
                 meal_type?: components["schemas"]["MealType"];
-                /** @description 不填则用最近一次采集的人次 */
-                diner_count?: number | null;
+                excluded_dish_ids?: string[];
             };
             header?: never;
             path?: never;
@@ -4073,7 +4267,81 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    "application/json": components["schemas"]["PlanReadiness"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_api_v1_menu_plan_generate_post: {
+        parameters: {
+            query: {
+                /** @description 要安排的日期 */
+                on_date: string;
+                meal_type?: components["schemas"]["MealType"];
+                /** @description 不填则用最近一次采集的人次 */
+                diner_count?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["MenuPlanConstraints"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
                     "application/json": components["schemas"]["MenuPlanResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publish_api_v1_menu_plan__suggestion_id__publish_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                suggestion_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishPlanRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishPlanReceipt"];
                 };
             };
             /** @description Validation Error */

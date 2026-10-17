@@ -15,10 +15,11 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.errors import BusinessRuleError, NotFoundError
+from app.core.errors import BusinessRuleError, ConflictError, NotFoundError
 from app.core.logging import get_logger
 from app.modules.nutrition import service as nutrition_service
 from app.modules.recommendation import repository, solver, targets
@@ -80,6 +81,8 @@ def generate(
     meal_type: MealType = MealType.LUNCH,
     diner_count: int | None = None,
     servings_by_dish: dict[UUID, Decimal] | None = None,
+    excluded_dish_ids: frozenset[UUID] = frozenset(),
+    budget_per_person: Decimal | None = None,
 ) -> MenuSuggestionRead:
     """生成一份菜单建议。
 
@@ -93,22 +96,28 @@ def generate(
     settings = get_settings()
     dishes = repository.load_active_dishes(session)
     materials = repository.load_materials(session)
-    popularity = repository.load_popularity(session)
+    popularity = repository.load_popularity(session, on_date=on_date, meal_type=meal_type)
     standards = repository.load_standards(session)
 
-    candidates, snapshots, missing_price = _candidates(
+    candidates, snapshots, _ = _candidates(
         session, dishes=dishes, materials=materials, popularity=popularity
     )
     if not candidates:
         raise BusinessRuleError("没有可用于推荐的菜品：菜品需要有配方，并且至少供应过一次")
 
     plan_targets, target_basis = targets.build_targets(meal_type, standards)
-    diners = diner_count or repository.load_latest_diner_count(session, on_date=on_date)
+    diners = diner_count or repository.load_latest_diner_count(
+        session, on_date=on_date, meal_type=meal_type
+    )
     baseline = servings_by_dish or {candidate.dish_id: Decimal(diners) for candidate in candidates}
     excluded = repository.load_previous_dishes(session, on_date=on_date, meal_type=meal_type)
-    budget = (Decimal(str(settings.nutrition_meal_budget_per_person)) * diners).quantize(
-        Decimal("0.01")
+    excluded |= set(excluded_dish_ids)
+    per_person = (
+        budget_per_person
+        if budget_per_person is not None
+        else Decimal(str(settings.nutrition_meal_budget_per_person))
     )
+    budget = (per_person * diners).quantize(Decimal("0.01"))
     constraints = solver.PlanConstraints(
         targets=plan_targets,
         budget=budget,
@@ -126,9 +135,16 @@ def generate(
     )
 
     plan = solver.solve_menu(candidates, constraints)
+    # 菜库体检可提示所有候选缺口；方案成本说明只针对真正入选的用料。
+    missing_price = any(materials[item.dish_id].missing_price for item in plan.items)
     by_id = {dish.dish_id: dish for dish in candidates}
     gaps = _gaps(plan_targets, plan.per_capita, meal_type)
-    reasons = _reasons(plan, gaps, by_id, excluded, dishes)
+    reasons = _reasons(plan, gaps, by_id, excluded - set(excluded_dish_ids), dishes)
+    if excluded_dish_ids:
+        names = "、".join(
+            sorted(str(getattr(dishes.get(item), "name", item)) for item in excluded_dish_ids)
+        )
+        reasons.append(SuggestionReason(kind="constraint", text=f"按本次要求排除：{names}"))
 
     suggestion = repository.save_suggestion(
         session,
@@ -180,7 +196,9 @@ def generate(
     return read_suggestion(suggestion)
 
 
-def candidate_dish_ids(session: Session) -> list[UUID]:
+def candidate_dish_ids(
+    session: Session, *, on_date: date | None = None, meal_type: MealType | None = None
+) -> list[UUID]:
     """可作为推荐候选的菜品。
 
     「合并页」要先拿这份清单去预测份数、再交给推荐选菜，两边的候选集必须是同一批，
@@ -188,7 +206,7 @@ def candidate_dish_ids(session: Session) -> list[UUID]:
     """
     dishes = repository.load_active_dishes(session)
     materials = repository.load_materials(session)
-    popularity = repository.load_popularity(session)
+    popularity = repository.load_popularity(session, on_date=on_date, meal_type=meal_type)
     return [
         dish_id
         for dish_id, usage in materials.items()
@@ -237,7 +255,7 @@ def _candidates(
                 oil_g=usage.seasoning_g.get(_OIL, Decimal("0")),
                 salt_g=usage.seasoning_g.get(_SALT, Decimal("0")),
                 sugar_g=usage.seasoning_g.get(_SUGAR, Decimal("0")),
-                cost_per_serving=usage.cost_per_serving.quantize(Decimal("0.01")),
+                cost_per_serving=usage.cost_per_serving,
                 popularity=popularity[dish_id][0],
                 ingredient_ids=frozenset(usage.ingredient_ids),
             )
@@ -438,11 +456,15 @@ def decide(
     session: Session, *, suggestion_id: UUID, payload: DecideRequest, actor_id: UUID | None
 ) -> MenuSuggestionRead:
     """采纳或否决。否决必须写明原因——需求里写明它用于后续迭代。"""
-    suggestion = repository.get_suggestion(session, suggestion_id)
+    suggestion = session.scalar(
+        select(MenuSuggestion).where(MenuSuggestion.id == suggestion_id).with_for_update()
+    )
     if suggestion is None:
         raise NotFoundError("推荐不存在")
     if payload.status is SuggestionStatus.PENDING:
         raise BusinessRuleError("只能采纳或否决，不能改回待确认")
+    if (suggestion.nutrition_gap or {}).get("publication"):
+        raise ConflictError("这份方案已确认发布，请通过新方案调整菜单，不能改写确认记录")
     if payload.status is SuggestionStatus.REJECTED and not (payload.reason or "").strip():
         raise BusinessRuleError("否决必须写明原因，它会被用来改进后续推荐")
     suggestion.status = payload.status

@@ -7,7 +7,15 @@ import eslintConfigPrettier from 'eslint-config-prettier';
 
 export default tseslint.config(
   {
-    ignores: ['dist', 'coverage', 'playwright-report', 'test-results', 'node_modules'],
+    // 保留的第三方笔刷实验资产是上游压缩发布物，不套用本项目源码规则。
+    ignores: [
+      'dist',
+      'coverage',
+      'playwright-report',
+      'test-results',
+      'node_modules',
+      'public/intro/vendor/**',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

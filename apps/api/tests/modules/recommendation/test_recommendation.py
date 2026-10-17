@@ -76,6 +76,16 @@ def _constraints(**overrides: object) -> solver.PlanConstraints:
     return solver.PlanConstraints(**base)  # type: ignore[arg-type]
 
 
+def test_explanation_does_not_call_large_deficit_or_excess_a_binding_boundary():
+    constraints = _constraints()
+    assert solver._binding(constraints, {"energy_kcal": Decimal("300"), "SALT": Decimal("1")}) == []
+    assert (
+        solver._binding(constraints, {"energy_kcal": Decimal("1100"), "SALT": Decimal("8")}) == []
+    )
+    near = solver._binding(constraints, {"energy_kcal": Decimal("700"), "SALT": Decimal("4.99")})
+    assert any("下限" in row for row in near) and any("上限" in row for row in near)
+
+
 # ---------------------------------------------------------------------------
 # 求解器：硬约束逐条验证
 # ---------------------------------------------------------------------------

@@ -34,6 +34,12 @@ export const HOME_NAV: NavLeaf = {
   description: '当日供应结构与营养达成率、油盐糖趋势、人均摄入与浪费率',
 };
 
+export const AGENT_NAV: NavLeaf = {
+  path: '/admin/agent',
+  title: '知味膳食助手',
+  description: '对话安排菜单与采购、调整方案、核查记录并确认发布',
+};
+
 export const NAV_GROUPS: NavGroup[] = [
   {
     key: 'basics',
@@ -88,6 +94,7 @@ const ALL_LEAVES: NavLeaf[] = NAV_GROUPS.flatMap((group) => group.children);
 /** 按路径找导航项；找不到返回 undefined（例如公开大屏不在导航里）。 */
 export function findNavLeaf(path: string): NavLeaf | undefined {
   if (path === HOME_NAV.path) return HOME_NAV;
+  if (path === AGENT_NAV.path) return AGENT_NAV;
   return ALL_LEAVES.find((leaf) => leaf.path === path);
 }
 

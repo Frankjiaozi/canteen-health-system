@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>知味 · 墨笔小样</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #faf9f6;
+        color: #292824;
+        font:
+          14px/1.6 'Microsoft YaHei',
+          sans-serif;
+      }
+      main {
+        max-width: 1150px;
+        padding: 34px 26px;
+        margin: auto;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      h1 {
+        font: 600 23px/1.4 serif;
+        margin: 0;
+        letter-spacing: 3px;
+      }
+      header p {
+        color: #89847a;
+        font-size: 12px;
+        margin: 5px 0 0;
+      }
+      .tools {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      button,
+      select {
+        font: inherit;
+        font-size: 12px;
+        border: 1px solid #ded9cc;
+        background: white;
+        color: #5d554b;
+        padding: 8px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      button:hover {
+        border-color: #a84c37;
+      }
+      button.primary {
+        background: #a3332b;
+        color: white;
+        border-color: #a3332b;
+      }
+      button:disabled {
+        opacity: 0.35;
+        cursor: default;
+      }
+      .paper {
+        background: white;
+        margin-top: 24px;
+        border: 1px solid #ece9e0;
+        border-radius: 8px;
+        overflow: hidden;
+        min-height: 200px;
+      }
+      #stage canvas {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+      #stage {
+        width: 100%;
+      }
+      .labels {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        text-align: center;
+        border-top: 1px solid #f0ede6;
+        padding: 14px 0;
+        color: #81766a;
+        letter-spacing: 5px;
+        font: 17px serif;
+      }
+      .status {
+        min-height: 30px;
+        text-align: center;
+        color: #a3332b;
+        margin: 18px 0 8px;
+        font-size: 12px;
+      }
+      .foot {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        color: #938b7b;
+        font-size: 12px;
+        margin-top: 20px;
+      }
+      .foot button {
+        padding: 5px 10px;
+      }
+      .note {
+        margin: 15px 0 0;
+        color: #a19b91;
+        font-size: 11px;
+      }
+      a {
+        color: #a3332b;
+        text-decoration: none;
+      }
+      button:focus-visible,
+      select:focus-visible {
+        outline: 2px solid #ad5d43;
+        outline-offset: 3px;
+      }
+      @media (max-width: 600px) {
+        main {
+          padding: 23px 15px;
+        }
+        .tools {
+          width: 100%;
+        }
+        .tools button {
+          padding: 7px 9px;
+        }
+        .paper {
+          margin-top: 18px;
+        }
+        .labels {
+          font-size: 14px;
+        }
+      }
+      #stage canvas {
+        width: 100% !important;
+        height: auto !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>墨笔小样</h1>
+          <p>先看一撇与一个回转，逐笔落墨、抬笔。</p>
+        </div>
+        <div class="tools">
+          <select id="ink" aria-label="墨迹风格">
+            <option value="wet">浓墨</option>
+            <option value="dry">干笔</option></select
+          ><button id="replay" class="primary" disabled>重播两笔</button
+          ><button id="one" disabled>只看一撇</button><button id="two" disabled>只看回转</button
+          ><button id="finish" disabled>看完成图</button>
+        </div>
+      </header>
+      <div class="paper">
+        <div id="stage" role="img" aria-label="墨笔样片准备中"></div>
+        <div class="labels"><span>一撇</span><span>回转</span></div>
+      </div>
+      <p id="status" class="status" role="status">正在准备笔头纹理…</p>
+      <div class="foot">
+        <span>使用你描的路径；两笔分别绘制，彼此独立。</span>
+        <div>
+          <button id="saveOne" disabled>下载一撇 PNG</button
+          ><button id="saveTwo" disabled>下载回转 PNG</button>
+        </div>
+      </div>
+      <p class="note">这是笔触试验页。字形合成、全宽墨痕和落印将在笔触确定后接入。</p>
+    </main>
+    <script src="vendor/p5-brush.js"></script>
+    <script>
+      'use strict';
+      const $ = (id) => document.getElementById(id),
+        W = 1200,
+        H = 620;
+      let target,
+        paths,
+        clock = 0,
+        mode = 'both',
+        raf = 0,
+        playing = false,
+        started = 0;
+      const clamp = (n) => Math.max(0, Math.min(1, n));
+      function cubic(a, b, c, d, t) {
+        const s = 1 - t;
+        return s * s * s * a + 3 * s * s * t * b + 3 * s * t * t * c + t * t * t * d;
+      }
+      function envelope(t, i) {
+        const knots =
+          i === 0
+            ? [
+                [0, 0.025],
+                [0.14, 0.74],
+                [0.36, 1],
+                [0.65, 0.66],
+                [0.87, 0.19],
+                [1, 0.005],
+              ]
+            : [
+                [0, 0.025],
+                [0.17, 0.63],
+                [0.39, 0.85],
+                [0.57, 0.9],
+                [0.72, 0.52],
+                [0.91, 0.23],
+                [1, 0.015],
+              ];
+        const k = Math.max(0, knots.findIndex((p) => p[0] >= t) - 1),
+          a = knots[k],
+          b = knots[Math.min(k + 1, knots.length - 1)],
+          u = clamp((t - a[0]) / (b[0] - a[0] || 1)),
+          s = u * u * (3 - 2 * u);
+        return a[1] + (b[1] - a[1]) * s;
+      }
+      function prepare(nodes, i) {
+        const raw = [{ x: nodes[0].x, y: nodes[0].y, length: 0 }];
+        nodes.slice(1).forEach((b, j) => {
+          const a = nodes[j];
+          for (let step = 1; step <= 50; step++) {
+            const t = step / 50,
+              x = cubic(a.x, a.out.x, b.in.x, b.x, t),
+              y = cubic(a.y, a.out.y, b.in.y, b.y, t),
+              p = raw.at(-1);
+            raw.push({ x, y, length: p.length + Math.hypot(x - p.x, y - p.y) });
+          }
+        });
+        const xs = raw.map((p) => p.x),
+          ys = raw.map((p) => p.y),
+          minX = Math.min(...xs),
+          maxX = Math.max(...xs),
+          minY = Math.min(...ys),
+          maxY = Math.max(...ys),
+          scale = Math.min(320 / (maxX - minX), 370 / (maxY - minY));
+        const cx = (minX + maxX) / 2,
+          cy = (minY + maxY) / 2,
+          length = raw.at(-1).length;
+        let segment = 1;
+        const result = [];
+        for (let k = 0; k <= 125; k++) {
+          const distance = (k / 125) * length;
+          while (segment < raw.length - 1 && raw[segment].length < distance) segment++;
+          const a = raw[segment - 1],
+            b = raw[segment],
+            t = (distance - a.length) / (b.length - a.length || 1);
+          result.push([
+            (a.x + (b.x - a.x) * t - cx) * scale + (i === 0 ? 300 : 900),
+            (a.y + (b.y - a.y) * t - cy) * scale + H / 2,
+            envelope(k / 125, i),
+          ]);
+        }
+        return result;
+      }
+      function pace(t, i) {
+        const steps =
+          i === 0
+            ? [
+                [0, 0],
+                [0.18, 0.08],
+                [0.58, 0.47],
+                [0.85, 0.85],
+                [1, 1],
+              ]
+            : [
+                [0, 0],
+                [0.22, 0.18],
+                [0.48, 0.44],
+                [0.73, 0.63],
+                [1, 1],
+              ];
+        const k = Math.max(0, steps.findIndex((p) => p[0] >= t) - 1),
+          a = steps[k],
+          b = steps[Math.min(k + 1, steps.length - 1)];
+        return a[1] + (b[1] - a[1]) * clamp((t - a[0]) / (b[0] - a[0] || 1));
+      }
+      function drawOne(i, amount) {
+        if (amount <= 0) return;
+        const full = paths[i],
+          position = amount * (full.length - 1),
+          index = Math.floor(position),
+          a = full[index],
+          b = full[Math.min(index + 1, full.length - 1)],
+          t = position - index,
+          partial = full.slice(0, index + 1);
+        if (amount < 1)
+          partial.push([
+            a[0] + (b[0] - a[0]) * t,
+            a[1] + (b[1] - a[1]) * t,
+            a[2] + (b[2] - a[2]) * t,
+          ]);
+        if (partial.length < 2) return;
+        brush.set($('ink').value === 'dry' ? 'dry-ink' : 'wet-ink', '#11110f', 1);
+        brush.spline(partial, 0);
+      }
+      function draw(time, transparent = false, only = null) {
+        if (transparent) brush.clear();
+        else brush.clear('#fff');
+        brush.seed(41);
+        brush.noiseSeed(41);
+        brush.push();
+        brush.translate(-W / 2, -H / 2);
+        if (only !== null) drawOne(only, 1);
+        else if (mode === 'one') drawOne(0, pace(clamp(time / 1600), 0));
+        else if (mode === 'two') drawOne(1, pace(clamp(time / 1750), 1));
+        else {
+          drawOne(0, pace(clamp(time / 1600), 0));
+          drawOne(1, pace(clamp((time - 2050) / 1750), 1));
+        }
+        brush.pop();
+        brush.render();
+        const state =
+          time >= 4200
+            ? '样片完成'
+            : mode === 'one'
+              ? '正在书写一撇'
+              : mode === 'two'
+                ? '正在书写回转'
+                : time < 1600
+                  ? '第一笔 · 下按，逐渐提笔'
+                  : time < 2050
+                    ? '抬笔停顿'
+                    : time < 3800
+                      ? '第二笔 · 转折，收锋'
+                      : '样片完成';
+        $('status').textContent = state;
+        $('stage').setAttribute('aria-label', state);
+      }
+      function stop() {
+        playing = false;
+        cancelAnimationFrame(raf);
+      }
+      function play(nextMode) {
+        stop();
+        mode = nextMode;
+        clock = 0;
+        started = performance.now();
+        playing = true;
+        const frame = (now) => {
+          if (!playing) return;
+          clock = now - started;
+          draw(clock);
+          const end = mode === 'both' ? 4200 : 2000;
+          if (clock < end) raf = requestAnimationFrame(frame);
+          else {
+            playing = false;
+            $('status').textContent = '样片完成';
+            $('stage').setAttribute('aria-label', '样片完成');
+          }
+        };
+        raf = requestAnimationFrame(frame);
+      }
+      async function setup() {
+        if (typeof brush === 'undefined') throw Error('笔刷引擎未加载');
+        target = brush.createCanvas(W, H, { parent: '#stage', pixelDensity: 1 });
+        const [data, image] = await Promise.all([
+          fetch('brush-samples.json').then((r) => {
+            if (!r.ok) throw Error('路径未加载');
+            return r.json();
+          }),
+          new Promise((resolve, reject) => {
+            const image = new Image();
+            image.onload = () => resolve(image);
+            image.onerror = reject;
+            image.src = 'brush-tip-real.png';
+          }),
+        ]);
+        const mask = document.createElement('canvas');
+        mask.width = 512;
+        mask.height = 512;
+        const context = mask.getContext('2d');
+        context.fillStyle = '#fff';
+        context.fillRect(0, 0, 512, 512);
+        context.drawImage(image, 0, 0, 512, 512);
+        context.filter = 'contrast(1.8)';
+        context.drawImage(mask, 0, 0);
+        context.filter = 'none';
+        const tip = mask.toDataURL('image/png');
+        await brush.add('wet-ink', {
+          type: 'image',
+          weight: 125,
+          scatter: 0.045,
+          opacity: 50,
+          spacing: 1.5,
+          pressure: [1, 1],
+          noise: 0.16,
+          image: { src: tip },
+          rotate: 'none',
+          markerTip: false,
+        });
+        await brush.add('dry-ink', {
+          type: 'image',
+          weight: 130,
+          scatter: 0.15,
+          opacity: 8,
+          spacing: 2.8,
+          pressure: [1, 1],
+          noise: 0.32,
+          image: { src: tip },
+          rotate: 'none',
+          markerTip: false,
+        });
+        paths = data.map((s, i) => prepare(s.nodes, i));
+        for (const b of document.querySelectorAll('button')) b.disabled = false;
+        play('both');
+      }
+      $('replay').onclick = () => play('both');
+      $('one').onclick = () => play('one');
+      $('two').onclick = () => play('two');
+      $('finish').onclick = () => {
+        stop();
+        mode = 'both';
+        clock = 4200;
+        draw(clock);
+      };
+      $('ink').onchange = () => {
+        stop();
+        mode = 'both';
+        clock = 4200;
+        draw(clock);
+      };
+      function download(i) {
+        stop();
+        draw(4200, true, i);
+        const encoded = target.toDataURL('image/png').split(',')[1],
+          bytes = Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0)),
+          url = URL.createObjectURL(new Blob([bytes], { type: 'image/png' })),
+          a = document.createElement('a');
+        a.href = url;
+        a.download = i === 0 ? '知味-一撇-独立墨迹.png' : '知味-回转-独立墨迹.png';
+        document.body.append(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 30000);
+        mode = 'both';
+        clock = 4200;
+        draw(clock);
+      }
+      $('saveOne').onclick = () => download(0);
+      $('saveTwo').onclick = () => download(1);
+      setup().catch((error) => {
+        $('status').textContent = '样片暂时无法显示：' + (error.message || '纹理加载失败');
+        $('stage').setAttribute('aria-label', '样片加载失败');
+        console.error(error);
+      });
+    </script>
+  </body>
+</html>

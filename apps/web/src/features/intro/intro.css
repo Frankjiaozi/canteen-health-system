@@ -1,0 +1,124 @@
+.ink-preview {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  background: #f5eedf;
+  overflow: hidden;
+  position: relative;
+  transition: opacity 180ms ease-out;
+}
+
+.ink-app-content {
+  min-height: 100%;
+}
+
+.ink-startup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  overflow: hidden;
+}
+
+.ink-preview-finished {
+  opacity: 0;
+}
+
+.ink-paper {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.4;
+  mix-blend-mode: multiply;
+}
+
+.ink-atmosphere {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+
+.ink-atmosphere-blocks {
+  opacity: 1;
+}
+
+.ink-block {
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+.ink-block-first {
+  animation: ink-block-float 10s ease-in-out infinite alternate;
+}
+
+.ink-block-second {
+  animation: ink-block-return 13s ease-in-out infinite alternate;
+}
+
+.ink-block-third {
+  animation: ink-block-float 16s ease-in-out -4s infinite alternate-reverse;
+}
+
+@keyframes ink-block-float {
+  from {
+    transform: translate(-20px, -16px) rotate(-2deg) scale(1);
+  }
+  to {
+    transform: translate(45px, 32px) rotate(3deg) scale(1.08);
+  }
+}
+
+@keyframes ink-block-return {
+  from {
+    transform: translate(24px, 18px) rotate(2deg) scale(1.05);
+  }
+  to {
+    transform: translate(-40px, -28px) rotate(-3deg) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ink-block {
+    animation: none;
+  }
+}
+
+.ink-stage {
+  width: min(680px, 92vw);
+  height: auto;
+  overflow: visible;
+  margin-top: -2vh;
+  position: relative;
+}
+
+.ink-page-progress {
+  position: absolute;
+  left: 0;
+  top: calc(50% + min(18vw, 150px) - 24px);
+  width: 100%;
+  height: 90px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.ink-page-progress canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.ink-load-error {
+  color: #777;
+  text-align: center;
+  font-size: 14px;
+}
+
+.ink-load-error button {
+  border: 0;
+  background: transparent;
+  color: #a62220;
+  padding: 8px 12px;
+  cursor: pointer;
+}

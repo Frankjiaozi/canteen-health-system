@@ -21,8 +21,14 @@ export default defineConfig({
       workbox: {
         // 只预缓存前端静态资源。接口数据一律不缓存——食堂对着过期的营养数值做决策
         // 比看不到数据更糟。
-        navigateFallbackDenylist: [/^\/api\//, /^\/docs/, /^\/health/, /^\/openapi\.json/],
-        globPatterns: ['**/*.{js,css,html,svg,woff2}'],
+        navigateFallbackDenylist: [
+          /^\/api\//,
+          /^\/agent-api\//,
+          /^\/docs/,
+          /^\/health/,
+          /^\/openapi\.json/,
+        ],
+        globPatterns: ['**/*.{js,css,html,svg,woff2}', 'intro/ink-wordmark-cursive.png'],
       },
     }),
   ],
@@ -38,7 +44,11 @@ export default defineConfig({
     proxy: {
       // 开发期把 /api 反代到后端，使 httpOnly Cookie 保持同源，避免跨域凭证配置
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: process.env.CANTEEN_API_URL || 'http://127.0.0.1:8000',
+        changeOrigin: false,
+      },
+      '/agent-api': {
+        target: process.env.CANTEEN_AGENT_URL || 'http://127.0.0.1:8001',
         changeOrigin: false,
       },
     },

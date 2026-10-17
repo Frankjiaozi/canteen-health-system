@@ -26,7 +26,11 @@ from app.shared.enums import HolidayKind, MealType
 
 
 def load_holidays(session: Session, *, start: date, end: date) -> dict[date, HolidayKind]:
-    rows = session.scalars(select(Holiday).where(Holiday.date >= start, Holiday.date <= end)).all()
+    rows = session.scalars(
+        select(Holiday).where(
+            Holiday.date >= start, Holiday.date <= end, Holiday.is_verified.is_(True)
+        )
+    ).all()
     return {row.date: row.kind for row in rows}
 
 
@@ -45,7 +49,7 @@ def load_holiday(session: Session, *, day: date) -> Holiday | None:
 
 
 def load_dish_history(
-    session: Session, *, start: date, end: date
+    session: Session, *, start: date, end: date, meal_type: MealType = MealType.LUNCH
 ) -> dict[UUID, list[tuple[date, Decimal]]]:
     """每道菜在区间内的出餐份数，**已经剔除不该进历史序列的日子**。
 
@@ -65,6 +69,7 @@ def load_dish_history(
             .where(
                 MenuDay.date >= start,
                 MenuDay.date <= end,
+                MenuDay.meal_type == meal_type,
                 MenuDayItem.is_substituted.is_(True),
             )
         ).all()
@@ -78,7 +83,7 @@ def load_dish_history(
             DailyLog.anomaly_flags,
         )
         .join(DailyLog, DailyLog.id == DailyLogItem.daily_log_id)
-        .where(DailyLog.date >= start, DailyLog.date <= end)
+        .where(DailyLog.date >= start, DailyLog.date <= end, DailyLog.meal_type == meal_type)
     ).all()
 
     history: dict[UUID, list[tuple[date, Decimal]]] = defaultdict(list)

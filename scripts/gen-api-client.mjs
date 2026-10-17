@@ -86,6 +86,11 @@ try {
     `npx --yes openapi-typescript ${quote(specPath)} --output ${quote(outPath)} --root-types`,
     repoRoot,
   );
+  run(
+    process.execPath,
+    [resolve(repoRoot, 'node_modules/prettier/bin/prettier.cjs'), '--write', outPath],
+    repoRoot,
+  );
 
   console.log(`\n✅ API 客户端类型已生成：${outPath}`);
 } finally {
