@@ -234,3 +234,15 @@ def dish_usage_count(session: Session, dish_id: UUID) -> int:
         )
         or 0
     )
+
+
+def ingredient_usage_count(session: Session, ingredient_id: UUID) -> int:
+    """这个食材被多少个配方用着，用于停用前的提示。"""
+    return (
+        session.scalar(
+            select(func.count())
+            .select_from(RecipeItem)
+            .where(RecipeItem.ingredient_id == ingredient_id)
+        )
+        or 0
+    )

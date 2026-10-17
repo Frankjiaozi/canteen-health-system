@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { IngredientRequirement, MenuPlanDish } from '../types';
-import { describePredictionOrigin, summarizePurchase } from './present';
+import type { IngredientRequirement, MenuPlanBatchDay, MenuPlanDish } from '../types';
+import {
+  batchStatusTone,
+  describePredictionOrigin,
+  mergeBatchStatuses,
+  summarizePurchase,
+} from './present';
 
 function dish(overrides: Partial<MenuPlanDish> = {}): MenuPlanDish {
   return {
@@ -78,5 +83,74 @@ describe('summarizePurchase', () => {
     const summary = summarizePurchase([row('虾皮', null)], null, '500.00');
     expect(summary.tone).toBe('incomplete');
     expect(summary.text).toContain('—');
+  });
+});
+
+function batchDay(overrides: Partial<MenuPlanBatchDay> = {}): MenuPlanBatchDay {
+  return {
+    date: '2026-12-03',
+    status: 'GENERATED',
+    status_label: '已生成',
+    dish_names: ['米饭', '紫菜蛋花汤'],
+    dish_count: 2,
+    diner_count: 885,
+    cost_per_person: '3.20',
+    requirements_count: 0,
+    nutrition_rows: 0,
+    ...overrides,
+  };
+}
+
+describe('批量结果的状态口径', () => {
+  it('生成和导入都算成了，跳过与排不出来各自另说', () => {
+    expect(batchStatusTone('GENERATED')).toBe('ok');
+    expect(batchStatusTone('IMPORTED')).toBe('ok');
+    expect(batchStatusTone('SKIPPED')).toBe('skipped');
+    expect(batchStatusTone('FAILED')).toBe('bad');
+  });
+});
+
+describe('导入结果与生成结果的合并', () => {
+  it('状态用导入那一次，菜品与金额沿用生成那一次', () => {
+    const merged = mergeBatchStatuses(
+      [batchDay()],
+      [
+        batchDay({
+          status: 'IMPORTED',
+          status_label: '已导入',
+          dish_names: [],
+          dish_count: 0,
+          cost_per_person: undefined,
+          nutrition_rows: 2,
+        }),
+      ],
+    );
+
+    expect(merged[0].status).toBe('IMPORTED');
+    expect(merged[0].nutrition_rows).toBe(2);
+    expect(merged[0].dish_names).toEqual(['米饭', '紫菜蛋花汤']);
+    expect(merged[0].cost_per_person).toBe('3.20');
+  });
+
+  it('导入失败时，失败原因要盖住原来的成功状态——否则看着像导进去了', () => {
+    const merged = mergeBatchStatuses(
+      [batchDay()],
+      [
+        batchDay({
+          status: 'FAILED',
+          status_label: '导入失败',
+          reason: '这一天已经录过采集了',
+        }),
+      ],
+    );
+
+    expect(merged[0].status).toBe('FAILED');
+    expect(merged[0].reason).toBe('这一天已经录过采集了');
+  });
+
+  it('导入没提到的日期保持原样', () => {
+    const merged = mergeBatchStatuses([batchDay({ date: '2026-12-04' })], []);
+    expect(merged[0].date).toBe('2026-12-04');
+    expect(merged[0].status).toBe('GENERATED');
   });
 });

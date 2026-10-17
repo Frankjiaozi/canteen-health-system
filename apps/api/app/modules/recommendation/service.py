@@ -9,7 +9,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
+from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
@@ -56,7 +57,10 @@ CATEGORY_MIN: dict[DishCategory, int] = {
     DishCategory.VEGETABLE: 1,
 }
 CATEGORY_MAX: dict[DishCategory, int] = {
-    DishCategory.STAPLE: 2,
+    # 主食**每天只排一份**。菜品库里只有两种主食（米饭、馒头），
+    # 允许一天排两份的话，第二天就没有主食可排了（「同一道菜不连续两日重复」把它们都排除了），
+    # 结果是第二天直接「排不出来」。食堂本来就一天一种主食，限制它不损失什么。
+    DishCategory.STAPLE: 1,
     DishCategory.SOUP: 1,
     DishCategory.MEAT: 2,
     DishCategory.HALF_MEAT: 2,
@@ -83,6 +87,8 @@ def generate(
     servings_by_dish: dict[UUID, Decimal] | None = None,
     excluded_dish_ids: frozenset[UUID] = frozenset(),
     budget_per_person: Decimal | None = None,
+    extra_excluded: Collection[UUID] | None = None,
+    usage_counts: dict[UUID, int] | None = None,
 ) -> MenuSuggestionRead:
     """生成一份菜单建议。
 
@@ -111,7 +117,7 @@ def generate(
     )
     baseline = servings_by_dish or {candidate.dish_id: Decimal(diners) for candidate in candidates}
     excluded = repository.load_previous_dishes(session, on_date=on_date, meal_type=meal_type)
-    excluded |= set(excluded_dish_ids)
+    excluded |= set(excluded_dish_ids) | set(extra_excluded or ())
     per_person = (
         budget_per_person
         if budget_per_person is not None
@@ -132,14 +138,24 @@ def generate(
         category_max=CATEGORY_MAX,
         fixed_servings=baseline,
         excluded_dish_ids=frozenset(excluded),
+        usage_counts=usage_counts or {},
     )
 
-    plan = solver.solve_menu(candidates, constraints)
-    # 菜库体检可提示所有候选缺口；方案成本说明只针对真正入选的用料。
+    try:
+        plan = solver.solve_menu(candidates, constraints)
+    except solver.InfeasibleError as error:
+        raise BusinessRuleError(str(error), details={"conflicts": error.conflicts}) from error
     missing_price = any(materials[item.dish_id].missing_price for item in plan.items)
     by_id = {dish.dish_id: dish for dish in candidates}
     gaps = _gaps(plan_targets, plan.per_capita, meal_type)
-    reasons = _reasons(plan, gaps, by_id, excluded - set(excluded_dish_ids), dishes)
+    reasons = _reasons(
+        plan, gaps, by_id, excluded - set(excluded_dish_ids) - set(extra_excluded or ()), dishes
+    )
+    if extra_excluded:
+        names = "、".join(
+            sorted(str(getattr(dishes.get(item), "name", item)) for item in extra_excluded)
+        )
+        reasons.append(SuggestionReason(kind="constraint", text=f"按批量前一日计划排除：{names}"))
     if excluded_dish_ids:
         names = "、".join(
             sorted(str(getattr(dishes.get(item), "name", item)) for item in excluded_dish_ids)
@@ -161,6 +177,10 @@ def generate(
                 "salt_g": str(by_id[item.dish_id].salt_g),
                 "popularity": str(by_id[item.dish_id].popularity.quantize(Decimal("1"))),
                 "nutrition_basis": snapshots[item.dish_id],
+                # 这一版是拿哪套份数评估营养的。它不是推荐给出的建议份数，
+                # 而是**同步到当日数据**时要写的计划份数——快照因此能自解释：
+                # 事后看到「那天计划做 812 份米饭」，能对上当时确实按下 812 份评估过。
+                "planned_servings": str(item.servings),
             }
             for item in plan.items
         ],
@@ -212,6 +232,86 @@ def candidate_dish_ids(
         for dish_id, usage in materials.items()
         if usage.ingredient_ids and dish_id in dishes and dish_id in popularity
     ]
+
+
+def latest_suggestion_id(session: Session, *, on_date: date, meal_type: MealType) -> UUID | None:
+    """这一天这一餐最近生成的那一版菜单，没有就返回空。
+
+    「一键导入当日菜单」按日期区间干活，调用方只给区间、不给一串 id——
+    那样刷新页面或换个人来点，结果都一样。
+    """
+    for row in repository.list_suggestions(session, on_date=on_date, limit=20):
+        if row.meal_type is meal_type:
+            return row.id
+    return None
+
+
+def latest_diner_count(
+    session: Session, *, on_date: date, meal_type: MealType = MealType.LUNCH
+) -> int:
+    """最近一次采集里的就餐人次。
+
+    别的域（例如「明日菜单与采购」）要按人次折算人均供给时走这里问，
+    而不是自己去读推荐域的表。
+    """
+    return repository.load_latest_diner_count(session, on_date=on_date, meal_type=meal_type)
+
+
+def reopen_suggestion(session: Session, *, suggestion_id: UUID) -> MenuSuggestionRead:
+    """把一版推荐改回「待确认」。
+
+    只给「撤回同步」用：菜单已经退回原样了，推荐记录却还写着「已采纳」的话，
+    两处状态就对不上——而这种对不上最难查。
+    """
+    suggestion = repository.get_suggestion(session, suggestion_id)
+    if suggestion is None:
+        raise NotFoundError("推荐不存在")
+    suggestion.status = SuggestionStatus.PENDING
+    suggestion.rejected_reason = None
+    suggestion.decided_by = None
+    suggestion.decided_at = None
+    session.commit()
+    return read_suggestion(suggestion)
+
+
+@dataclass(frozen=True, slots=True)
+class PlannedDish:
+    """一版菜单里的一道菜：做哪道 + 计划做多少份。"""
+
+    dish_id: UUID
+    planned_servings: Decimal | None
+
+
+def planned_dishes(
+    session: Session, *, suggestion_id: UUID, on_date: date, meal_type: MealType
+) -> tuple[list[PlannedDish], SuggestionStatus]:
+    """读出某一版菜单的菜品与计划份数，供「同步到当日数据」落库。
+
+    读的是**快照**而不是重新算一遍：同步要落的是人当时看到并确认的那一版，
+    重算会算出可能不一样的结果，那就不是「同步」而是「悄悄换一份菜单」了。
+    """
+    suggestion = repository.get_suggestion(session, suggestion_id)
+    if suggestion is None:
+        raise NotFoundError("推荐不存在")
+    if suggestion.date != on_date or suggestion.meal_type is not meal_type:
+        raise BusinessRuleError(
+            f"这一版菜单是 {suggestion.date} {suggestion.meal_type.label} 的，"
+            f"与要同步的 {on_date} {meal_type.label} 对不上"
+        )
+    rows = [
+        PlannedDish(
+            dish_id=UUID(str(row["dish_id"])),
+            planned_servings=(
+                None
+                if row.get("planned_servings") is None
+                else Decimal(str(row["planned_servings"]))
+            ),
+        )
+        for row in (suggestion.candidate_menu or [])
+    ]
+    if not rows:
+        raise BusinessRuleError("这一版菜单里没有菜品，无法同步")
+    return rows, suggestion.status
 
 
 def _candidates(

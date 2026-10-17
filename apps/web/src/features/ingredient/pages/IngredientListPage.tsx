@@ -9,6 +9,7 @@ import {
   Switch,
   Table,
   Tag,
+  Tooltip,
   Typography,
 } from 'antd';
 import type { TableProps } from 'antd';
@@ -60,11 +61,11 @@ export function IngredientListPage() {
         </Space>
       ),
     },
-    { title: '类别', dataIndex: 'category_label', width: 100 },
+    { title: '类别', dataIndex: 'category_label', width: 96 },
     ...NUTRIENT_COLUMNS.map((column) => ({
       title: `${column.title}（${column.unit}）`,
       dataIndex: column.field,
-      width: 120,
+      width: 110,
       align: 'right' as const,
       // 缺数据显示为「—」而不是 0：数据缺失与真的为零是两码事
       render: (value: string | null) => formatNutrient(value, column.digits),
@@ -72,20 +73,27 @@ export function IngredientListPage() {
     {
       title: '可食部',
       dataIndex: 'edible_ratio',
-      width: 90,
+      width: 82,
       align: 'right',
       render: (value: string) => `${ratioToPercent(value) ?? 100}%`,
     },
     {
       title: '数据来源',
       dataIndex: 'data_source',
-      width: 240,
-      render: (value: string, record) => (
-        <Typography.Text type="secondary">
-          {value}
-          {record.source_version ? `（${record.source_version}）` : ''}
-        </Typography.Text>
-      ),
+      width: 168,
+      // 表格里只显示**条目名 + 条目 ID**：它逐行不同，是这条数值真正的可追溯坐标；
+      // 出版方那 30 多个字的全称每行都一样，塞进单元格只会把列撑爆，
+      // 放进悬停提示与编辑抽屉里看就够。
+      ellipsis: { showTitle: false },
+      render: (value: string, record) => {
+        const entry = record.source_version ?? value;
+        const full = `${value}${record.source_version ? `（${record.source_version}）` : ''}`;
+        return (
+          <Tooltip title={full} placement="topLeft">
+            <Typography.Text type="secondary">{entry}</Typography.Text>
+          </Tooltip>
+        );
+      },
     },
     {
       title: '操作',
@@ -178,7 +186,7 @@ export function IngredientListPage() {
         loading={listQuery.isFetching}
         columns={columns}
         dataSource={listQuery.data?.items ?? []}
-        scroll={{ x: 1280 }}
+        scroll={{ x: 1176 }}
         pagination={{
           current: page,
           pageSize,

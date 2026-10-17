@@ -193,6 +193,28 @@ class AuditAction(LabelledStrEnum):
     REJECT = "REJECT"
 
 
+class AssistantMessageRole(LabelledStrEnum):
+    """助手对话里的两种消息。工具调用不单独存一条，挂在助手消息上。"""
+
+    USER = "USER"
+    ASSISTANT = "ASSISTANT"
+
+
+class AssistantProposalStatus(LabelledStrEnum):
+    """写操作方案的状态。
+
+    助手**不能**直接写库：它提出的写操作先落成一条方案，等人点确认才执行。
+    这个状态就是那道闸门——PENDING 的方案什么也没发生，CANCELLED 的什么也不会发生。
+    """
+
+    PENDING = "PENDING"
+    CONFIRMED = "CONFIRMED"
+    CANCELLED = "CANCELLED"
+    FAILED = "FAILED"
+    #: 确认执行之后又撤回来的。撤回本身也是一次写入，所以它同样是留痕的一部分
+    REVERTED = "REVERTED"
+
+
 # ---------------------------------------------------------------------------
 # 中文展示名。集中在一处，便于核对文案；新增取值时必须同步补充。
 #
@@ -293,6 +315,14 @@ ENUM_LABELS: dict[tuple[type[LabelledStrEnum], str], str] = {
     (AuditAction, AuditAction.SUBMIT.value): "提交",
     (AuditAction, AuditAction.APPROVE.value): "采纳",
     (AuditAction, AuditAction.REJECT.value): "否决",
+    # AI 助手
+    (AssistantMessageRole, AssistantMessageRole.USER.value): "用户",
+    (AssistantMessageRole, AssistantMessageRole.ASSISTANT.value): "助手",
+    (AssistantProposalStatus, AssistantProposalStatus.PENDING.value): "待确认",
+    (AssistantProposalStatus, AssistantProposalStatus.CONFIRMED.value): "已确认并执行",
+    (AssistantProposalStatus, AssistantProposalStatus.CANCELLED.value): "已取消",
+    (AssistantProposalStatus, AssistantProposalStatus.FAILED.value): "执行失败",
+    (AssistantProposalStatus, AssistantProposalStatus.REVERTED.value): "已撤回",
 }
 
 

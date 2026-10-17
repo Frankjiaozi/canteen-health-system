@@ -16,8 +16,10 @@ from app.modules.auth.dependencies import require_roles
 from app.modules.auth.schemas import AuthUser
 from app.modules.menuplan import publication, readiness, service
 from app.modules.menuplan.schemas import (
+    MenuPlanBatchResult,
     MenuPlanConstraints,
     MenuPlanResponse,
+    MenuPlanSyncResult,
     PlanReadiness,
     PublishPlanReceipt,
     PublishPlanRequest,
@@ -85,3 +87,50 @@ def publish(
         if getattr(exc.orig, "sqlstate", None) in {"40P01", "55P03", "40001", "23505"}:
             raise ConflictError("菜单或配方正在被其他操作更新，请刷新后重试") from exc
         raise
+
+
+@router.post("/sync", response_model=MenuPlanSyncResult, summary="把这版菜单同步至当日数据")
+def sync(
+    on_date: date = Query(description="要写入的日期"),
+    meal_type: MealType = Query(default=MealType.LUNCH),
+    suggestion_id: UUID = Query(description="要同步的那一版菜单"),
+    session: Session = Depends(get_session),
+    actor: AuthUser = Depends(require_roles(*WRITE_ROLES)),
+) -> MenuPlanSyncResult:
+    return service.sync_to_day(
+        session,
+        on_date=on_date,
+        meal_type=meal_type,
+        suggestion_id=suggestion_id,
+        actor_id=actor.id,
+    )
+
+
+@router.post("/batch/generate", response_model=MenuPlanBatchResult, summary="按日期区间批量排菜单")
+def batch_generate(
+    start_date: date = Query(description="开始日期"),
+    end_date: date = Query(description="结束日期（含）"),
+    meal_type: MealType = Query(default=MealType.LUNCH),
+    session: Session = Depends(get_session),
+    _: AuthUser = Depends(require_roles(*WRITE_ROLES)),
+) -> MenuPlanBatchResult:
+    return service.generate_batch(
+        session, start_date=start_date, end_date=end_date, meal_type=meal_type
+    )
+
+
+@router.post("/batch/sync", response_model=MenuPlanBatchResult, summary="一键导入这几天的当日菜单")
+def batch_sync(
+    start_date: date = Query(description="开始日期"),
+    end_date: date = Query(description="结束日期（含）"),
+    meal_type: MealType = Query(default=MealType.LUNCH),
+    session: Session = Depends(get_session),
+    actor: AuthUser = Depends(require_roles(*WRITE_ROLES)),
+) -> MenuPlanBatchResult:
+    return service.sync_batch(
+        session,
+        start_date=start_date,
+        end_date=end_date,
+        meal_type=meal_type,
+        actor_id=actor.id,
+    )

@@ -89,6 +89,9 @@
   .zw-admin-actions {
     gap: 8px !important;
   }
+  .zw-admin-display-button .zw-admin-display-label {
+    display: none;
+  }
   .zw-admin-user .ant-avatar,
   .zw-admin-user .ant-tag {
     display: none;

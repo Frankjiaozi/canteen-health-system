@@ -25,15 +25,16 @@ dependencies = [
     # 菜单推荐的整数规划。**上界卡在 3 以下**：PuLP 4.x 不再自带求解器
     # （装完 listSolvers 是空的），参数名也换了一套；需求要的是「自带 CBC」的那一版。
     "pulp>=2.9,<3",
-    # 周报月报导出 PDF。选它是纯 Python 实现、Windows 上不需要额外系统库。
-    "reportlab>=4.4",
+    # 周报月报导出 PDF 会用到 reportlab（纯 Python、Windows 不需要额外系统库），
+    # 那个模块还没做，所以先不引入——装一个没人用的依赖只会拖慢构建
+    # AI 助手调用模型端点（任何 OpenAI 兼容的 /chat/completions）
+    "httpx>=0.28.1",
     "tzdata>=2026.1",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=9.1.1",
-    "httpx>=0.28.1",
     "ruff>=0.17.0",
     "mypy>=2.4.0",
     # openpyxl 不带类型标注，mypy 需要这份第三方 stub
@@ -79,6 +80,8 @@ ignore = [
 "tests/**" = ["T20"]
 "app/db/seed.py" = ["T20"]
 "app/openapi_export.py" = ["T20"]
+# 命令行工具的输出就是它的产品，这里不用 logger
+"tools/**" = ["T20"]
 
 [tool.ruff.format]
 quote-style = "double"

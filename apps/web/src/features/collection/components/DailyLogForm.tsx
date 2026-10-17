@@ -17,6 +17,7 @@ import { useEnumOptions } from '@/shared/hooks/useEnumOptions';
 import { useSaveSheet } from '../hooks/useCollection';
 import {
   buildSavePayload,
+  formatPlannedServings,
   initialFormValues,
   initialRows,
   validateSheet,
@@ -148,12 +149,17 @@ export function DailyLogForm({ onDate, sheet }: DailyLogFormProps) {
             },
             {
               title: '菜品',
-              width: 200,
+              width: 240,
               render: (_, row) => {
                 const dish = sheet.dishes.find((item) => item.dish_id === row.dishId);
                 return (
                   <Space orientation="vertical" size={0}>
-                    <Typography.Text strong>{dish?.name}</Typography.Text>
+                    <Space size={6}>
+                      <Typography.Text strong>{dish?.name}</Typography.Text>
+                      {/* 「计划」这两个字只在采集页说：它是「明日菜单与采购」排的，
+                          和录入员此刻勾的实际供应不是一回事 */}
+                      {dish?.is_planned ? <Tag color="blue">计划</Tag> : null}
+                    </Space>
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                       {dish?.category_label} · {dish?.cooking_method_label}
                     </Typography.Text>
@@ -181,17 +187,30 @@ export function DailyLogForm({ onDate, sheet }: DailyLogFormProps) {
             },
             {
               title: '出餐份数',
-              width: 150,
-              render: (_, row) => (
-                <InputNumber
-                  min={0}
-                  precision={2}
-                  style={{ width: '100%' }}
-                  value={row.servings}
-                  disabled={!canWrite || !row.selected}
-                  onChange={(value) => patchRow(row.dishId, { servings: value ?? null })}
-                />
-              ),
+              width: 190,
+              render: (_, row) => {
+                const planned = formatPlannedServings(
+                  sheet.dishes.find((item) => item.dish_id === row.dishId)?.planned_servings,
+                );
+                return (
+                  <Space orientation="vertical" size={0} style={{ width: '100%' }}>
+                    <InputNumber
+                      min={0}
+                      precision={2}
+                      style={{ width: '100%' }}
+                      value={row.servings}
+                      disabled={!canWrite || !row.selected}
+                      placeholder={planned ? `计划 ${planned} 份` : '按实际出餐填'}
+                      onChange={(value) => patchRow(row.dishId, { servings: value ?? null })}
+                    />
+                    {planned && row.servings !== null ? (
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        计划 {planned} 份
+                      </Typography.Text>
+                    ) : null}
+                  </Space>
+                );
+              },
             },
             {
               title: '剩余比例',

@@ -11,24 +11,110 @@
 
 from __future__ import annotations
 
+import itertools
 from collections import defaultdict
-from datetime import timedelta
+from collections.abc import Iterator
+from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
+import pytest
+from app.db.session import get_session_factory
+from app.modules.collection.models import DailyLog, DailyLogItem
 from app.modules.dish.models import RecipeItem, RecipeSeasoning
 from app.modules.forecast import service as forecast_service
 from app.modules.forecast.models import Forecast
 from app.modules.ingredient.models import Ingredient
+from app.modules.menu.models import MenuDay, MenuDayItem
+from app.modules.menuplan import service
+from app.modules.nutrition.models import DishNutrition
+from app.modules.recommendation.models import MenuSuggestion
 from app.modules.seasoning.models import Seasoning
 from app.shared.enums import IngredientCategory, MealType
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from tests.helpers import today_local
 
 BASE = "/api/v1/menu-plan"
+COLLECTION = "/api/v1/collection"
+BOARD = "/api/v1/public/board/today"
+RECOMMENDATION = "/api/v1/recommendation"
+
+
+def _fresh_date() -> date:
+    """种子历史之外的一天。
+
+    同步用例会往将来写菜单日与营养结果，而**很多用例把「最新的菜单日」当成今天**
+    （大屏、看板、营养计算都这么取）。挑一个固定偏移的将来日期，再在用例结束后清掉，
+    就不会给别的用例下绊子。
+    """
+    return today_local() + timedelta(days=30)
+
+
+@pytest.fixture(autouse=True)
+def cleanup_beyond_seed_history() -> Iterator[None]:
+    """用例结束后，把种子历史之后新建的菜单日、营养结果与份数记录删掉。"""
+    cutoff = today_local()
+    yield
+    with get_session_factory()() as session:
+        log_ids = list(session.scalars(select(DailyLog.id).where(DailyLog.date > cutoff)))
+        if log_ids:
+            session.execute(delete(DailyLogItem).where(DailyLogItem.daily_log_id.in_(log_ids)))
+        session.execute(delete(DailyLog).where(DailyLog.date > cutoff))
+        menu_ids = list(session.scalars(select(MenuDay.id).where(MenuDay.date > cutoff)))
+        if menu_ids:
+            session.execute(delete(MenuDayItem).where(MenuDayItem.menu_day_id.in_(menu_ids)))
+        session.execute(delete(MenuDay).where(MenuDay.date > cutoff))
+        session.execute(delete(DishNutrition).where(DishNutrition.date > cutoff))
+        session.execute(delete(Forecast).where(Forecast.date > cutoff))
+        session.execute(delete(MenuSuggestion).where(MenuSuggestion.date > cutoff))
+        session.commit()
+
+
+def _generate(client: TestClient, target: date) -> dict:
+    response = client.post(
+        f"{BASE}/generate", params={"on_date": target.isoformat(), "meal_type": "LUNCH"}
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def _sync(client: TestClient, target: date, suggestion_id: str):
+    return client.post(
+        f"{BASE}/sync",
+        params={
+            "on_date": target.isoformat(),
+            "meal_type": "LUNCH",
+            "suggestion_id": suggestion_id,
+        },
+    )
+
+
+def _fresh_range(offset: int, days: int) -> tuple[date, date]:
+    """种子历史之外的一段日期。每个用例挑自己的偏移，免得互相踩。"""
+    start = today_local() + timedelta(days=offset)
+    return start, start + timedelta(days=days - 1)
+
+
+def _batch_generate(client: TestClient, start: date, end: date):
+    return client.post(
+        f"{BASE}/batch/generate",
+        params={"start_date": start.isoformat(), "end_date": end.isoformat(), "meal_type": "LUNCH"},
+    )
+
+
+def _batch_sync(client: TestClient, start: date, end: date):
+    return client.post(
+        f"{BASE}/batch/sync",
+        params={"start_date": start.isoformat(), "end_date": end.isoformat(), "meal_type": "LUNCH"},
+    )
+
+
+def _dish_id(client: TestClient, name: str) -> str:
+    body = client.get("/api/v1/dishes", params={"page_size": 100}).json()
+    return next(item["id"] for item in body["items"] if item["name"] == name)
 
 
 def _per_serving_usage(session: Session, dish_id: UUID) -> list[tuple[str, Decimal]]:
@@ -238,6 +324,368 @@ def test_predictions_are_persisted_for_the_planned_dishes_only(
     # 快照要能自解释：复盘时看得出这个份数是怎么来的
     assert all(row.features["model"] for row in rows)
     assert all(row.features["samples"] for row in rows)
+
+
+def test_sync_puts_the_plan_into_the_day_for_collection_and_board(
+    as_recorder: TestClient, db_session: Session
+) -> None:
+    """「同步至当日数据」要一次接通两处：采集页的供应菜品、公开大屏的当日菜单。
+
+    这是交互上的一条硬要求：大屏早上就开始显示，而采集要到一天结束才录；
+    靠人工在采集页重勾一遍，大屏整个白天就是空的。
+    """
+    target = _fresh_date()
+    plan = _generate(as_recorder, target)
+
+    synced = _sync(as_recorder, target, plan["suggestion_id"])
+    assert synced.status_code == 200, synced.text
+    body = synced.json()
+    assert body["dish_count"] == len(plan["dishes"])
+    assert body["nutrition_rows"] == len(plan["dishes"]), "每道菜都要算出单份营养，大屏才有内容"
+    assert body["planned_servings_filled"] == len(plan["dishes"])
+
+    # 每日采集：整份菜品库都列着（临时换菜有地方勾），计划里的菜已经勾好
+    sheet = as_recorder.get(
+        f"{COLLECTION}/logs/{target.isoformat()}", params={"meal_type": "LUNCH"}
+    ).json()
+    assert sheet["menu_confirmed"] is True
+    assert len(sheet["dishes"]) >= 20
+    planned = [row for row in sheet["dishes"] if row["is_planned"]]
+    assert {row["dish_id"] for row in planned} == {dish["dish_id"] for dish in plan["dishes"]}
+    assert all(row["selected"] for row in planned)
+    assert all(row["planned_servings"] for row in planned)
+    # 计划里的菜排在最前面，录入员一眼看到的就是「今天计划做的那几道」
+    assert all(row["is_planned"] for row in sheet["dishes"][: len(planned)])
+    assert "计划" in sheet["warning"]
+
+    # 公开大屏：免登录就能看到这一天的菜单与营养
+    board = as_recorder.get(BOARD, params={"on_date": target.isoformat()}).json()
+    assert board["meal_label"] == "午餐"
+    assert {card["name"] for card in board["dishes"]} == {
+        dish["dish_name"] for dish in plan["dishes"]
+    }
+    assert all(len(card["nutrients"]) == 5 for card in board["dishes"])
+
+    # 同步即采纳：历史里查得到「这一版被用上了」
+    detail = as_recorder.get(f"{RECOMMENDATION}/{plan['suggestion_id']}").json()
+    assert detail["status"] == "ACCEPTED"
+
+
+def test_resync_replaces_the_plan_instead_of_piling_up(as_recorder: TestClient) -> None:
+    """同一版菜单同步两次是幂等的；换成新一版则整份替换。"""
+    target = _fresh_date()
+    first = _generate(as_recorder, target)
+    assert _sync(as_recorder, target, first["suggestion_id"]).status_code == 200
+
+    assert _sync(as_recorder, target, first["suggestion_id"]).status_code == 200
+    sheet = as_recorder.get(
+        f"{COLLECTION}/logs/{target.isoformat()}", params={"meal_type": "LUNCH"}
+    ).json()
+    assert sum(1 for row in sheet["dishes"] if row["is_planned"]) == len(first["dishes"])
+
+    second = _generate(as_recorder, target)
+    assert _sync(as_recorder, target, second["suggestion_id"]).status_code == 200
+    sheet = as_recorder.get(
+        f"{COLLECTION}/logs/{target.isoformat()}", params={"meal_type": "LUNCH"}
+    ).json()
+    planned = {row["dish_id"] for row in sheet["dishes"] if row["is_planned"]}
+    assert planned == {dish["dish_id"] for dish in second["dishes"]}, "菜单按最新一版整体替换"
+
+
+def test_sync_refuses_to_overwrite_a_day_that_was_already_collected(
+    as_recorder: TestClient, db_session: Session
+) -> None:
+    """已经录过采集的日子，菜单以实际供应为准——不能被计划盖掉。"""
+    target = _fresh_date()
+    plan = _generate(as_recorder, target)
+    dish_ids = [dish["dish_id"] for dish in plan["dishes"][:2]]
+    saved = as_recorder.put(
+        f"{COLLECTION}/logs/{target.isoformat()}",
+        json={
+            "meal_type": "LUNCH",
+            "diner_count": 300,
+            "oil_total_g": "1000",
+            "salt_total_g": "400",
+            "sugar_total_g": "150",
+            "leftover_weight_g": "2000",
+            "note": None,
+            "anomaly_flags": [],
+            "dishes": [{"dish_id": dish_id, "servings_produced": "140"} for dish_id in dish_ids],
+        },
+    )
+    assert saved.status_code == 200, saved.text
+
+    refused = _sync(as_recorder, target, plan["suggestion_id"])
+    assert refused.status_code == 422
+    assert "已经录过采集" in refused.json()["message"]
+
+    db_session.expire_all()
+    sheet = as_recorder.get(
+        f"{COLLECTION}/logs/{target.isoformat()}", params={"meal_type": "LUNCH"}
+    ).json()
+    selected = {row["dish_id"] for row in sheet["dishes"] if row["selected"]}
+    assert selected == set(dish_ids), "原有菜单不该被计划覆盖"
+
+
+def test_collection_keeps_the_planned_servings_for_reconciliation(
+    as_recorder: TestClient,
+) -> None:
+    """提交实际份数之后，计划份数仍然留着——否则「计划做多少、实际做多少」事后对不上。"""
+    target = _fresh_date()
+    plan = _generate(as_recorder, target)
+    assert _sync(as_recorder, target, plan["suggestion_id"]).status_code == 200
+
+    dish_ids = [dish["dish_id"] for dish in plan["dishes"]]
+    saved = as_recorder.put(
+        f"{COLLECTION}/logs/{target.isoformat()}",
+        json={
+            "meal_type": "LUNCH",
+            "diner_count": 300,
+            "oil_total_g": "1000",
+            "salt_total_g": "400",
+            "sugar_total_g": "150",
+            "leftover_weight_g": "2000",
+            "note": None,
+            "anomaly_flags": [],
+            "dishes": [{"dish_id": dish_id, "servings_produced": "12"} for dish_id in dish_ids],
+        },
+    )
+    assert saved.status_code == 200, saved.text
+
+    sheet = as_recorder.get(
+        f"{COLLECTION}/logs/{target.isoformat()}", params={"meal_type": "LUNCH"}
+    ).json()
+    planned_rows = [row for row in sheet["dishes"] if row["is_planned"]]
+    # 提交采集之后不该再标「计划」：那一天供应的是实际做的事
+    assert planned_rows == []
+    recorded = [row for row in sheet["dishes"] if row["servings_produced"] == "12.00"]
+    assert len(recorded) == len(dish_ids)
+    assert all(row["planned_servings"] not in (None, "12.00") for row in recorded), (
+        "计划份数应当保留，且与实际的 12 份不同"
+    )
+
+
+def test_sync_rejects_a_suggestion_from_another_day(as_recorder: TestClient) -> None:
+    """把别的日期那一版菜单同步到这一天，属于张冠李戴，必须拦住。"""
+    target = _fresh_date()
+    plan = _generate(as_recorder, target)
+
+    refused = _sync(as_recorder, target + timedelta(days=1), plan["suggestion_id"])
+    assert refused.status_code == 422
+    assert "对不上" in refused.json()["message"]
+
+
+def test_servings_far_above_diner_count_is_explained() -> None:
+    """人次与份数量级对不上时要能说出来。
+
+    实测踩到的：库里某天的人次被录成 180，而份数按历史预测是 300~900 份，
+    人均油盐糖被放大到任何菜单都超上限——求解器只会说「约束互相冲突」，
+    看的人完全不知道问题出在人次上。这条补充说明只在**排不出来之后**加上，
+    不当事先的门槛：量级偏大但仍然排得出来的情况是有的（求解器可以挑低盐的菜）。
+    """
+    note = service.servings_mismatch_note(
+        [Decimal("909.67"), Decimal("471.01"), Decimal("316.56")], diners=180
+    )
+    assert note is not None
+    assert "就餐人次" in note
+    assert "预测份数" in note
+    assert "180" in note
+
+    # 量级正常时不加这句话，免得把原因说岔
+    assert (
+        service.servings_mismatch_note(
+            [Decimal("909.67"), Decimal("471.01"), Decimal("316.56")], diners=885
+        )
+        is None
+    )
+
+
+def test_unsatisfiable_menu_comes_back_as_a_readable_error(as_recorder: TestClient) -> None:
+    """排不出菜单时要说明卡在哪条约束上（422），不能冒成 500——
+    界面上只剩一句「服务器内部错误」的话，求解器算出来的原因就白算了。
+    """
+    target = _fresh_date()
+
+    response = as_recorder.post(
+        f"{BASE}/generate",
+        params={"on_date": target.isoformat(), "meal_type": "LUNCH", "diner_count": 5},
+        # 指定人次现在会等比例调整预测，5人本身不再是无解条件。
+        # 用不可能覆盖采购的预算稳定复现无解，仍验证422与可读原因。
+        json={"budget_per_person": "0.01"},
+    )
+
+    assert response.status_code == 422, response.text
+    message = response.json()["message"]
+    assert any(word in message for word in ("预算", "上限", "无解")), message
+
+
+def test_batch_generates_every_day_and_does_not_alternate_two_menus(
+    as_recorder: TestClient,
+) -> None:
+    """批量排菜单的关键不是「生成了」，而是**排出来的菜单真的是轮换**。
+
+    只排除「昨天」那几道时，求解器每天都会从剩下的菜里挑出同一个最优解，
+    12 天会排成「A、B、A、B」；这条用例就是盯着这件事的。
+    """
+    start, end = _fresh_range(30, 6)
+
+    response = _batch_generate(as_recorder, start, end)
+    assert response.status_code == 200, response.text
+    body = response.json()
+
+    assert body["generated"] == 6
+    assert body["failed"] == 0 and body["skipped"] == 0
+    rows = body["rows"]
+    assert [row["date"] for row in rows] == [
+        (start + timedelta(days=offset)).isoformat() for offset in range(6)
+    ]
+    assert all(row["dish_count"] >= 4 for row in rows)
+    assert all(row["suggestion_id"] for row in rows)
+    assert all(row["cost_per_person"] for row in rows)
+
+    menus = [frozenset(row["dish_names"]) for row in rows]
+    # ① 相邻两天不重样（这是需求里那条硬约束）
+    for earlier, later in itertools.pairwise(menus):
+        assert not (earlier & later), "同一道菜不该连续两天出现"
+    # ② 整段不要只有两三种组合在循环
+    assert len(set(menus)) >= 5, f"6 天只排出了 {len(set(menus))} 种组合，等于没轮换"
+
+
+def test_batch_skips_days_that_already_have_a_collection(
+    as_recorder: TestClient,
+) -> None:
+    """已经录过采集的日子不排——排了也盖不上去。"""
+    start, end = _fresh_range(40, 3)
+    collected_day = start + timedelta(days=1)
+    rice = _dish_id(as_recorder, "米饭")
+    saved = as_recorder.put(
+        f"{COLLECTION}/logs/{collected_day.isoformat()}",
+        json={
+            "meal_type": "LUNCH",
+            "diner_count": 900,
+            "oil_total_g": "1000",
+            "salt_total_g": "400",
+            "sugar_total_g": "150",
+            "leftover_weight_g": "2000",
+            "note": None,
+            "anomaly_flags": [],
+            "dishes": [{"dish_id": rice, "servings_produced": "150"}],
+        },
+    )
+    assert saved.status_code == 200, saved.text
+
+    body = _batch_generate(as_recorder, start, end).json()
+
+    by_status = {row["date"]: row for row in body["rows"]}
+    assert by_status[collected_day.isoformat()]["status"] == "SKIPPED"
+    assert "已经录过采集" in by_status[collected_day.isoformat()]["reason"]
+    assert body["generated"] == 2
+
+
+def test_batch_sync_imports_every_generated_day(as_recorder: TestClient) -> None:
+    """一键导入：这几天的采集页与公开大屏都要就位。"""
+    start, end = _fresh_range(50, 3)
+    assert _batch_generate(as_recorder, start, end).status_code == 200
+
+    response = _batch_sync(as_recorder, start, end)
+    assert response.status_code == 200, response.text
+    body = response.json()
+
+    assert body["imported"] == 3
+    assert body["failed"] == 0
+    assert all(row["nutrition_rows"] > 0 for row in body["rows"])
+
+    planned_counts: list[int] = []
+    for offset in range(3):
+        day = start + timedelta(days=offset)
+        sheet = as_recorder.get(
+            f"{COLLECTION}/logs/{day.isoformat()}", params={"meal_type": "LUNCH"}
+        ).json()
+        assert sheet["menu_confirmed"] is True
+        planned = [row for row in sheet["dishes"] if row["is_planned"]]
+        assert planned, f"{day} 的采集页没有按计划勾好"
+        planned_counts.append(len(planned))
+
+        board = as_recorder.get(BOARD, params={"on_date": day.isoformat()}).json()
+        assert {card["name"] for card in board["dishes"]} == {row["name"] for row in planned}
+
+    # 再导入一次是幂等的：不重复、不报错
+    again = _batch_sync(as_recorder, start, end).json()
+    assert again["imported"] == 3
+    for offset in range(3):
+        day = start + timedelta(days=offset)
+        sheet = as_recorder.get(
+            f"{COLLECTION}/logs/{day.isoformat()}", params={"meal_type": "LUNCH"}
+        ).json()
+        planned = [row for row in sheet["dishes"] if row["is_planned"]]
+        assert len(planned) == planned_counts[offset], "重复导入不该把菜单越叠越多"
+
+
+def test_batch_sync_reports_days_without_a_menu(as_recorder: TestClient) -> None:
+    """没生成过的日子要说明白，而不是静默跳过。"""
+    start, end = _fresh_range(60, 2)
+    assert _batch_generate(as_recorder, start, start).status_code == 200
+
+    body = _batch_sync(as_recorder, start, end).json()
+
+    by_status = {row["date"]: row for row in body["rows"]}
+    assert by_status[start.isoformat()]["status"] == "IMPORTED"
+    later = by_status[(start + timedelta(days=1)).isoformat()]
+    assert later["status"] == "SKIPPED"
+    assert "还没有生成过菜单" in later["reason"]
+
+
+def test_batch_rejects_a_bad_range(as_recorder: TestClient) -> None:
+    start, end = _fresh_range(70, 2)
+
+    reversed_range = _batch_generate(as_recorder, end, start)
+    assert reversed_range.status_code == 422
+    assert "结束日期不能早于" in reversed_range.json()["message"]
+
+    too_long = _batch_generate(as_recorder, start, start + timedelta(days=40))
+    assert too_long.status_code == 422
+    assert "最多排" in too_long.json()["message"]
+
+
+def test_batch_requires_login(client: TestClient) -> None:
+    start, end = _fresh_range(80, 2)
+    params = {"start_date": start.isoformat(), "end_date": end.isoformat(), "meal_type": "LUNCH"}
+
+    assert client.post(f"{BASE}/batch/generate", params=params).status_code == 401
+    assert client.post(f"{BASE}/batch/sync", params=params).status_code == 401
+
+
+def test_school_admin_cannot_run_the_batch(as_school_admin: TestClient) -> None:
+    """批量排菜单与导入都是「定菜单、下采购单」的活，学校管理方不参与。"""
+    start, end = _fresh_range(82, 2)
+    params = {"start_date": start.isoformat(), "end_date": end.isoformat(), "meal_type": "LUNCH"}
+
+    assert as_school_admin.post(f"{BASE}/batch/generate", params=params).status_code == 403
+    assert as_school_admin.post(f"{BASE}/batch/sync", params=params).status_code == 403
+
+
+def test_sync_requires_login(client: TestClient) -> None:
+    response = client.post(
+        f"{BASE}/sync",
+        params={
+            "on_date": today_local().isoformat(),
+            "meal_type": "LUNCH",
+            "suggestion_id": "00000000-0000-0000-0000-000000000000",
+        },
+    )
+    assert response.status_code == 401
+
+
+def test_school_admin_cannot_sync_to_the_day(as_school_admin: TestClient) -> None:
+    response = as_school_admin.post(
+        f"{BASE}/sync",
+        params={
+            "on_date": today_local().isoformat(),
+            "meal_type": "LUNCH",
+            "suggestion_id": "00000000-0000-0000-0000-000000000000",
+        },
+    )
+    assert response.status_code == 403
 
 
 def test_requires_login(client: TestClient) -> None:

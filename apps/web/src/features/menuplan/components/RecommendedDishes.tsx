@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Input, Modal, Space, Table, Tag, Typography } from 'antd';
+import { Alert, Button, Card, Input, Modal, Popconfirm, Space, Table, Tag, Typography } from 'antd';
 import { useState } from 'react';
 import { useCurrentUser } from '@/features/auth/hooks/useAuth';
 import { canWriteBusinessData } from '@/features/auth/lib/permissions';
@@ -35,9 +35,16 @@ const DECISION_COLOR = { ok: 'green', bad: 'red', pending: 'default' } as const;
 export function RecommendedDishes({
   plan,
   suggestion,
+  synced,
+  syncing,
+  onSync,
 }: {
   plan: MenuPlanResponse;
   suggestion: MenuSuggestionRead | undefined;
+  /** 这一版是否已经写入当日数据 */
+  synced: boolean;
+  syncing: boolean;
+  onSync: () => void;
 }) {
   const { data: user } = useCurrentUser();
   const canWrite = canWriteBusinessData(user);
@@ -171,21 +178,39 @@ export function RecommendedDishes({
         ) : null}
       </Card>
 
-      {canWrite && suggestion?.status === 'PENDING' ? (
+      {canWrite ? (
         <Space style={{ marginTop: 16 }}>
-          <Button
-            type="primary"
-            loading={decideMutation.isPending}
-            onClick={() =>
-              decideMutation.mutate({ id: suggestion.id, status: 'ACCEPTED', reason: null })
+          <Popconfirm
+            title={`把这一版菜单同步至 ${plan.date} 的当日数据？`}
+            description={
+              <div style={{ maxWidth: 320 }}>
+                菜单会写进这一天的当日数据：<b>每日采集</b>的供应菜品直接按它勾好（仍然可以改），
+                <b>公开大屏</b>当天早上就能显示。这一天的采集一旦提交过，菜单以实际供应为准，
+                计划不会再覆盖它。
+              </div>
             }
+            okText="确认同步"
+            cancelText="取消"
+            onConfirm={onSync}
           >
-            采纳这份菜单
-          </Button>
-          <Button danger onClick={() => setRejecting(true)}>
+            <Button type="primary" loading={syncing} disabled={suggestion?.status === 'REJECTED'}>
+              {synced ? '重新同步至当日数据' : '同步至当日数据'}
+            </Button>
+          </Popconfirm>
+          <Button danger disabled={synced} onClick={() => setRejecting(true)}>
             否决
           </Button>
         </Space>
+      ) : null}
+
+      {synced ? (
+        <Alert
+          type="success"
+          showIcon
+          style={{ marginTop: 16 }}
+          message={`已写入 ${plan.date} 的当日数据`}
+          description="每日采集的「当日供应菜品」已按这份菜单勾好，公开大屏也看得到。临时换菜在采集页改，保存即按实际供应覆盖。"
+        />
       ) : null}
 
       {suggestion?.status === 'REJECTED' && suggestion.rejected_reason ? (

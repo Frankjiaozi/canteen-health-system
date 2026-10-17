@@ -90,6 +90,9 @@ def prepared_database() -> Iterator[None]:
 #: 删除顺序必须是「子表在前、父表在后」：菜品被配方、营养结果、菜单明细等
 #: 以 RESTRICT 引用着，先删父表会被外键挡住。
 _TEARDOWN_ORDER: tuple[type, ...] = (
+    _registry.AssistantProposal,
+    _registry.AssistantMessage,
+    _registry.AssistantConversation,
     _registry.AuditLog,
     _registry.Feedback,
     _registry.DishNutrition,

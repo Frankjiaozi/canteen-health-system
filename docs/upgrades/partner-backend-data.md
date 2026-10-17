@@ -4,6 +4,10 @@
 
 共同接口只维护 [shared-contract.md](shared-contract.md) 这一份。原架构与数据模型见 `docs/architecture.md`、`docs/data-model.md`，本指南说明本次升级增量与后续边界。
 
+2026-10-17 整合保留了你方的业务助手、批量排餐、菜单同步与营养参考快照。`/sync`、`/batch/sync` 和 `/publish` 现在共用 `publication.publish`，不能重新写一个绕过目录快照、菜单版本或实际采集校验的同步实现。助手菜单/采集执行需要 `commit=False`，由卡片服务统一提交业务与状态；普通页面调用默认仍提交。调整该约定前请先跑 `test_merge_workflows.py` 和助手/采集回归。
+
+新增三个同伴迁移随主分支保留；已有库先迁移，不自动重新灌种子。营养参考来源保留同伴的逐项字段与快照；菜谱、价格和供餐历史仍含演示资料，不能把来源更新解释成真实食堂经营数据。
+
 ## 工程边界
 
 你可维护 `apps/api/**`、业务迁移与测试、业务 OpenAPI 和 `packages/api-client/src/schema.d.ts`。不要跨到 `apps/agent` 写模型编排，也不要修改 React 页面来适配不完整接口。

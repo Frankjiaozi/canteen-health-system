@@ -38,6 +38,8 @@ class Seasoning(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     #: 单价按**市品重量**计（元 / 公斤）——与食材同一个口径，便于成本相加
     unit_price: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     data_source: Mapped[str | None] = mapped_column(String(128))
+    #: 平台条目名 + 条目 ID —— 与食材库同一条要求：数值要能回溯到具体来源
+    source_version: Mapped[str | None] = mapped_column(String(64))
     note: Mapped[str | None] = mapped_column(String(255))
 
     __table_args__ = (enum_check("category", SeasoningCategory),)

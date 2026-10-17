@@ -9,6 +9,7 @@ import {
   DesktopOutlined,
   ExperimentOutlined,
   FormOutlined,
+  RobotOutlined,
   LogoutOutlined,
   MenuOutlined,
   ScheduleOutlined,
@@ -29,6 +30,7 @@ import {
 import { useState, type ReactNode } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useCurrentUser, useLogout } from '@/features/auth/hooks/useAuth';
+import { AssistantDrawer } from '@/features/assistant/components/AssistantDrawer';
 import { usePendingCount, useSyncOfflineQueue } from '@/features/collection/hooks/useOfflineQueue';
 import { OfflineNotice } from '@/shared/components/OfflineNotice';
 import {
@@ -83,6 +85,7 @@ export function AdminLayout() {
   const screens = Grid.useBreakpoint();
   const isMobile = screens.lg === false;
   const [menuOpen, setMenuOpen] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   // 待同步的采集单挂在应用外壳上补交：录入员停在任何管理页都会自动补上
   useSyncOfflineQueue();
   const pendingCount = usePendingCount();
@@ -174,12 +177,19 @@ export function AdminLayout() {
           )}
 
           <Space className="zw-admin-actions" size={12} wrap>
+            <Tooltip title="用一句话问数据：食材、配方、菜单、指标">
+              <Button icon={<RobotOutlined />} onClick={() => setAssistantOpen(true)}>
+                AI 助手
+              </Button>
+            </Tooltip>
             <Tooltip title="免登录打开的食堂公开大屏">
               <Button
+                className="zw-admin-display-button"
+                aria-label="公开大屏"
                 icon={<DesktopOutlined />}
                 onClick={() => window.open('/display', '_blank', 'noopener')}
               >
-                公开大屏
+                <span className="zw-admin-display-label">公开大屏</span>
               </Button>
             </Tooltip>
             {user ? (
@@ -206,6 +216,7 @@ export function AdminLayout() {
           <Outlet />
         </Content>
       </Layout>
+      <AssistantDrawer open={assistantOpen} onClose={() => setAssistantOpen(false)} />
     </Layout>
   );
 }

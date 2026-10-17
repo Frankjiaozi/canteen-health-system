@@ -56,6 +56,28 @@ class Settings(BaseSettings):
     # 开发期前端走 Vite 代理访问后端，同源即可；生产由 nginx 反代，通常留空
     cors_origins: list[str] = []
 
+    # ---- AI 助手 ----
+    #: 模型端点，指向任何 OpenAI 兼容的 /chat/completions：
+    #: 云端 API 或内网的 vLLM / Ollama 都行，换模型不用改代码。
+    #: **留空即「未配置」**：接口返回 503 并说明原因，界面上不给「看起来能用」的假象。
+    assistant_base_url: str | None = None
+    assistant_api_key: str | None = None
+    assistant_model: str | None = None
+    assistant_timeout_seconds: float = 60.0
+    #: 一次对话最多来回几轮工具调用，防止模型陷在「调工具—再调工具」的循环里。
+    #: 取 8 而不是 4：有了 call_api 之后，**试探是正常行为**——先猜路径、被点回来、
+    #: 再按参数补一次、可能还要按日期扫几天，4 轮会在答出结论之前就用完（实测踩到）。
+    #: 这个上限是「别失控」的保险，不是预算。
+    assistant_max_tool_rounds: int = 8
+    assistant_temperature: float = 0.2
+    #: **单次**模型调用的输出上限（token）。防止一次回答跑成一篇长文：
+    #: 回答再长，用户也不会读完，而费用是实打实的。
+    assistant_max_output_tokens: int = 1024
+    #: **单轮对话**的 token 预算（输入 + 输出，跨所有工具调用轮次一起算）。
+    #: 单次调用的上限管不住「来回八轮、每轮都塞一屏数据」这种花法，所以再给一个总量闸。
+    #: 到点就停下来并说明，而不是悄悄把预算烧穿。
+    assistant_turn_token_budget: int = 60000
+
     # ---- 菜单推荐的营养目标 ----
     #: 全天的能量目标（千卡）。**这是一组演示值，待核实**：
     #: 营养配餐领域常引用《学生餐营养指南》卫生行业标准，但需求文档记录

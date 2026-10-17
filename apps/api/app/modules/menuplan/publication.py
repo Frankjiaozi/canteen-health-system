@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -22,11 +22,11 @@ from app.modules.menuplan.schemas import MenuPlanResponse, PublishPlanReceipt, P
 from app.modules.nutrition import service as nutrition_service
 from app.modules.recommendation.models import MenuSuggestion
 from app.modules.seasoning.models import Seasoning
-from app.shared.enums import AuditAction, SuggestionStatus
+from app.shared.enums import AuditAction, MealType, SuggestionStatus
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-CALCULATION_VERSION = "menu-plan-20261016.2"
+CALCULATION_VERSION = "menu-plan-20261017.3"
 
 
 def digest(value: object) -> str:
@@ -90,24 +90,40 @@ def catalog_tokens(session: Session, dish_ids: list[UUID], *, lock: bool = False
     }
 
 
-def menu_state(session: Session, suggestion: MenuSuggestion) -> dict[str, Any]:
+def meal_state(session: Session, *, on_date: date, meal_type: MealType) -> dict[str, Any]:
     menu = session.scalar(
-        select(MenuDay).where(
-            MenuDay.date == suggestion.date, MenuDay.meal_type == suggestion.meal_type
-        )
+        select(MenuDay)
+        .where(MenuDay.date == on_date, MenuDay.meal_type == meal_type)
+        .execution_options(populate_existing=True)
     )
     if menu is None:
         return {"menu": None}
-    items = session.scalars(select(MenuDayItem).where(MenuDayItem.menu_day_id == menu.id)).all()
+    items = session.scalars(
+        select(MenuDayItem)
+        .where(MenuDayItem.menu_day_id == menu.id)
+        .execution_options(populate_existing=True)
+    ).all()
     return {
         "id": str(menu.id),
         "updated_at": str(menu.updated_at),
         "note": menu.note,
+        "rotation_name": menu.rotation_name,
+        "created_by": str(menu.created_by) if menu.created_by else None,
         "items": sorted(
-            (str(row.dish_id), str(row.planned_servings), str(row.updated_at), row.is_substituted)
+            (
+                str(row.dish_id),
+                str(row.planned_servings),
+                str(row.updated_at),
+                row.is_substituted,
+                row.substitution_note,
+            )
             for row in items
         ),
     }
+
+
+def menu_state(session: Session, suggestion: MenuSuggestion) -> dict[str, Any]:
+    return meal_state(session, on_date=suggestion.date, meal_type=suggestion.meal_type)
 
 
 def save_snapshot(
@@ -139,10 +155,18 @@ def save_snapshot(
 
 
 def publish(
-    session: Session, *, suggestion_id: UUID, payload: PublishPlanRequest, actor: AuthUser
+    session: Session,
+    *,
+    suggestion_id: UUID,
+    payload: PublishPlanRequest,
+    actor: AuthUser,
+    commit: bool = True,
 ) -> PublishPlanReceipt:
     suggestion = session.scalar(
-        select(MenuSuggestion).where(MenuSuggestion.id == suggestion_id).with_for_update()
+        select(MenuSuggestion)
+        .where(MenuSuggestion.id == suggestion_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
     if suggestion is None:
         raise NotFoundError("推荐不存在")
@@ -157,6 +181,8 @@ def publish(
     if payload.expected_menu_token != plan.expected_menu_token:
         raise ConflictError("菜单版本凭据不匹配")
     receipt = stored.get("publication")
+    if stored.get("publication_revoked"):
+        raise ConflictError("这份方案的发布已撤回，请重新生成并确认；原回执保留供审计")
     if receipt:
         return PublishPlanReceipt(**{**receipt, "already_published": True})
     if plan.calculation_version != CALCULATION_VERSION:
@@ -242,5 +268,91 @@ def publish(
     nutrition_service.compute_menu_day(
         session, on_date=suggestion.date, meal_type=suggestion.meal_type
     )
-    session.commit()
+    if commit:
+        session.commit()
     return result
+
+
+def restore_menu(
+    session: Session,
+    *,
+    on_date: date,
+    meal_type: MealType,
+    before: dict[str, Any],
+    expected_token: str,
+    actor: AuthUser,
+    suggestion_id: UUID | None = None,
+    commit: bool = True,
+    restoring_collection: bool = False,
+) -> None:
+    """按完整快照撤回计划；菜单、营养、发布回执失效和审计同事务。"""
+    suggestion = None
+    if suggestion_id:
+        suggestion = session.scalar(
+            select(MenuSuggestion)
+            .where(MenuSuggestion.id == suggestion_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if suggestion is None or suggestion.date != on_date or suggestion.meal_type != meal_type:
+            raise ConflictError("撤回方案与日期餐次不匹配")
+    lock_meal(session, on_date, meal_type)
+    current = meal_state(session, on_date=on_date, meal_type=meal_type)
+    if not expected_token or digest(current) != expected_token:
+        raise ConflictError("这餐菜单在确认后又被修改，不能撤回覆盖；请核对当前菜单")
+    if not restoring_collection and session.scalar(
+        select(DailyLog.id).where(DailyLog.date == on_date, DailyLog.meal_type == meal_type)
+    ):
+        raise ConflictError("这餐已经录过采集，不能撤回计划覆盖实际供应")
+    menu = session.scalar(
+        select(MenuDay).where(MenuDay.date == on_date, MenuDay.meal_type == meal_type)
+    )
+    if menu is None:
+        raise ConflictError("当前菜单已不存在，不能撤回")
+    session.execute(delete(MenuDayItem).where(MenuDayItem.menu_day_id == menu.id))
+    if before == {"menu": None}:
+        session.delete(menu)
+    else:
+        menu.note = before.get("note")
+        menu.rotation_name = before.get("rotation_name")
+        menu.created_by = UUID(before["created_by"]) if before.get("created_by") else None
+        for row in before["items"]:
+            session.add(
+                MenuDayItem(
+                    menu_day_id=menu.id,
+                    dish_id=UUID(row[0]),
+                    planned_servings=None if row[1] == "None" else Decimal(row[1]),
+                    is_substituted=row[3],
+                    substitution_note=row[4],
+                )
+            )
+    if suggestion:
+        stored = suggestion.nutrition_gap or {}
+        if not stored.get("publication") or stored.get("publication_revoked"):
+            raise ConflictError("这份发布没有可撤回的有效回执")
+        suggestion.nutrition_gap = {
+            **stored,
+            "publication_revoked": {
+                "by": str(actor.id),
+                "at": datetime.now(get_settings().timezone).isoformat(),
+            },
+        }
+        suggestion.status = SuggestionStatus.PENDING
+        suggestion.decided_by = None
+        suggestion.decided_at = None
+    session.flush()
+    nutrition_service.compute_menu_day(session, on_date=on_date, meal_type=meal_type)
+    session.add(
+        AuditLog(
+            entity_type="menu_day",
+            entity_id=str(menu.id),
+            action=AuditAction.UPDATE,
+            actor_id=actor.id,
+            actor_name=actor.display_name,
+            before=current,
+            after=before,
+            note="人工撤回助手菜单计划；原发布回执保留并标记撤回",
+        )
+    )
+    if commit:
+        session.commit()

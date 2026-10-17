@@ -50,8 +50,8 @@ def test_seeded_dishes_are_listed_with_nutrition(as_recorder: TestClient) -> Non
 
     rice = next(item for item in body["items"] if item["name"] == "米饭")
     assert rice["nutrition"] is not None
-    # 米饭配方：大米 80 克、无调味料 → 0.8 × 346
-    assert rice["nutrition"]["energy_kcal"] == "276.80"
+    # 米饭配方：大米 80 克、无调味料 → 0.8 × 352.06（稻米(均值) 条目的能量）
+    assert rice["nutrition"]["energy_kcal"] == "281.65"
     assert rice["category_label"] == "主食"
     assert rice["cooking_method_label"] == "蒸"
 
@@ -89,10 +89,10 @@ def test_create_with_recipe_computes_nutrition(as_recorder: TestClient) -> None:
 
     assert body["recipe"]["ingredients"][0]["ingredient_name"] == "大米"
     assert body["recipe_version"] == 1
-    # 大米 80 克、无调味料 → 0.8 × 346；种子里的米饭是同一个配方，两个值必须一致
+    # 大米 80 克、无调味料 → 0.8 × 352.06；种子里的米饭是同一个配方，两个值必须一致
     rice = as_recorder.get(BASE, params={"keyword": "米饭"}).json()["items"][0]
     assert rice["nutrition"]["date"] is not None, "米饭在演示历史里供应过，读的是落库快照"
-    assert body["nutrition"]["energy_kcal"] == rice["nutrition"]["energy_kcal"] == "276.80"
+    assert body["nutrition"]["energy_kcal"] == rice["nutrition"]["energy_kcal"] == "281.65"
     # 现算的预览不属于任何一天，所以没有日期——它只用于列表摘要，不是可追溯的正式结果
     assert body["nutrition"]["date"] is None
 
@@ -100,7 +100,7 @@ def test_create_with_recipe_computes_nutrition(as_recorder: TestClient) -> None:
     # 而不是等到这道菜第一次被排进菜单
     listed = as_recorder.get(BASE, params={"keyword": name}).json()
     assert listed["total"] == 1
-    assert listed["items"][0]["nutrition"]["energy_kcal"] == "276.80"
+    assert listed["items"][0]["nutrition"]["energy_kcal"] == "281.65"
     assert listed["items"][0]["nutrition"]["date"] is None
 
 

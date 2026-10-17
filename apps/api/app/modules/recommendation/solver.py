@@ -34,6 +34,10 @@ FIELD_BY_CODE: dict[str, str] = {
     "ADDED_SUGAR": "sugar_g",
 }
 
+#: 这几项是「份数给定后，多做少做不再能调」的量：一旦最少几道菜的合计就压不下去，
+#: 模型必然无解，诊断时按这个口径算一遍说得清原因。
+_PER_CAPITA_TOPIC_FIELDS = frozenset({"salt_g", "oil_g", "sugar_g", "sodium_mg"})
+
 
 class InfeasibleError(Exception):
     """解不出来。带上最可能是哪条约束卡住了——只说「无解」对使用者毫无帮助。"""
@@ -109,6 +113,9 @@ class PlanConstraints:
     #: 份数该由「这道菜明天实际会出多少」决定，那是预测的活，不是配餐的活。
     fixed_servings: dict[UUID, Decimal] = field(default_factory=dict)
     excluded_dish_ids: frozenset[UUID] = frozenset()
+    #: 这一批菜单里每道菜已经排过几次。批量排菜单时用它做均衡：
+    #: 排得多的菜在后面几天会被轻微压价，菜单才会真正轮换开。
+    usage_counts: dict[UUID, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,6 +130,10 @@ class PlanWeights:
     nutrition: Decimal = Decimal("1")
     cost: Decimal = Decimal("0.3")
     popularity: Decimal = Decimal("0.5")
+    #: 均衡度：同一批菜单里已经用过的菜，用得越多越不该再排。
+    #: 只排除「昨天」那几道会排出「A、B、A、B」两天一循环的菜单——那不是轮换。
+    #: 权重刻意小：它是偏好，不能把营养与预算挤到一边去。
+    variety: Decimal = Decimal("0.35")
 
 
 @dataclass(frozen=True, slots=True)
@@ -265,10 +276,18 @@ def solve_menu(
     popularity = pulp.lpSum(
         float(dish.popularity) / max_popularity * pick[dish.dish_id] for dish in usable
     )
+    # 均衡项：这一批里已经排过的菜，排得越多越不该再出现。只用「排除昨天」的话，
+    # 求解器每天都会从剩下那十几道里挑出同一个最优解，排出「A、B、A、B」的循环。
+    usage = constraints.usage_counts
+    max_usage = max(usage.values(), default=0) or 1
+    repeat = pulp.lpSum(
+        float(usage.get(dish.dish_id, 0)) / max_usage * pick[dish.dish_id] for dish in usable
+    )
     problem += (
         pulp.lpSum(slacks)
         + float(weight.cost) * cost / float(constraints.budget)
         - float(weight.popularity) * popularity / max(constraints.dish_count_max, 1)
+        + float(weight.variety) * repeat
     )
 
     status = pulp.LpStatus[problem.solve(pulp.PULP_CBC_CMD(msg=False, timeLimit=time_limit))]
@@ -361,6 +380,14 @@ def _diagnose(constraints: PlanConstraints, usable: list[CandidateDish]) -> list
         reasons.append("候选菜品能提供的食材种类数达不到下限")
     if constraints.dish_count_max < constraints.dish_count_min:
         reasons.append("菜品数量上下限写反了")
+    # 某一类菜被排除光：这在实际里很常见——昨天排过的菜今天不能排，
+    # 而主食总共就两种、汤总共就三种，排除之后可能刚好一份都不剩。
+    for category, minimum in constraints.category_min.items():
+        if not minimum:
+            continue
+        available = sum(1 for dish in usable if dish.category is category)
+        if available < minimum:
+            reasons.append(f"{category.label}类的菜已经一份都不剩（昨天排过的都排除了）")
     for target in constraints.targets:
         field_name = FIELD_BY_CODE.get(target.code)
         if field_name is None or target.upper is None:
@@ -370,4 +397,38 @@ def _diagnose(constraints: PlanConstraints, usable: list[CandidateDish]) -> list
         )
         if lowest > target.upper:
             reasons.append(f"任何一道菜的{target.label}都已超过上限 {target.upper}{target.unit}")
+            continue
+        # 份数给定之后，「多做少做」这条退路没有了：只要哪几道菜的合计就已经顶破上限，
+        # 剩下的自由度就只有「换菜」。这时要说清是「最少几道菜的合计」超了——
+        # 否则看的人只知道无解，不知道该怎么改。
+        if field_name in _PER_CAPITA_TOPIC_FIELDS:
+            floor = _lowest_per_capita_total(constraints, usable, field_name)
+            if floor is not None and floor > target.upper:
+                reasons.append(
+                    f"按最少 {constraints.dish_count_min} 道菜算，{target.label}合计已达 "
+                    f"{floor.quantize(Decimal('0.01'))}{target.unit}，超过上限 {target.upper}{target.unit}"
+                )
     return reasons or ["约束之间互相冲突，请放宽其中一项后重试"]
+
+
+def _lowest_per_capita_total(
+    constraints: PlanConstraints, usable: list[CandidateDish], field_name: str
+) -> Decimal | None:
+    """最少几道菜的人均合计。份数取给定值，没给定就按份数下限估。
+
+    这就是「怎么换菜都压不下去」的那个下限：它超了上限，模型必然无解。
+    """
+    diners = Decimal(constraints.diner_count)
+    if diners <= 0:
+        return None
+    contributions: list[Decimal] = []
+    for dish in usable:
+        servings = constraints.fixed_servings.get(dish.dish_id)
+        if servings is None:
+            servings = diners * constraints.serving_ratio_min
+        contributions.append(Decimal(str(getattr(dish, field_name))) * servings / diners)
+    if not contributions:
+        return None
+    contributions.sort()
+    picked = contributions[: constraints.dish_count_min]
+    return sum(picked, Decimal("0"))

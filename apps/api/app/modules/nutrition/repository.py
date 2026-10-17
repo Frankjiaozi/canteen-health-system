@@ -336,6 +336,28 @@ def upsert_dish_nutrition(
     return "updated" if changed else "unchanged"
 
 
+def delete_per_capita(session: Session, *, on_date: date, meal_type: MealType) -> int:
+    """删掉某天某一餐的人均口径营养结果，返回删了几行。
+
+    「撤回一次误录」要用：人均值是按「出餐份数 ÷ 人次」算出来的，采集记录删掉之后
+    这些行就失去了依据——留着会让看板继续把它们算进去（那是错的数）。
+    单份值不动：它只依赖配方，与采集无关，正好是「没有采集时该有的样子」。
+    """
+    doomed = list(
+        session.scalars(
+            select(DishNutrition.id).where(
+                DishNutrition.date == on_date,
+                DishNutrition.meal_type == meal_type,
+                DishNutrition.caliber == NutrientCaliber.PER_CAPITA,
+            )
+        )
+    )
+    if doomed:
+        session.execute(delete(DishNutrition).where(DishNutrition.id.in_(doomed)))
+    session.flush()
+    return len(doomed)
+
+
 def count_nutritions(
     session: Session,
     *,

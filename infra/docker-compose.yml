@@ -47,6 +47,13 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       # 内网正式部署默认关闭自助注册，账号由管理员开通
       ALLOW_OPEN_REGISTRATION: ${ALLOW_OPEN_REGISTRATION:-false}
+      # AI 助手。留空即「未接模型」：界面上会如实显示，不会摆一个点了没反应的输入框。
+      # 云端端点或校内 vLLM / Ollama 都行；助手会把菜品级数据发给所配置的模型服务方。
+      ASSISTANT_BASE_URL: ${ASSISTANT_BASE_URL:-}
+      ASSISTANT_API_KEY: ${ASSISTANT_API_KEY:-}
+      ASSISTANT_MODEL: ${ASSISTANT_MODEL:-}
+      ASSISTANT_TIMEOUT_SECONDS: ${ASSISTANT_TIMEOUT_SECONDS:-60}
+      ASSISTANT_MAX_TOOL_ROUNDS: ${ASSISTANT_MAX_TOOL_ROUNDS:-4}
     # 先跑迁移再起服务：单机自部署场景下，这样最不容易漏步骤
     command:
       - sh

@@ -18,7 +18,9 @@ from app.shared.enums import MealType
 
 def get_log(session: Session, *, on_date: date, meal_type: MealType) -> DailyLog | None:
     return session.scalar(
-        select(DailyLog).where(DailyLog.date == on_date, DailyLog.meal_type == meal_type)
+        select(DailyLog)
+        .where(DailyLog.date == on_date, DailyLog.meal_type == meal_type)
+        .execution_options(populate_existing=True)
     )
 
 
@@ -28,21 +30,22 @@ def load_items(session: Session, daily_log_id: UUID) -> list[DailyLogItem]:
             select(DailyLogItem)
             .where(DailyLogItem.daily_log_id == daily_log_id)
             .order_by(DailyLogItem.created_at)
+            .execution_options(populate_existing=True)
         ).all()
     )
 
 
-def load_served_dishes(
-    session: Session, *, on_date: date, meal_type: MealType
-) -> list[tuple[Dish, MenuDayItem]]:
-    """当天菜单上确认过的菜品与它在菜单里的那一行。没有任何菜单时返回空列表。"""
+def load_menu_items(session: Session, *, on_date: date, meal_type: MealType) -> list[MenuDayItem]:
+    """当天菜单上的明细行（菜单还没排时是空列表）。
+
+    返回明细行而不是菜品：采集单既要知道有哪些菜，也要知道它的**计划份数**，
+    后者只在明细行上。
+    """
     return list(
-        session.execute(
-            select(Dish, MenuDayItem)
-            .join(MenuDayItem, MenuDayItem.dish_id == Dish.id)
+        session.scalars(
+            select(MenuDayItem)
             .join(MenuDay, MenuDay.id == MenuDayItem.menu_day_id)
             .where(MenuDay.date == on_date, MenuDay.meal_type == meal_type)
-            .order_by(Dish.category, Dish.name)
         ).all()
     )
 
@@ -102,6 +105,17 @@ def replace_items(
     session.execute(delete(DailyLogItem).where(DailyLogItem.daily_log_id == daily_log_id))
     for row in items:
         session.add(DailyLogItem(daily_log_id=daily_log_id, **row))
+    session.flush()
+
+
+def delete_log(session: Session, *, log: DailyLog) -> None:
+    """整份删掉一条采集记录（含明细）。
+
+    只给「撤回一次误录」用：采集记录本身是原始数据，正常业务里不该有删除入口。
+    菜单日不在这里处理——它可能来自计划，删完要不要恢复由调用方决定。
+    """
+    session.execute(delete(DailyLogItem).where(DailyLogItem.daily_log_id == log.id))
+    session.delete(log)
     session.flush()
 
 

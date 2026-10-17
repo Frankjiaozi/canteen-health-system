@@ -206,6 +206,7 @@ def create_dish(
     *,
     actor_id: UUID | None = None,
     actor_name: str | None = None,
+    audit_note: str | None = None,
 ) -> DishDetail:
     if repository.find_by_name(session, payload.name) is not None:
         raise ConflictError(f"菜品「{payload.name}」已存在")
@@ -227,7 +228,14 @@ def create_dish(
         actor_id=actor_id,
         actor_name=actor_name,
         after=_snapshot(dish),
-        note="新建菜品" + ("（含配方）" if payload.recipe else "（暂无配方）"),
+        note="｜".join(
+            part
+            for part in (
+                audit_note,
+                "新建菜品" + ("（含配方）" if payload.recipe else "（暂无配方）"),
+            )
+            if part
+        ),
     )
     session.commit()
     return get_dish_detail(session, dish.id)
@@ -240,7 +248,9 @@ def update_dish(
     *,
     actor_id: UUID | None = None,
     actor_name: str | None = None,
+    audit_note: str | None = None,
 ) -> DishDetail:
+    """修改菜品基础信息。`audit_note` 用来说明这条改动的来源（例如助手代改）。"""
     dish = get_dish(session, dish_id)
     changes = payload.model_dump(exclude_unset=True)
 
@@ -266,7 +276,7 @@ def update_dish(
             actor_name=actor_name,
             before=before,
             after=after,
-            note="修改菜品基础信息",
+            note="｜".join(part for part in (audit_note, "修改菜品基础信息") if part),
         )
     session.commit()
     return get_dish_detail(session, dish.id)
@@ -279,6 +289,7 @@ def replace_recipe(
     *,
     actor_id: UUID | None = None,
     actor_name: str | None = None,
+    audit_note: str | None = None,
 ) -> RecipeUpdateResult:
     """保存配方：整体替换、版本递增、留痕，然后立刻重算营养。"""
     dish = get_dish(session, dish_id)
@@ -308,7 +319,7 @@ def replace_recipe(
         actor_name=actor_name,
         before=before,
         after=after,
-        note=f"配方更新至 v{dish.recipe_version}",
+        note="｜".join(part for part in (audit_note, f"配方更新至 v{dish.recipe_version}") if part),
     )
     session.commit()
 
@@ -326,12 +337,27 @@ def replace_recipe(
     )
 
 
+def count_recipes_using_ingredient(session: Session, ingredient_id: UUID) -> int:
+    """这个食材被多少个配方引用。
+
+    停用食材前要能说清影响面（「有 6 个配方在用它」），否则用户是在盲签；
+    这个数也用在助手的方案预览上。
+    """
+    return repository.ingredient_usage_count(session, ingredient_id)
+
+
+def dish_menu_usage(session: Session, dish_id: UUID) -> int:
+    """这道菜被历史菜单引用过多少次（停用前的影响面提示）。"""
+    return repository.dish_usage_count(session, dish_id)
+
+
 def deactivate_dish(
     session: Session,
     dish_id: UUID,
     *,
     actor_id: UUID | None = None,
     actor_name: str | None = None,
+    audit_note: str | None = None,
 ) -> DishDetail:
     """停用菜品。菜单里引用过它同样不物理删除——历史营养结果要能回溯。"""
     dish = get_dish(session, dish_id)
@@ -350,7 +376,41 @@ def deactivate_dish(
         actor_id=actor_id,
         actor_name=actor_name,
         before=_snapshot(dish),
-        note=f"停用菜品（历史菜单中引用 {usage} 次，数据保留）",
+        note="｜".join(
+            part
+            for part in (audit_note, f"停用菜品（历史菜单中引用 {usage} 次，数据保留）")
+            if part
+        ),
+    )
+    session.commit()
+    return get_dish_detail(session, dish_id)
+
+
+def reactivate_dish(
+    session: Session,
+    dish_id: UUID,
+    *,
+    actor_id: UUID | None = None,
+    actor_name: str | None = None,
+    audit_note: str | None = None,
+) -> DishDetail:
+    """重新启用被停用的菜品。与食材同一个理由：停用是软删除，就该退得回来。"""
+    dish = get_dish(session, dish_id)
+    if dish.is_active:
+        return get_dish_detail(session, dish_id)
+
+    dish.is_active = True
+    session.flush()
+
+    audit_service.record(
+        session,
+        entity_type=ENTITY_TYPE,
+        entity_id=dish.id,
+        action=AuditAction.UPDATE,
+        actor_id=actor_id,
+        actor_name=actor_name,
+        after=_snapshot(dish),
+        note=audit_note or "重新启用菜品",
     )
     session.commit()
     return get_dish_detail(session, dish_id)
