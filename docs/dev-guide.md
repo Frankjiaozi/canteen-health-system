@@ -16,6 +16,7 @@ pnpm db:up
 pnpm install
 python -m venv apps/api/.venv
 node scripts/py.mjs -m pip install -e "apps/api[dev]"
+node scripts/py.mjs -m pip install -e "apps/agent[dev]"   # 独立 Agent 服务
 cp apps/api/.env.example apps/api/.env
 pnpm db:migrate
 pnpm db:seed
@@ -23,7 +24,8 @@ pnpm db:compute
 pnpm dev
 ```
 
-后端依赖统一装在 `apps/api/.venv`。`scripts/py.mjs` 会自动优先使用该虚拟环境里的解释器，
+后端与 Agent 的依赖都装在 `apps/api/.venv`（本机共用一个解释器，容器里各用各的镜像）。
+`scripts/py.mjs` 会自动优先使用该虚拟环境里的解释器，
 因此所有 `pnpm` 脚本无需事先激活虚拟环境即可运行；在 IDE 里请把解释器指向
 `apps/api/.venv`。
 
@@ -31,21 +33,29 @@ pnpm dev
 
 | 命令 | 说明 |
 | --- | --- |
-| `pnpm dev` | 并行启动后端（8000）与前端（5173） |
-| `pnpm lint` / `pnpm format` | 风格检查 / 自动格式化 |
+| `pnpm dev` | 预检后启动业务 API（8000）、Agent（8001）与前端（5173）；端口被占会说明原因并退出 |
+| `pnpm dev:demo` | 用独立合成库 `canteen_agent_demo` 启动，业务 API 换到 8002，不碰开发库 |
+| `pnpm dev:api` / `dev:agent` / `dev:web` | 只启其中一个（改哪边启哪边） |
+| `pnpm dev:check` | 只做预检：依赖、数据库、迁移版本，不改数据 |
+| `pnpm lint` / `pnpm format` | 风格检查 / 自动格式化（含 Agent） |
 | `pnpm typecheck` | mypy + tsc |
-| `pnpm test` | pytest + vitest |
+| `pnpm test` | pytest（API，跑在独立测试库）+ Agent pytest + vitest |
 | `pnpm e2e` | Playwright 端到端 |
 | `pnpm gen:api` | 后端接口变更后重新生成前端类型 |
+| `pnpm gen:agent` | Agent 接口变更后重新生成它的前端类型 |
 
 ### 端到端测试的前置条件
 
 端到端跑的是真实的「前端 + 后端 + PostgreSQL」，需要先准备数据库与浏览器：
 
 ```bash
-pnpm db:up && pnpm db:migrate && pnpm db:seed
+pnpm db:up && pnpm db:migrate && pnpm db:seed && pnpm db:compute
 cd apps/web && npx playwright install chromium
 ```
+
+`db:seed` 这一步不能省，而且**要当天跑过**：种子历史窗口锚在「执行种子那天」，
+隔两天不重灌，大屏会变成「今日暂无已核算的菜品」，看板的「有记录天数」也会少几天，
+`display.spec.ts` 与 `dashboard.spec.ts` 会因此失败——那不是用例的问题。
 
 国内网络下载 Chromium 往往极慢甚至卡死。若 `playwright install` 长时间没有进展，
 改用镜像（Playwright 的浏览器包在 npmmirror 上有同步）：
