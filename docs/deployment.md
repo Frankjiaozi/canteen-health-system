@@ -36,20 +36,24 @@ docker compose -f infra/docker-compose.yml exec api python -m app.modules.nutrit
 浏览器
   │  :8080
   ▼
-web（nginx：静态文件 + /api 反代）
-  │  容器网络内 :8000
-  ▼
-api（FastAPI；启动时自动执行 alembic upgrade head）
-  │  :5432
-  ▼
-postgres（数据卷 canteen-pg）
+web（nginx：静态文件 + /api → api + /agent-api → agent）
+  │
+  ├── 容器网络内 :8000 ──► api（FastAPI；启动时自动执行 alembic upgrade head）
+  │                          │  :5432
+  │                          ▼
+  │                       postgres（数据卷 canteen-pg）
+  │
+  └── 容器网络内 :8001 ──► agent（知味膳食助手）
+                             │  数据卷 agent-state（对话与方案快照的 SQLite）
+                             └─ 用当前用户 Cookie 调 api:8000/api/v1
 ```
 
-- **只对外暴露 web 的端口**。数据库与后端都在容器网络内，不映射到宿主机。
+- **只对外暴露 web 的端口**。数据库与两个后端都在容器网络内，不映射到宿主机。
 - **前后端同源**。登录凭证是 httpOnly Cookie，`SameSite=Lax`，同源才走得通，
   也就不用为跨域凭证做额外配置。
 - **迁移随服务启动执行**。单机自部署场景下，这样最不容易漏步骤。
-- `api` 与 `postgres` 都配了健康检查，`web` 会等 `api` 健康后才启动。
+- `api`、`agent`、`postgres` 都配了健康检查；`agent` 等 `api` 健康后再起，`web` 等两者都健康。
+- **agent 是独立进程、独立镜像**，它没有业务库的写权限，只能以当前用户身份走 HTTP。
 
 ## 三、网络受限的环境
 
@@ -107,11 +111,15 @@ docker compose -f infra/docker-compose.yml exec api python -m alembic upgrade he
 docker compose -f infra/docker-compose.yml exec api python -m app.modules.nutrition.compute
 ```
 
-**备份**只需要备份 `canteen-pg` 数据卷：
+**要备份两个卷**：`canteen-pg`（业务数据）与 `agent-state`（助手的对话与方案快照）。
+只备前者的话，恢复之后业务还在，但助手的历史对话和方案版本全没了——那些是
+「当时为什么这么排」的证据，不是可再生的缓存。
 
 ```bash
-docker run --rm -v canteen-pg:/data -v "$PWD:/backup" alpine \
-  tar czf /backup/canteen-pg-$(date +%F).tar.gz -C /data .
+for volume in canteen-pg agent-state; do
+  docker run --rm -v "$volume":/data -v "$PWD:/backup" alpine \
+    tar czf "/backup/$volume-$(date +%F).tar.gz" -C /data .
+done
 ```
 
 ## 七、演示环境与生产环境的差异

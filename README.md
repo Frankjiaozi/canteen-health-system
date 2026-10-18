@@ -24,7 +24,7 @@
 
 | 界面 | 访问方式 | 内容 |
 | --- | --- | --- |
-| 食堂管理端 | 需登录（录入员 / 食堂管理员 / 学校管理方） | 基础数据建库、明日菜单与采购、每日采集、抽样纠偏、看板，以及一个能查数据、也能提写操作（需点确认）的 AI 助手 |
+| 食堂管理端 | 需登录（录入员 / 食堂管理员 / 学校管理方） | 基础数据建库、明日菜单与采购、每日采集、抽样纠偏、看板，以及两个助手：顶部「AI 助手」（查数据 + 提写操作，需点确认）与左侧「知味膳食助手」（专门的菜单采购工作台） |
 | 公开大屏 | **免登录** | 今日菜单、每道菜营养指标、膳食指南对照条 |
 | 管理端看板 | 需登录 | 油盐糖趋势、人均摄入对比、达标率、剩餐浪费率 |
 
@@ -33,6 +33,7 @@
 | 层 | 选型 |
 | --- | --- |
 | 后端 | Python 3.13 · FastAPI · SQLAlchemy 2.0 · Alembic · Pydantic v2 |
+| 独立 Agent | Python 3.13 · FastAPI（独立进程与镜像）· 自己的 SQLite · Chat Completions 兼容的模型适配 |
 | 数据库 | PostgreSQL 17 |
 | 前端 | React 19 · Vite 8 · TypeScript 5.9 · Ant Design 6 · TanStack Query · Zustand · React Router 7 · ECharts |
 | 接口契约 | FastAPI OpenAPI → 自动生成 TypeScript 类型与客户端 |
@@ -119,18 +120,19 @@ pnpm dev
 | `pnpm dev` | 检查环境并启动业务 API、Agent 与前端 |
 | `pnpm dev:demo` | 用独立合成演示库启动，业务 API 为 8002 |
 | `pnpm dev:check` | 只检查依赖、数据库和迁移，不改数据 |
+| `pnpm dev:agent` | 只启动 Agent（改 Python 助手代码时用） |
 | `pnpm test:agent` | 独立 Agent 协议、权限与失败恢复测试 |
 | `pnpm gen:agent` | 生成 Agent 前端类型 |
 | `pnpm db:up` / `pnpm db:down` | 启停开发数据库 |
 | `pnpm db:migrate` / `pnpm db:downgrade` | 应用 / 回滚迁移 |
 | `pnpm db:seed` | 灌入种子数据（幂等，可重复执行） |
-| `pnpm db:compute` | 按标准配方计算最近两周的营养结果（幂等） |
+| `pnpm db:compute` | 按标准配方重算最近 8 周的营养结果（幂等） |
 | `pnpm nutrition:fetch` / `pnpm nutrition:verify` | 从食物成分查询平台取数并刷新营养快照 / 重新取数比对 |
 | `pnpm nutrition:list 大白菜` | 列平台候选条目（人工挑条目时用） |
 | `pnpm gen:api` | 导出后端 OpenAPI 并重新生成前端类型 |
-| `pnpm lint` | ruff + eslint |
+| `pnpm lint` | ruff（API + Agent）+ eslint |
 | `pnpm typecheck` | mypy + tsc |
-| `pnpm test` | pytest + vitest |
+| `pnpm test` | pytest（API，独立测试库）+ Agent pytest + vitest |
 | `pnpm e2e` | Playwright 端到端 |
 | `pnpm docker:up` | 构建并启动整套容器（内网自部署） |
 
@@ -167,15 +169,20 @@ pnpm dev
 | 27 | 排菜单后直接把确认卡片摆出来（不用再补一句「同步」），并修掉「卡片被挤到看不见」的两处毛病 | ✅ 已完成 |
 | 28 | 营养数据来源核对与重构：36 条食材/调味料逐条对齐《中国食物成分表》查询平台，落成可追溯快照 | ✅ 已完成 |
 | 29 | 三餐分开：早餐固定供应（不走选菜）、午餐与晚餐不重样、补 5 道早餐菜与三餐历史 | ✅ 已完成 |
+| 30 | 知味膳食助手（同伴实现，已合并）：独立 Agent 进程 + 数据体检 + 快照发布保护 + 报告导出 + 水墨进场 | ✅ 已完成 |
 
-29 个模块全部完成并通过验收。需求里的闭环「手机现场录入 → 大屏看到结果」在改为电脑端之后
+30 个模块全部完成并通过验收。需求里的闭环「手机现场录入 → 大屏看到结果」在改为电脑端之后
 已经真正闭合：登录 → 「每日采集」勾出当天供应的菜并填几组数字 → 保存即重算营养 →
 免登录的公开大屏立刻看得见。
+
+系统现在是**两个后端进程**（业务 API + 独立 Agent 服务），进程拓扑、三种启动方式与
+数据存放位置见 [架构说明 · 总体形态](./docs/architecture.md#一总体形态)。
+
 部署方式见 [docs/deployment.md](./docs/deployment.md)：
 
 ```bash
 cp infra/.env.example infra/.env   # 改掉数据库口令与 JWT_SECRET
-pnpm docker:up                     # 前端 :8080、后端与数据库在容器网络内
+pnpm docker:up                     # 前端 :8080；api / agent / postgres 在容器网络内
 ```
 
 ## 已知边界
