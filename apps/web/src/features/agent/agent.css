@@ -406,6 +406,36 @@
   cursor: not-allowed;
   opacity: 0.6;
 }
+/* 对话末尾的快捷气泡：比开场大卡片轻，只保留一句短标签 */
+.zw-agent-quick-replies {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 4px;
+}
+.zw-agent-quick-replies > span {
+  font-size: 11px;
+  color: var(--zw-subtle);
+}
+.zw-agent-quick-replies > button {
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--zw-green);
+  padding: 7px 12px;
+  border: 1px solid #c8d6ca;
+  border-radius: 999px;
+  background: #f4f8f4;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+.zw-agent-quick-replies > button:hover:not(:disabled) {
+  background: #e7f0e8;
+  border-color: #7b9d87;
+}
 .zw-agent button:focus-visible,
 .zw-agent summary:focus-visible,
 .zw-agent a:focus-visible {

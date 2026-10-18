@@ -154,6 +154,8 @@ async def run(
                     "每次最多生成一个方案。生成前用 check_data_readiness 检查数据，缺口需要如实说明。修改时保留未被用户改变的条件。排除菜品先用真实菜名查询ID，不得编造UUID。"
                     "若用户请求不支持的能力、提出含糊或相互矛盾的要求，用 clarify_task 问清楚并停止执行，不能声称已经完成。候选回复只是选项，不能当作用户已经选择。"
                     "方案营养指标是建议目标，不能声称全部合规；不做个人医疗判断。数据来源未核实，不得宣称为真实学校案例。"
+                    # 对话栏是窄列、按纯文本渲染：Markdown 标题/表格/加粗会原样显示成 ## 和 **
+                    "回答用纯文本：短段落加「-」列表就够，不要用 Markdown 标题、表格或加粗标记。"
                     "用户已在任务条件中明确提供以下参数，消息中有新条件时按新条件更新："
                     + request.parameters.model_dump_json()
                 )
@@ -170,11 +172,21 @@ async def run(
                         for row in conversation.messages[-12:]
                     ],
                 ]
-                for _ in range(5):
+                for attempt in range(5):
                     response = await model.complete(settings, messages)
                     calls = response.get("tool_calls") or []
                     if not calls:
-                        content = (response.get("content") or "请核对任务条件后再试。")[:8000]
+                        content = (response.get("content") or "").strip()[:8000]
+                        if content:
+                            break
+                        # 模型偶尔会回一条**空消息**：既没有内容，也没有工具调用。
+                        # 不能把「空」当「答完了」——那会退成一句与问题无关的兜底话。
+                        # 再给它一次机会；连续为空才如实说拿不到结果。
+                        if attempt < 4:
+                            continue
+                        content = (
+                            "这次没能从模型拿到结果，请重试一次；已完成的方案与计算结果都会保留。"
+                        )
                         break
                     if len(calls) > 4:
                         raise AgentError("模型一次请求了过多工具，请缩小任务范围")

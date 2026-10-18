@@ -8,6 +8,32 @@ import { Button, Input } from 'antd';
 import { useEffect, useRef } from 'react';
 import type { ChatMessage, PendingTask, ToolTrace } from '../api/types';
 
+/**
+ * 三句最常用的开场白。
+ *
+ * 同一个清单用在两个地方：空对话时是大卡片（说明每句能干什么），
+ * 聊过之后变成句末的小气泡（随手再点一次）。分成两份文案的话，
+ * 改了一处忘了另一处，两边就说的不是同一件事了。
+ */
+const STARTERS: { label: string; prompt: string; hint: string; needsPlan?: boolean }[] = [
+  {
+    label: '安排菜单与采购',
+    prompt: '请按任务条件安排菜单与采购',
+    hint: '按人数、预算和供餐记录计算',
+    needsPlan: true,
+  },
+  {
+    label: '先检查数据',
+    prompt: '按当前任务条件做数据体检',
+    hint: '配方、单价和供餐历史是否准备好',
+  },
+  {
+    label: '核查近期记录',
+    prompt: '核查最近7天供应记录',
+    hint: '找出需要人工核对的记录',
+  },
+];
+
 export function TraceList({ trace }: { trace: ToolTrace[] }) {
   if (!trace.length) return null;
   return (
@@ -83,29 +109,17 @@ export function ConversationView({
               你提出条件，知味调用现有数据计算，最后由你确认。
             </p>
             <div className="zw-agent-starters">
-              {canPlan && (
+              {STARTERS.filter((starter) => canPlan || !starter.needsPlan).map((starter) => (
                 <button
                   type="button"
+                  key={starter.label}
                   disabled={disabled}
-                  onClick={() => onSend('请按任务条件安排菜单与采购')}
+                  onClick={() => onSend(starter.prompt)}
                 >
-                  安排菜单与采购<span>按人数、预算和供餐记录计算</span>
+                  {starter.label}
+                  <span>{starter.hint}</span>
                 </button>
-              )}
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => onSend('按当前任务条件做数据体检')}
-              >
-                先检查数据<span>配方、单价和供餐历史是否准备好</span>
-              </button>
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => onSend('核查最近7天供应记录')}
-              >
-                核查近期记录<span>找出需要人工核对的记录</span>
-              </button>
+              ))}
             </div>
           </div>
         ) : (
@@ -161,6 +175,23 @@ export function ConversationView({
               <TraceList trace={trace} />
             </div>
           </>
+        )}
+        {/* 聊过之后，这三句缩成句末的小气泡：不用回头翻、也不用重新打字 */}
+        {messages.length > 0 && !busy && !pending && (
+          <div className="zw-agent-quick-replies" aria-label="继续对话">
+            <span>还可以这样问</span>
+            {STARTERS.filter((starter) => canPlan || !starter.needsPlan).map((starter) => (
+              <button
+                type="button"
+                key={starter.label}
+                disabled={disabled}
+                title={starter.hint}
+                onClick={() => onSend(starter.prompt)}
+              >
+                {starter.label}
+              </button>
+            ))}
+          </div>
         )}
       </div>
       <form
