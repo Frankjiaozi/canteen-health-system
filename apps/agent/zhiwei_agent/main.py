@@ -177,6 +177,37 @@ def create_app(settings: Settings | None = None, business_transport=None) -> Fas
         finally:
             store.release(sid, owner)
 
+    @app.post("/agent-api/v1/sessions/{session_id}/undo", response_model=Conversation)
+    async def undo(session_id: UUID, current: Access = Depends(access)):
+        """撤回最近一次发布：菜单恢复成发布前的样子，那一版方案回到待确认。
+
+        与「发布」对称——同样不经过模型，同样以当前用户身份调业务接口。
+        业务那边会核对发布时留下的快照凭据：这餐菜单在发布之后被别人改过、
+        或者已经录了采集，都会拒绝，撤回不会去覆盖别人的改动。
+        """
+        owner, sid = str(current.user["id"]), str(session_id)
+        if current.user["role"] not in {"RECORDER", "CANTEEN_ADMIN"}:
+            raise AgentError("当前账号没有撤回菜单的权限", 403, "forbidden")
+        store.acquire(sid, owner)
+        try:
+            conversation = store.get(sid, owner)
+            published = [
+                version
+                for version in conversation.plans
+                if version.publication and not version.undone
+            ]
+            if not published:
+                raise AgentError("这个对话里没有可撤回的发布", 409, "nothing_to_undo")
+            version = published[-1]
+            receipt = await current.business.request(
+                "POST", f"menu-plan/{version.result['suggestion_id']}/undo"
+            )
+            version.undone = receipt
+            store.save(conversation, owner)
+            return conversation.model_dump(mode="json")
+        finally:
+            store.release(sid, owner)
+
     @app.get("/agent-api/v1/sessions/{session_id}/purchase.csv")
     async def export_purchase(
         session_id: UUID, revision: int | None = None, current: Access = Depends(access)

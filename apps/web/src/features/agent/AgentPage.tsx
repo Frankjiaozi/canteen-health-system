@@ -175,7 +175,43 @@ export function AgentPage() {
         }),
     });
   };
-  const busy = run.isPending || publish.isPending;
+  const undo = useMutation({
+    mutationFn: (id: string) => agentApi.undoPublish(id),
+    onSuccess: (value) => {
+      updateConversation(value);
+      void client.invalidateQueries({ queryKey: ['collection'] });
+      void message.success('已撤回这次发布，菜单恢复成发布前的样子');
+    },
+    onError: (error) => {
+      void message.error(errorText(error));
+    },
+  });
+  const onUndo = (version: PlanVersion) => {
+    if (!conversation) return;
+    modal.confirm({
+      title: `撤回第 ${version.revision} 版菜单的发布`,
+      content: (
+        <div>
+          <p>
+            {version.result.date} {version.result.meal_type_label}{' '}
+            的菜单会恢复成发布前的样子，这一版方案回到「待确认」。
+          </p>
+          <p>
+            发布之后菜单要是被别人改过、或者这餐已经录了采集，系统会拒绝撤回——
+            它不会覆盖别人的改动。
+          </p>
+        </div>
+      ),
+      okText: '确认撤回',
+      okButtonProps: { danger: true },
+      cancelText: '先不撤',
+      onOk: () =>
+        undo.mutateAsync(conversation.id).catch(() => {
+          throw new Error('撤回未完成，请核对错误提示');
+        }),
+    });
+  };
+  const busy = run.isPending || publish.isPending || undo.isPending;
   const unavailable = status.isError || status.isPending;
   const selectSession = (id: string) => {
     if (!busy) {
@@ -341,6 +377,8 @@ export function AgentPage() {
           canPlan={status.data?.can_plan ?? false}
           busy={run.isPending}
           publishing={publish.isPending}
+          onUndo={onUndo}
+          undoing={undo.isPending}
         />
       </div>
     </main>

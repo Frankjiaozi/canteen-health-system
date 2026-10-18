@@ -37,6 +37,12 @@ export const agentApi = {
       method: 'POST',
       body: JSON.stringify({ revision }),
     }),
+  /**
+   * 撤回最近一次发布。与 publish 对称：不经过模型，以当前用户身份调业务接口。
+   * 业务侧会核对发布时留下的快照凭据，菜单被别人改过或已录采集都会拒绝。
+   */
+  undoPublish: (id: string) =>
+    request<Conversation>(`/sessions/${encodeURIComponent(id)}/undo`, { method: 'POST' }),
 };
 
 /** 网络分块与 JSON 行无关；缓冲跨块 UTF-8 和半行，不能逐块直接 JSON.parse。 */

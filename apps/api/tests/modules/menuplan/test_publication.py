@@ -1,6 +1,6 @@
 """在独立测试库验证真实计算/发布。不能在用户开发库运行本文件。"""
 
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -8,10 +8,13 @@ import pytest
 from app.db import seed as seed_module
 from app.db.session import get_session_factory
 from app.modules.audit.models import AuditLog
+from app.modules.collection.models import DailyLog
 from app.modules.dish.models import Dish, RecipeItem
 from app.modules.ingredient.models import Ingredient
-from app.modules.menu.models import MenuDayItem
+from app.modules.menu.models import MenuDay, MenuDayItem
 from app.modules.nutrition import service as nutrition_service
+from app.modules.recommendation.models import MenuSuggestion
+from app.shared.enums import MealType, SuggestionStatus
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -322,3 +325,90 @@ def test_change_during_generation_cannot_be_blessed_as_current_snapshot(
             with get_session_factory()() as other:
                 other.get(Ingredient, changed["id"]).unit_price = changed["old"]
                 other.commit()
+
+
+# ---------------------------------------------------------------------------
+# 撤回一次发布
+#
+# 这几条原来长在「业务侧 AI 助手」的测试里——撤回曾经只有那个助手够得着。
+# 助手下线之后撤回挪到了 menu-plan 的接口上，用例也一起搬了过来。
+# ---------------------------------------------------------------------------
+def undo(client, plan):
+    return client.post(f"{BASE}/{plan['suggestion_id']}/undo")
+
+
+def test_undo_restores_the_menu_and_reopens_the_suggestion(
+    as_recorder: TestClient, db_session: Session
+):
+    target = today_local() + timedelta(days=37)
+    plan = generate(as_recorder, offset=37)
+    assert confirm(as_recorder, plan).status_code == 200
+    assert db_session.scalar(select(MenuDay.id).where(MenuDay.date == target)) is not None
+
+    response = undo(as_recorder, plan)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["suggestion_id"] == plan["suggestion_id"]
+    assert body["undone_by"]
+    # 这一天本来没有菜单，撤回之后应当恢复成「没有」
+    assert db_session.scalar(select(MenuDay.id).where(MenuDay.date == target)) is None
+    suggestion = db_session.get(MenuSuggestion, UUID(plan["suggestion_id"]))
+    assert suggestion is not None
+    assert suggestion.status is SuggestionStatus.PENDING
+    assert suggestion.nutrition_gap["publication_revoked"]
+    # 原回执不删，只标记撤回——审计要能看到「发过、又撤了」
+    assert suggestion.nutrition_gap["publication"]
+
+
+def test_undo_twice_is_refused(as_recorder: TestClient):
+    plan = generate(as_recorder, offset=38)
+    assert confirm(as_recorder, plan).status_code == 200
+    assert undo(as_recorder, plan).status_code == 200
+
+    again = undo(as_recorder, plan)
+
+    assert again.status_code == 409
+    assert "已经撤回" in again.json()["message"]
+
+
+def test_undo_is_refused_when_the_menu_changed_after_publish(
+    as_recorder: TestClient, db_session: Session
+):
+    """发布之后菜单被别人改过，撤回必须拒绝——它不能覆盖别人的改动。"""
+    plan = generate(as_recorder, offset=39)
+    published = confirm(as_recorder, plan)
+    assert published.status_code == 200, published.text
+    receipt = published.json()
+    menu_id = UUID(receipt["menu_day_id"])
+    used = {UUID(row["dish_id"]) for row in plan["dishes"]}
+    extra = db_session.scalar(select(Dish).where(Dish.is_active.is_(True), Dish.id.not_in(used)))
+    assert extra is not None
+    db_session.add(
+        MenuDayItem(menu_day_id=menu_id, dish_id=extra.id, planned_servings=Decimal("10"))
+    )
+    db_session.commit()
+
+    response = undo(as_recorder, plan)
+
+    assert response.status_code == 409
+    assert "又被修改" in response.json()["message"]
+
+
+def test_undo_is_refused_after_the_meal_was_collected(as_recorder: TestClient, db_session: Session):
+    """已经录了采集的那一餐，计划撤不回去——实际供应优先。"""
+    plan = generate(as_recorder, offset=41)
+    assert confirm(as_recorder, plan).status_code == 200
+    db_session.add(
+        DailyLog(
+            date=date.fromisoformat(plan["date"]),
+            meal_type=MealType.LUNCH,
+            diner_count=800,
+        )
+    )
+    db_session.commit()
+
+    response = undo(as_recorder, plan)
+
+    assert response.status_code == 409
+    assert "已经录过采集" in response.json()["message"]

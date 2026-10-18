@@ -8,11 +8,12 @@ export type ToolTrace = Required<Agent['schemas']['ToolTrace']>;
 export type ChatMessage = Omit<Agent['schemas']['ChatMessage'], 'trace'> & { trace: ToolTrace[] };
 export type PlanVersion = Omit<
   Agent['schemas']['PlanVersion'],
-  'parameters' | 'result' | 'publication' | 'readiness'
+  'parameters' | 'result' | 'publication' | 'undone' | 'readiness'
 > & {
   parameters: PlanParameters;
   result: Business['schemas']['MenuPlanResponse'];
   publication: Business['schemas']['PublishPlanReceipt'] | null;
+  undone?: Business['schemas']['UndoPlanReceipt'] | null;
   readiness?: Readiness | null;
 };
 export type ReviewIssue = Agent['schemas']['ReviewIssue'];

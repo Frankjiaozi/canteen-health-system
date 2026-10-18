@@ -60,6 +60,9 @@ class PlanVersion(BaseModel):
     parameters: PlanParameters
     result: dict[str, Any]
     publication: dict[str, Any] | None = None
+    #: 这次发布被撤回的回执。发布回执本身保留不动，撤回是另一件事——
+    #: 把它塞进 publication 里，会让「发布过」和「还生效」混成一个字段。
+    undone: dict[str, Any] | None = None
     readiness: dict[str, Any] | None = None
     data_notice: str = ""
 

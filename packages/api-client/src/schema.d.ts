@@ -481,6 +481,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/menu-plan/{suggestion_id}/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 撤回一次已发布的方案
+         * @description 把菜单恢复成发布前的样子，方案回到待确认。
+         *
+         *     发布之后这餐菜单被别人改过、或者已经录了采集，都会拒绝——撤回不能覆盖别人的改动，
+         *     也不能拿计划盖掉实际供应。
+         */
+        post: operations["undo_api_v1_menu_plan__suggestion_id__undo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/menu-plan/sync": {
         parameters: {
             query?: never;
@@ -3624,6 +3647,26 @@ export interface components {
             targets: components["schemas"]["StandardTarget"][];
         };
         /**
+         * UndoPlanReceipt
+         * @description 撤回一次已发布方案的回执。原发布回执不删，只标记撤回，供审计。
+         */
+        UndoPlanReceipt: {
+            /** Suggestion Id */
+            suggestion_id: string;
+            /**
+             * On Date
+             * Format: date
+             */
+            on_date: string;
+            meal_type: components["schemas"]["MealType"];
+            /** Meal Type Label */
+            meal_type_label: string;
+            /** Undone At */
+            undone_at: string;
+            /** Undone By */
+            undone_by: string;
+        };
+        /**
          * UserRole
          * @description 登录角色。
          *
@@ -3793,6 +3836,7 @@ export type SchemaToolCallTrace = components['schemas']['ToolCallTrace'];
 export type SchemaToolInfo = components['schemas']['ToolInfo'];
 export type SchemaTrendPoint = components['schemas']['TrendPoint'];
 export type SchemaTrendsResponse = components['schemas']['TrendsResponse'];
+export type SchemaUndoPlanReceipt = components['schemas']['UndoPlanReceipt'];
 export type SchemaUserRole = components['schemas']['UserRole'];
 export type SchemaValidationError = components['schemas']['ValidationError'];
 export type SchemaWastePoint = components['schemas']['WastePoint'];
@@ -4924,6 +4968,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublishPlanReceipt"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    undo_api_v1_menu_plan__suggestion_id__undo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                suggestion_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UndoPlanReceipt"];
                 };
             };
             /** @description Validation Error */

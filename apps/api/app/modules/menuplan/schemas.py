@@ -95,6 +95,17 @@ class PublishPlanReceipt(BaseModel):
     already_published: bool = False
 
 
+class UndoPlanReceipt(BaseModel):
+    """撤回一次已发布方案的回执。原发布回执不删，只标记撤回，供审计。"""
+
+    suggestion_id: str
+    on_date: date
+    meal_type: MealType
+    meal_type_label: str
+    undone_at: str
+    undone_by: str
+
+
 class ReadinessIssue(BaseModel):
     code: str
     severity: Literal["blocking", "warning"]

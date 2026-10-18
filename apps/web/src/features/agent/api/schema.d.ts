@@ -124,6 +124,30 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/agent-api/v1/sessions/{session_id}/undo': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Undo
+     * @description 撤回最近一次发布：菜单恢复成发布前的样子，那一版方案回到待确认。
+     *
+     *     与「发布」对称——同样不经过模型，同样以当前用户身份调业务接口。
+     *     业务那边会核对发布时留下的快照凭据：这餐菜单在发布之后被别人改过、
+     *     或者已经录了采集，都会拒绝，撤回不会去覆盖别人的改动。
+     */
+    post: operations['undo_agent_api_v1_sessions__session_id__undo_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/agent-api/v1/sessions/{session_id}/purchase.csv': {
     parameters: {
       query?: never;
@@ -341,6 +365,10 @@ export interface components {
       };
       /** Publication */
       publication?: {
+        [key: string]: unknown;
+      } | null;
+      /** Undone */
+      undone?: {
         [key: string]: unknown;
       } | null;
       /** Readiness */
@@ -643,6 +671,37 @@ export interface operations {
         'application/json': components['schemas']['PublishRequest'];
       };
     };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['Conversation'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  undo_agent_api_v1_sessions__session_id__undo_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
     responses: {
       /** @description Successful Response */
       200: {

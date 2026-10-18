@@ -87,6 +87,18 @@ class BusinessFake:
                     "already_published": False,
                 },
             )
+        if request.url.path.endswith("/undo"):
+            return httpx.Response(
+                200,
+                json={
+                    "suggestion_id": "demo-suggestion",
+                    "on_date": str(TODAY + timedelta(days=1)),
+                    "meal_type": "LUNCH",
+                    "meal_type_label": "午餐",
+                    "undone_at": "2026-10-16T12:30:00+08:00",
+                    "undone_by": "演示用户",
+                },
+            )
         if request.url.path.endswith("collection/logs"):
             return httpx.Response(
                 200,
@@ -165,6 +177,26 @@ def test_rules_generate_real_tool_then_publish_and_download(context):
     assert saved.plans[0].result["snapshot_token"] == PLAN["snapshot_token"]
 
 
+def test_publish_then_undo_marks_the_version_and_refuses_a_second_time(context):
+    """发布之后可以撤回；撤回走的是业务接口，回执记在版本上，且只能撤一次。"""
+    client, business, _ = context
+    sid = new_session(client)
+    events(send(client, sid))
+    published = client.post(f"/agent-api/v1/sessions/{sid}/publish", json={"revision": 1})
+    assert published.status_code == 200
+    assert published.json()["plans"][0]["undone"] is None
+
+    undone = client.post(f"/agent-api/v1/sessions/{sid}/undo")
+
+    assert undone.status_code == 200, undone.text
+    body = undone.json()["plans"][0]
+    # 发布回执保留不动，撤回是另一条记录——「发布过」和「还生效」不能混成一个字段
+    assert body["publication"]["menu_day_id"] == "demo-menu"
+    assert body["undone"]["undone_by"] == "演示用户"
+    assert any(call.url.path.endswith("/undo") for call in business.calls)
+    assert client.post(f"/agent-api/v1/sessions/{sid}/undo").status_code == 409
+
+
 def test_owner_and_expired_cookie_are_enforced_on_every_request(context):
     client, _, _ = context
     sid = new_session(client)
@@ -223,6 +255,7 @@ def test_school_role_can_review_but_not_generate_or_publish(context):
         client.post(f"/agent-api/v1/sessions/{sid}/publish", json={"revision": 1}).status_code
         == 403
     )
+    assert client.post(f"/agent-api/v1/sessions/{sid}/undo").status_code == 403
 
 
 def test_invalid_constraints_and_cross_site_requests_rejected(context):

@@ -18,7 +18,12 @@ from app.modules.dish.models import Dish, RecipeItem, RecipeSeasoning
 from app.modules.ingredient.models import Ingredient
 from app.modules.menu.locking import lock_meal
 from app.modules.menu.models import MenuDay, MenuDayItem
-from app.modules.menuplan.schemas import MenuPlanResponse, PublishPlanReceipt, PublishPlanRequest
+from app.modules.menuplan.schemas import (
+    MenuPlanResponse,
+    PublishPlanReceipt,
+    PublishPlanRequest,
+    UndoPlanReceipt,
+)
 from app.modules.nutrition import service as nutrition_service
 from app.modules.recommendation.models import MenuSuggestion
 from app.modules.seasoning.models import Seasoning
@@ -247,7 +252,6 @@ def publish(
         published_at=suggestion.decided_at.isoformat(),
         published_by=actor.display_name,
     )
-    suggestion.nutrition_gap = {**stored, "publication": result.model_dump(mode="json")}
     session.add(
         AuditLog(
             entity_type="menu_day",
@@ -265,6 +269,14 @@ def publish(
         )
     )
     session.flush()
+    # 撤回要用的两样东西必须当场留下：发布前那一版菜单，和发布后的版本凭据。
+    # 少了它们，撤回就只能「按现在的状态猜当时是什么样」——那是猜，不是撤回。
+    after = meal_state(session, on_date=suggestion.date, meal_type=suggestion.meal_type)
+    suggestion.nutrition_gap = {
+        **stored,
+        "publication": result.model_dump(mode="json"),
+        "publication_undo": {"before": before, "after_token": digest(after)},
+    }
     nutrition_service.compute_menu_day(
         session, on_date=suggestion.date, meal_type=suggestion.meal_type
     )
@@ -351,8 +363,58 @@ def restore_menu(
             actor_name=actor.display_name,
             before=current,
             after=before,
-            note="人工撤回助手菜单计划；原发布回执保留并标记撤回",
+            note="人工撤回已发布的菜单计划；原发布回执保留并标记撤回",
         )
     )
     if commit:
         session.commit()
+
+
+def undo_publish(
+    session: Session,
+    *,
+    suggestion_id: UUID,
+    actor: AuthUser,
+    commit: bool = True,
+) -> UndoPlanReceipt:
+    """撤回一次发布：菜单恢复成发布前那一版，建议回到待确认，回执保留并标记撤回。
+
+    撤回凭的是**发布那一刻存下的快照**，不是「照着现在的样子反推」：
+    `publication_undo` 里有发布前的完整菜单与发布后的版本凭据，两者对得上才动手。
+    发布之后这餐菜单要是被别人改过，凭据就对不上，这里会拒绝而不是覆盖别人的改动。
+    """
+    suggestion = session.scalar(
+        select(MenuSuggestion)
+        .where(MenuSuggestion.id == suggestion_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if suggestion is None:
+        raise NotFoundError("推荐不存在")
+    stored = suggestion.nutrition_gap or {}
+    if not stored.get("publication"):
+        raise ConflictError("这份方案没有发布记录，撤回不了")
+    if stored.get("publication_revoked"):
+        raise ConflictError("这次发布已经撤回过了，不用再撤一次")
+    undo = stored.get("publication_undo")
+    if not undo:
+        raise ConflictError("这次发布没有留下撤回快照，无法自动撤回；请人工核对当前菜单")
+
+    restore_menu(
+        session,
+        on_date=suggestion.date,
+        meal_type=suggestion.meal_type,
+        before=undo["before"],
+        expected_token=undo["after_token"],
+        actor=actor,
+        suggestion_id=suggestion.id,
+        commit=commit,
+    )
+    return UndoPlanReceipt(
+        suggestion_id=str(suggestion.id),
+        on_date=suggestion.date,
+        meal_type=suggestion.meal_type,
+        meal_type_label=suggestion.meal_type.label,
+        undone_at=datetime.now(get_settings().timezone).isoformat(),
+        undone_by=actor.display_name,
+    )

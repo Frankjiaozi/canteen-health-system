@@ -23,6 +23,7 @@ from app.modules.menuplan.schemas import (
     PlanReadiness,
     PublishPlanReceipt,
     PublishPlanRequest,
+    UndoPlanReceipt,
 )
 from app.shared.enums import MealType, UserRole
 from fastapi import APIRouter, Body, Depends, Query
@@ -86,6 +87,28 @@ def publish(
         session.rollback()
         if getattr(exc.orig, "sqlstate", None) in {"40P01", "55P03", "40001", "23505"}:
             raise ConflictError("菜单或配方正在被其他操作更新，请刷新后重试") from exc
+        raise
+
+
+@router.post(
+    "/{suggestion_id}/undo", response_model=UndoPlanReceipt, summary="撤回一次已发布的方案"
+)
+def undo(
+    suggestion_id: UUID,
+    session: Session = Depends(get_session),
+    actor: AuthUser = Depends(require_roles(*WRITE_ROLES)),
+) -> UndoPlanReceipt:
+    """把菜单恢复成发布前的样子，方案回到待确认。
+
+    发布之后这餐菜单被别人改过、或者已经录了采集，都会拒绝——撤回不能覆盖别人的改动，
+    也不能拿计划盖掉实际供应。
+    """
+    try:
+        return publication.undo_publish(session, suggestion_id=suggestion_id, actor=actor)
+    except DBAPIError as exc:
+        session.rollback()
+        if getattr(exc.orig, "sqlstate", None) in {"40P01", "55P03", "40001", "23505"}:
+            raise ConflictError("菜单正在被其他操作更新，请刷新后重试") from exc
         raise
 
 

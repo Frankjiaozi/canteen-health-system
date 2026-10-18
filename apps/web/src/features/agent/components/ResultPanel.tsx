@@ -3,6 +3,7 @@ import {
   DownloadOutlined,
   FileSearchOutlined,
   SwapOutlined,
+  UndoOutlined,
 } from '@ant-design/icons';
 import { Alert, Button, Select, Tabs, Tag } from 'antd';
 import { useState } from 'react';
@@ -139,6 +140,8 @@ interface Props {
   canPlan: boolean;
   busy: boolean;
   publishing: boolean;
+  onUndo: (version: PlanVersion) => void;
+  undoing: boolean;
 }
 
 export function ResultPanel({
@@ -153,6 +156,8 @@ export function ResultPanel({
   canPlan,
   busy,
   publishing,
+  onUndo,
+  undoing,
 }: Props) {
   const versions = conversation?.plans ?? [];
   const version = versions.find((item) => item.revision === revision) ?? versions.at(-1);
@@ -431,8 +436,8 @@ export function ResultPanel({
           <span>总预算 / 元</span>
           <strong>{formatAmount(plan.budget)}</strong>
         </div>
-        <Tag color={version.publication ? 'success' : 'default'}>
-          {version.publication ? '已确认发布' : '待人工确认'}
+        <Tag color={version.publication ? (version.undone ? 'warning' : 'success') : 'default'}>
+          {version.publication ? (version.undone ? '发布已撤回' : '已确认发布') : '待人工确认'}
         </Tag>
       </div>
       <div className="zw-agent-version-actions">
@@ -489,17 +494,35 @@ export function ResultPanel({
       />
       {version.publication ? (
         <div className="zw-agent-published">
-          <CheckCircleOutlined />
+          {version.undone ? <UndoOutlined /> : <CheckCircleOutlined />}
           <div>
-            <strong>本版已确认发布</strong>
+            <strong>{version.undone ? '本版发布已撤回' : '本版已确认发布'}</strong>
             <p>
-              {version.publication.published_by} ·{' '}
-              {new Date(version.publication.published_at).toLocaleString('zh-CN')}
+              {version.undone
+                ? `${version.undone.undone_by} · ${new Date(version.undone.undone_at).toLocaleString('zh-CN')}`
+                : `${version.publication.published_by} · ${new Date(version.publication.published_at).toLocaleString('zh-CN')}`}
             </p>
           </div>
-          <Link to={`/admin/collection?date=${plan.date}&meal=${plan.meal_type}`}>
-            查看当餐采集单
-          </Link>
+          {version.undone ? (
+            <span className="zw-agent-undo-hint">
+              菜单已恢复成发布前的样子；要再排一版请重新计算。
+            </span>
+          ) : (
+            <>
+              <Link to={`/admin/collection?date=${plan.date}&meal=${plan.meal_type}`}>
+                查看当餐采集单
+              </Link>
+              <Button
+                size="small"
+                danger
+                loading={undoing}
+                disabled={busy || !canPlan}
+                onClick={() => onUndo(version)}
+              >
+                撤回这次发布
+              </Button>
+            </>
+          )}
         </div>
       ) : (
         <div className="zw-agent-confirm-bar">
