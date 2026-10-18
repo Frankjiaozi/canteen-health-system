@@ -20,6 +20,10 @@ export default defineConfig({
     baseURL: WEB_ORIGIN,
     locale: 'zh-CN',
     trace: 'retain-on-failure',
+    // 进场动画会占用每次加载的前几秒，并且用 inert 遮住整页。
+    // 打开「减弱动态效果」后 StartupGate 直接放行，用例才不会被动画挡住输入——
+    // 真实无障碍用户拿到的也是这个行为。
+    reducedMotion: 'reduce',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   // 对已部署环境跑时，服务已经在了，不需要再拉起本地进程
