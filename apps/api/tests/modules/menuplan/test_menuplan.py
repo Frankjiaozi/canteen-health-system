@@ -562,6 +562,9 @@ def test_unsatisfiable_menu_comes_back_as_a_readable_error(as_recorder: TestClie
     response = as_recorder.post(
         f"{BASE}/generate",
         params={"on_date": target.isoformat(), "meal_type": "LUNCH", "diner_count": 5},
+        # 指定人次现在会等比例调整预测，5人本身不再是无解条件。
+        # 用不可能覆盖采购的预算稳定复现无解，仍验证422与可读原因。
+        json={"budget_per_person": "0.01"},
     )
 
     assert response.status_code == 422, response.text

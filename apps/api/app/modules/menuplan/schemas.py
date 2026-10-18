@@ -7,11 +7,14 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
+from typing import Literal
+from uuid import UUID
 
 from app.modules.forecast.schemas import IngredientRequirement
 from app.modules.recommendation.schemas import NutrientGap, SuggestionReason
 from app.shared.enums import MealType
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class MenuPlanDish(BaseModel):
@@ -31,6 +34,7 @@ class MenuPlanDish(BaseModel):
     predicted_basis_label: str | None = None
     #: 真 = 这道菜历史不足、预测不出来，采购用的是基准份数
     prediction_fallback: bool = False
+    planned_servings: str | None = None
 
 
 class MenuPlanResponse(BaseModel):
@@ -57,6 +61,81 @@ class MenuPlanResponse(BaseModel):
     #: 采购量按什么份数算的——这一句必须写清楚，否则看的人不知道买多少是怎么来的
     servings_note: str
     notes: list[str]
+    snapshot_token: str = ""
+    expected_menu_token: str = ""
+    budget_per_person: str = ""
+    requested_excluded_dish_ids: list[str] = Field(default_factory=list)
+    calculation_version: str | None = None
+
+
+class MenuPlanConstraints(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    excluded_dish_ids: list[UUID] = Field(default_factory=list, max_length=50)
+    budget_per_person: Decimal | None = Field(
+        default=None, gt=0, le=1000, max_digits=8, decimal_places=2
+    )
+
+
+class PublishPlanRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    snapshot_token: str = Field(pattern=r"^[a-f0-9]{64}$")
+    expected_menu_token: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class PublishPlanReceipt(BaseModel):
+    suggestion_id: str
+    menu_day_id: str
+    on_date: date
+    meal_type: MealType
+    dish_count: int
+    published_at: str
+    published_by: str
+    already_published: bool = False
+
+
+class ReadinessIssue(BaseModel):
+    code: str
+    severity: Literal["blocking", "warning"]
+    title: str
+    detail: str
+    action: str
+    link: str
+    entity_id: str | None = None
+
+
+class ReadinessCategory(BaseModel):
+    code: str
+    label: str
+    available_count: int
+    required_minimum: int
+
+
+class PlanReadiness(BaseModel):
+    checked_at: str
+    on_date: date
+    meal_type: MealType
+    meal_type_label: str
+    state: Literal["blocked", "attention", "ready"]
+    active_dish_count: int
+    candidate_count: int
+    available_count: int
+    excluded_count: int
+    predicted_count: int
+    history_start: date
+    history_end: date
+    history_record_count: int
+    days_with_records: int
+    latest_record_date: date | None
+    latest_diner_count: int | None
+    missing_price_count: int
+    missing_nutrition_count: int
+    categories: list[ReadinessCategory]
+    issues: list[ReadinessIssue]
+    issue_count: int
+    truncated: bool = False
+    note: str
 
 
 class MenuPlanSyncResult(BaseModel):

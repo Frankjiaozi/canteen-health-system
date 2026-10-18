@@ -98,13 +98,15 @@ def load_active_dishes(session: Session) -> dict[UUID, Dish]:
     }
 
 
-def load_popularity(session: Session) -> dict[UUID, tuple[Decimal, int]]:
+def load_popularity(
+    session: Session, *, on_date: date | None = None, meal_type: MealType | None = None
+) -> dict[UUID, tuple[Decimal, int]]:
     """历史受欢迎度：每道菜的平均出餐份数与出现次数。
 
     用**平均**而不是总和：上过多少次菜单不该等价于受欢迎，
     轮换里排得多的菜本来就多。异常日不计入——临时接待那天的份数不代表口味。
     """
-    rows = session.execute(
+    statement = (
         select(
             DailyLogItem.dish_id,
             func.avg(DailyLogItem.servings_produced),
@@ -116,7 +118,12 @@ def load_popularity(session: Session) -> dict[UUID, tuple[Decimal, int]]:
             ~DailyLog.anomaly_flags.contains([AnomalyFlag.RECEPTION.value]),
         )
         .group_by(DailyLogItem.dish_id)
-    ).all()
+    )
+    if on_date is not None:
+        statement = statement.where(DailyLog.date < on_date)
+    if meal_type is not None:
+        statement = statement.where(DailyLog.meal_type == meal_type)
+    rows = session.execute(statement).all()
     return {
         dish_id: (Decimal(str(average)), int(count))
         for dish_id, average, count in rows
@@ -195,20 +202,22 @@ def load_standards(session: Session) -> list[NutritionStandard]:
     )
 
 
-def load_latest_diner_count(session: Session, *, on_date: date) -> int:
+def load_latest_diner_count(
+    session: Session, *, on_date: date, meal_type: MealType = MealType.LUNCH
+) -> int:
     """最近一次采集里的就餐人次。
 
     人次只影响「人均供给」的折算，不影响选哪些菜；用最近一次实际值比用拍脑袋的常数好。
     """
     value = session.scalar(
         select(DailyLog.diner_count)
-        .where(DailyLog.date <= on_date, DailyLog.diner_count > 0)
+        .where(DailyLog.date < on_date, DailyLog.meal_type == meal_type, DailyLog.diner_count > 0)
         .order_by(DailyLog.date.desc())
         .limit(1)
     )
     if value is None:
         raise BusinessRuleError(
-            "还没有任何采集记录，无法确定就餐人次；请先录一天，或在生成时直接指定人次"
+            f"供餐日期之前还没有{meal_type.label}的有效人次记录；请先补录历史，或在生成时直接指定人次"
         )
     return int(value)
 

@@ -158,7 +158,13 @@ def test_daily_totals_are_a_check_not_a_multiplier(
     for row in checks.values():
         actual = Decimal(row["actual_g"])
         predicted = Decimal(row["predicted_g"])
-        assert actual > 0 and predicted > 0
+        assert actual >= 0 and predicted >= 0
+        if predicted == 0:
+            # 日历轮换可能恰好安排了一餐完全不加糖的菜，不能把正常的零值当成失败。
+            assert actual == 0
+            assert Decimal(row["deviation"]) == 0
+            assert row["status"] == "ok"
+            continue
         expected = ((actual - predicted) / predicted).quantize(
             Decimal("0.0001"), rounding=ROUND_HALF_UP
         )

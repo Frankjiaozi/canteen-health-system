@@ -562,7 +562,7 @@ def test_sync_menu_plan_writes_the_day_and_can_be_reverted(
         is SuggestionStatus.ACCEPTED
     )
 
-    assert [step.tool for step in outcome.undo] == ["restore_menu_day", "reopen_suggestion"]
+    assert [step.tool for step in outcome.undo] == ["restore_menu_day"]
     for step in outcome.undo:
         tools.TOOLS_BY_NAME[step.tool].execute(db_session, step.payload, actor=actor)
 

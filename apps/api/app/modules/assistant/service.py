@@ -18,10 +18,11 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import ValidationError
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.errors import AppError, BusinessRuleError, NotFoundError
+from app.core.errors import AppError, BusinessRuleError, ForbiddenError, NotFoundError
 from app.core.logging import get_logger
 from app.modules.assistant import providers, repository, tools
 from app.modules.assistant.models import AssistantConversation, AssistantProposal
@@ -535,7 +536,12 @@ def read_proposal(row: AssistantProposal) -> ProposalRead:
 
 
 def _load_proposal(session: Session, proposal_id: UUID, actor: AuthUser) -> AssistantProposal:
-    proposal = repository.get_proposal(session, proposal_id)
+    proposal = session.scalar(
+        select(AssistantProposal)
+        .where(AssistantProposal.id == proposal_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     if proposal is None:
         raise NotFoundError("这条方案不存在")
     if proposal.created_by is not None and proposal.created_by != actor.id:
@@ -550,6 +556,8 @@ def confirm_proposal(session: Session, *, proposal_id: UUID, actor: AuthUser) ->
     执行走各域自己的 service，所以校验、留痕与页面录入完全一致；`audit_note` 会标明
     这条数据是「经 AI 助手提议、由本人确认」来的——留痕要能区分人和助手。
     """
+    if actor.role not in {UserRole.RECORDER, UserRole.CANTEEN_ADMIN}:
+        raise ForbiddenError("当前账号只能查看，不能确认写入数据")
     proposal = _load_proposal(session, proposal_id, actor)
     if proposal.status is not AssistantProposalStatus.PENDING:
         raise BusinessRuleError(f"这条方案已经{proposal.status.label}了，不能重复处理")
@@ -561,7 +569,10 @@ def confirm_proposal(session: Session, *, proposal_id: UUID, actor: AuthUser) ->
     proposal.decided_by = actor.id
     proposal.decided_at = datetime.now(get_settings().timezone)
     try:
-        outcome = tool.execute(session, proposal.payload, actor=actor)
+        if tool.name in {"set_menu_day", "sync_menu_plan", "save_collection"}:
+            outcome = tool.execute(session, proposal.payload, actor=actor, commit=False)
+        else:
+            outcome = tool.execute(session, proposal.payload, actor=actor)
     except (AppError, ValidationError) as error:
         # 执行失败也要落痕：方案留在 FAILED，原因写清楚，必要时改参数重试
         session.rollback()
@@ -576,7 +587,7 @@ def confirm_proposal(session: Session, *, proposal_id: UUID, actor: AuthUser) ->
             return read_proposal(reloaded)
         raise
 
-    # execute 内部会自己 commit（与页面录入同一条路径）；提交之后再落方案的结果
+    # 菜单/采集由本层统一提交业务与卡片；其他原有领域工具仍自行提交。
     reloaded = repository.get_proposal(session, proposal_id)
     if reloaded is None:
         raise NotFoundError("这条方案不存在")
@@ -615,6 +626,8 @@ def revoke_proposal(session: Session, *, proposal_id: UUID, actor: AuthUser) -> 
     - **同一条数据在执行之后又被别人改过的话，拒绝撤回**——否则会把别人那一次改动一起抹掉。
       宁可让人手工核对，也不做这种「静默覆盖」。
     """
+    if actor.role not in {UserRole.RECORDER, UserRole.CANTEEN_ADMIN}:
+        raise ForbiddenError("当前账号只能查看，不能撤回写入数据")
     proposal = _load_proposal(session, proposal_id, actor)
     if proposal.status is AssistantProposalStatus.REVERTED:
         raise BusinessRuleError("这条方案已经撤回过了")
@@ -641,7 +654,10 @@ def revoke_proposal(session: Session, *, proposal_id: UUID, actor: AuthUser) -> 
         tool = tools.TOOLS_BY_NAME.get(str(step.get("tool")))
         if tool is None or tool.execute is None:
             raise BusinessRuleError(f"撤回步骤「{step.get('tool')}」已经不可用")
-        tool.execute(session, dict(step.get("payload") or {}), actor=actor)
+        if tool.name in {"restore_menu_day", "restore_collection"}:
+            tool.execute(session, dict(step.get("payload") or {}), actor=actor, commit=False)
+        else:
+            tool.execute(session, dict(step.get("payload") or {}), actor=actor)
 
     reloaded = repository.get_proposal(session, proposal_id)
     if reloaded is None:

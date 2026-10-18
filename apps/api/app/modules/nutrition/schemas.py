@@ -66,7 +66,9 @@ class ClosureCheckRead(BaseModel):
     label: str
     actual_g: str
     predicted_g: str
-    deviation: str
+    deviation: str | None = Field(
+        description="相对偏差；零预测却有实际用量时为空，不能伪装成零误差"
+    )
     status: str = Field(description="ok / warn")
 
 

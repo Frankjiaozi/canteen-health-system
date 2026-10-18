@@ -6,6 +6,18 @@
 
 完整需求见 [canteen-requirements.md](./canteen-requirements.md)。
 
+## Agent 升级与双人协作
+
+新增 `/admin/agent` 知味膳食助手：生成前数据体检、多轮补充条件、安排菜单和采购、调整人数/预算与排除菜品、多版比较、记录核查、人工确认发布、CSV/Markdown 与完整离线 HTML 报告导出。所有业务数字由业务算法与接口计算。无模型密钥时明确显示规则模式；真实模型接入需配置后验收。
+
+- [Ethan：前端、视觉与 Agent 开发指南](docs/upgrades/ethan-frontend-agent.md)
+- [协作者：业务后端与数据开发指南](docs/upgrades/partner-backend-data.md)
+- [共同接口契约](docs/upgrades/shared-contract.md)
+- [本次验证记录](docs/upgrades/verification.md)
+- [五分钟演示与后续优先级](docs/upgrades/demo-script.md)
+
+已有台账时，推荐 `pnpm dev:demo` 在**独立演示库**体验完整流程，不在原开发库执行种子重灌。演示数据均为合成，不代表真实食堂经营结果。`pnpm test:py` 也自动使用独立测试库。
+
 ## 系统形态
 
 本系统只有三个可见终点，**没有学生端**——需求文档中的「学生端」对应的就是免登录的公开大屏：
@@ -41,6 +53,7 @@ canteen_project/
 │   │   │   └── modules/     按业务域垂直切分（auth / ingredient / dish / ...）
 │   │   ├── alembic/         数据库迁移
 │   │   └── tests/
+│   ├── agent/               独立 Agent 服务；只通过 HTTP 调业务 API
 │   └── web/                 React 单页应用
 │       ├── src/app/         路由、Provider、全局装配
 │       ├── src/features/    业务域（auth / ingredient / display / dashboard / ...）
@@ -72,19 +85,19 @@ pnpm install
 
 # 后端依赖装在 apps/api/.venv 里；pnpm 脚本会自动使用该虚拟环境，无需手动激活
 python -m venv apps/api/.venv
-node scripts/py.mjs -m pip install -e "apps/api[dev]"
+node scripts/py.mjs -m pip install -e "apps/api[dev]" -e "apps/agent[dev]"
 
 # 3) 准备后端环境变量
 cp apps/api/.env.example apps/api/.env
 
-# 4) 建表 + 灌入种子数据
+# 4) 建表；仅全新空库执行种子准备，已有台账请用 pnpm dev:demo
 pnpm db:migrate
 pnpm db:seed
 
 # 5) 按标准配方计算营养结果（营养引擎第一层）
 pnpm db:compute
 
-# 6) 启动前后端（api:8000 / web:5173）
+# 6) 启动三项服务（api:8000 / agent:8001 / web:5173）
 pnpm dev
 ```
 
@@ -103,7 +116,11 @@ pnpm dev
 
 | 命令 | 说明 |
 | --- | --- |
-| `pnpm dev` | 并行启动后端与前端 |
+| `pnpm dev` | 检查环境并启动业务 API、Agent 与前端 |
+| `pnpm dev:demo` | 用独立合成演示库启动，业务 API 为 8002 |
+| `pnpm dev:check` | 只检查依赖、数据库和迁移，不改数据 |
+| `pnpm test:agent` | 独立 Agent 协议、权限与失败恢复测试 |
+| `pnpm gen:agent` | 生成 Agent 前端类型 |
 | `pnpm db:up` / `pnpm db:down` | 启停开发数据库 |
 | `pnpm db:migrate` / `pnpm db:downgrade` | 应用 / 回滚迁移 |
 | `pnpm db:seed` | 灌入种子数据（幂等，可重复执行） |

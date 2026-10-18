@@ -5,8 +5,8 @@
 - `api_app` 是整个会话共用的应用实例。
 - `client` 使用 `raise_server_exceptions=False`，让未预期异常也走全局异常处理器，
   这样测试断言的是真实对外行为（统一错误体），而不是被测试客户端重新抛出的异常。
-- 依赖数据库的测试直接连本地开发库（由 `pnpm db:up` 提供），不另建测试库，
-  以保证测试环境与 alembic 迁移、种子数据完全一致。
+- 数据库测试只允许连接库名以 `_test` 结尾的独立库。
+  `pnpm test:py` 自动准备本机 canteen_upgrade_test，不修改开发台账。
 - **测试跑完会把库还原**：先记下基线主键，结束后删掉基线之外的行，再重灌一次种子。
   接口测试走的是真实提交（service 层自己 commit），不可能靠事务回滚，所以用「基线 + 还原」。
   没有这一步，跑几十轮之后开发库里会堆满测试造出来的菜品。
@@ -27,6 +27,7 @@ from app.modules.nutrition import service as nutrition_service
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
 #: 种子脚本内置的演示账号口令
@@ -61,6 +62,12 @@ def prepared_database() -> Iterator[None]:
        只删新增行拉不回这些改动，而种子脚本是收敛的，重跑一遍就回到定义状态。
     """
     settings = get_settings()
+    database_name = make_url(settings.database_url).database or ""
+    if not database_name.endswith("_test"):
+        pytest.exit(
+            "测试会重写示例数据，拒绝连接非 _test 数据库；请使用 pnpm test:py 自动准备独立测试库",
+            returncode=1,
+        )
     if settings.is_production:
         # 还原会删除数据，绝不能让它落到生产库上
         pytest.exit("拒绝在 production 环境上运行测试：会话结束时会清理测试数据", returncode=1)

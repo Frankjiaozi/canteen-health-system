@@ -16,10 +16,11 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.errors import BusinessRuleError, NotFoundError
+from app.core.errors import BusinessRuleError, ConflictError, NotFoundError
 from app.core.logging import get_logger
 from app.modules.nutrition import service as nutrition_service
 from app.modules.recommendation import repository, solver, targets
@@ -84,6 +85,8 @@ def generate(
     meal_type: MealType = MealType.LUNCH,
     diner_count: int | None = None,
     servings_by_dish: dict[UUID, Decimal] | None = None,
+    excluded_dish_ids: frozenset[UUID] = frozenset(),
+    budget_per_person: Decimal | None = None,
     extra_excluded: Collection[UUID] | None = None,
     usage_counts: dict[UUID, int] | None = None,
 ) -> MenuSuggestionRead:
@@ -99,7 +102,7 @@ def generate(
     settings = get_settings()
     dishes = repository.load_active_dishes(session)
     materials = repository.load_materials(session)
-    popularity = repository.load_popularity(session)
+    popularity = repository.load_popularity(session, on_date=on_date, meal_type=meal_type)
     standards = repository.load_standards(session)
 
     # 早餐与午晚餐是**两个互不相交的池子**。
@@ -113,7 +116,9 @@ def generate(
         for dish_id, dish in dishes.items()
         if bool(dish.is_breakfast_staple) is is_breakfast
     }
-    candidates, snapshots, missing_price = _candidates(
+    # 缺单价不在这里判：下面按**入选的那几道菜**重算（materials 是全量加载的）。
+    # 没被选中的菜缺单价，不该让这份方案的成本背上「偏低」的警告。
+    candidates, snapshots, _ = _candidates(
         session, dishes=pool, materials=materials, popularity=popularity
     )
     if not candidates:
@@ -125,20 +130,22 @@ def generate(
         raise BusinessRuleError("没有可用于推荐的菜品：菜品需要有配方，并且至少供应过一次")
 
     plan_targets, target_basis = targets.build_targets(meal_type, standards)
-    diners = diner_count or repository.load_latest_diner_count(session, on_date=on_date)
+    diners = diner_count or repository.load_latest_diner_count(
+        session, on_date=on_date, meal_type=meal_type
+    )
     baseline = servings_by_dish or {candidate.dish_id: Decimal(diners) for candidate in candidates}
-
+    # 三类排除各有各的来源，分开留着，理由里才说得清是**哪条规则**排掉的
     if is_breakfast:
-        # 早餐是固定组合：没有任何菜需要被排除，否则「每天固定」这条就不成立了
+        # 早餐是固定组合：不套「昨天不重复」「同日不重样」这两条结构规则，
+        # 否则「每天固定」就不成立了。但**用户明确要求排除的菜仍然照办**——
+        # 显式指令优先于默认组合。
         previous: set[UUID] = set()
         other_meal: set[UUID] = set()
     else:
         # 库里前一天供应过的菜要排除；批量排菜单时，前一天的那份菜单可能还在内存里
         # 没落库（是同一批生成出来的），所以允许把「上一批算出来的菜」一并传进来，
         # 否则「不连续两日重复」在批量里会形同虚设
-        previous = repository.load_previous_dishes(
-            session, on_date=on_date, meal_type=meal_type
-        ) | set(extra_excluded or ())
+        previous = repository.load_previous_dishes(session, on_date=on_date, meal_type=meal_type)
         # 同一天的另一餐已经排上的菜也不再出现。**主食除外**：主食池里只有米饭与
         # 馒头两道，一天两餐都排除的话候选择不出菜单，而中午晚上都上米饭本来就是
         # 食堂的常态——要的是「菜不重样」，不是「连米饭都不能一样」。
@@ -149,11 +156,16 @@ def generate(
             )
             if getattr(dishes.get(dish_id), "category", None) is not DishCategory.STAPLE
         }
-    excluded = previous | other_meal
+    batch_excluded = set(extra_excluded or ())
+    requested_excluded = set(excluded_dish_ids)
+    excluded = previous | other_meal | batch_excluded | requested_excluded
 
-    budget = (Decimal(str(settings.nutrition_meal_budget_per_person)) * diners).quantize(
-        Decimal("0.01")
+    per_person = (
+        budget_per_person
+        if budget_per_person is not None
+        else Decimal(str(settings.nutrition_meal_budget_per_person))
     )
+    budget = (per_person * diners).quantize(Decimal("0.01"))
     constraints = solver.PlanConstraints(
         targets=plan_targets,
         budget=budget,
@@ -178,13 +190,21 @@ def generate(
             else solver.solve_menu(candidates, constraints)
         )
     except solver.InfeasibleError as error:
-        # 求解器是纯函数，不认识业务异常；但「无解」对使用者是一条正经的业务结论，
-        # 不能让它冒成 500——那样界面上只剩一句「服务器内部错误」，
-        # 而求解器已经算清了卡在哪条约束上，白算。
-        raise BusinessRuleError(str(error)) from error
+        raise BusinessRuleError(str(error), details={"conflicts": error.conflicts}) from error
+    missing_price = any(materials[item.dish_id].missing_price for item in plan.items)
     by_id = {dish.dish_id: dish for dish in candidates}
     gaps = _gaps(plan_targets, plan.per_capita, meal_type)
     reasons = _reasons(plan, gaps, by_id, previous, other_meal, dishes, breakfast=is_breakfast)
+    if batch_excluded:
+        names = "、".join(
+            sorted(str(getattr(dishes.get(item), "name", item)) for item in batch_excluded)
+        )
+        reasons.append(SuggestionReason(kind="constraint", text=f"按批量前一日计划排除：{names}"))
+    if requested_excluded:
+        names = "、".join(
+            sorted(str(getattr(dishes.get(item), "name", item)) for item in requested_excluded)
+        )
+        reasons.append(SuggestionReason(kind="constraint", text=f"按本次要求排除：{names}"))
 
     suggestion = repository.save_suggestion(
         session,
@@ -240,7 +260,9 @@ def generate(
     return read_suggestion(suggestion)
 
 
-def candidate_dish_ids(session: Session, *, meal_type: MealType = MealType.LUNCH) -> list[UUID]:
+def candidate_dish_ids(
+    session: Session, *, on_date: date | None = None, meal_type: MealType | None = None
+) -> list[UUID]:
     """可作为推荐候选的菜品。
 
     「合并页」要先拿这份清单去预测份数、再交给推荐选菜，两边的候选集必须是同一批，
@@ -251,7 +273,7 @@ def candidate_dish_ids(session: Session, *, meal_type: MealType = MealType.LUNCH
     """
     dishes = repository.load_active_dishes(session)
     materials = repository.load_materials(session)
-    popularity = repository.load_popularity(session)
+    popularity = repository.load_popularity(session, on_date=on_date, meal_type=meal_type)
     want_breakfast = meal_type is MealType.BREAKFAST
     return [
         dish_id
@@ -275,13 +297,15 @@ def latest_suggestion_id(session: Session, *, on_date: date, meal_type: MealType
     return None
 
 
-def latest_diner_count(session: Session, *, on_date: date) -> int:
+def latest_diner_count(
+    session: Session, *, on_date: date, meal_type: MealType = MealType.LUNCH
+) -> int:
     """最近一次采集里的就餐人次。
 
     别的域（例如「明日菜单与采购」）要按人次折算人均供给时走这里问，
     而不是自己去读推荐域的表。
     """
-    return repository.load_latest_diner_count(session, on_date=on_date)
+    return repository.load_latest_diner_count(session, on_date=on_date, meal_type=meal_type)
 
 
 def reopen_suggestion(session: Session, *, suggestion_id: UUID) -> MenuSuggestionRead:
@@ -382,7 +406,7 @@ def _candidates(
                 oil_g=usage.seasoning_g.get(_OIL, Decimal("0")),
                 salt_g=usage.seasoning_g.get(_SALT, Decimal("0")),
                 sugar_g=usage.seasoning_g.get(_SUGAR, Decimal("0")),
-                cost_per_serving=usage.cost_per_serving.quantize(Decimal("0.01")),
+                cost_per_serving=usage.cost_per_serving,
                 popularity=popularity[dish_id][0],
                 ingredient_ids=frozenset(usage.ingredient_ids),
             )
@@ -606,11 +630,15 @@ def decide(
     session: Session, *, suggestion_id: UUID, payload: DecideRequest, actor_id: UUID | None
 ) -> MenuSuggestionRead:
     """采纳或否决。否决必须写明原因——需求里写明它用于后续迭代。"""
-    suggestion = repository.get_suggestion(session, suggestion_id)
+    suggestion = session.scalar(
+        select(MenuSuggestion).where(MenuSuggestion.id == suggestion_id).with_for_update()
+    )
     if suggestion is None:
         raise NotFoundError("推荐不存在")
     if payload.status is SuggestionStatus.PENDING:
         raise BusinessRuleError("只能采纳或否决，不能改回待确认")
+    if (suggestion.nutrition_gap or {}).get("publication"):
+        raise ConflictError("这份方案已确认发布，请通过新方案调整菜单，不能改写确认记录")
     if payload.status is SuggestionStatus.REJECTED and not (payload.reason or "").strip():
         raise BusinessRuleError("否决必须写明原因，它会被用来改进后续推荐")
     suggestion.status = payload.status

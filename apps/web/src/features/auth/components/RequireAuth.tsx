@@ -1,4 +1,4 @@
-import { Result, Skeleton } from 'antd';
+import { Button, Result, Skeleton } from 'antd';
 import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useCurrentUser } from '../hooks/useAuth';
@@ -13,7 +13,7 @@ interface RequireAuthProps {
 
 export function RequireAuth({ children, allowedRoles }: RequireAuthProps) {
   const location = useLocation();
-  const { data: user, isPending, error } = useCurrentUser();
+  const { data: user, isPending, isFetching, error, refetch } = useCurrentUser();
   const decision = resolveAuthGate({ isPending, error, user, allowedRoles });
 
   switch (decision.kind) {
@@ -31,7 +31,18 @@ export function RequireAuth({ children, allowedRoles }: RequireAuthProps) {
         />
       );
     case 'error':
-      return <Result status="error" title="无法获取登录状态" subTitle="请稍后重试" />;
+      return (
+        <Result
+          status="error"
+          title="暂时无法连接登录服务"
+          subTitle="服务恢复后可以重新连接，无需反复输入口令。"
+          extra={
+            <Button type="primary" loading={isFetching} onClick={() => void refetch()}>
+              重新连接
+            </Button>
+          }
+        />
+      );
     case 'allow':
       return <>{children}</>;
   }

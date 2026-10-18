@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -136,6 +138,7 @@ def discard_sheet(
     actor_id: UUID | None = None,
     actor_name: str | None = None,
     audit_note: str | None = None,
+    commit: bool = True,
 ) -> bool:
     """丢掉某天某一餐的采集记录（连同明细与人居口径的营养结果）。
 
@@ -162,7 +165,8 @@ def discard_sheet(
         actor_name=actor_name,
         note=audit_note or "删掉这一餐的采集记录",
     )
-    session.commit()
+    if commit:
+        session.commit()
     logger.info("采集记录已删除：%s %s", on_date, meal_type.label)
     return True
 
@@ -173,6 +177,7 @@ def save_sheet(
     on_date: date,
     payload: DailyLogWrite,
     actor_id: UUID | None,
+    commit: bool = True,
 ) -> DailyLogSaved:
     """保存采集单：确认菜单、写明细、写总量，并重算当餐营养结果。
 
@@ -243,7 +248,8 @@ def save_sheet(
     report = nutrition_service.compute_menu_day(
         session, on_date=on_date, meal_type=payload.meal_type
     )
-    session.commit()
+    if commit:
+        session.commit()
     logger.info(
         "采集已保存：%s %s，%d 道菜，营养结果 %d 条",
         on_date,
@@ -260,6 +266,23 @@ def save_sheet(
         submitted_at=submitted_at,
         calibration_note=("当天已跑过校准，可到「抽样纠偏」页看理论值、校准值与实测值的对照"),
     )
+
+
+def record_token(session: Session, *, on_date: date, meal_type: MealType) -> str:
+    """采集的版本凭据，供确认/撤回在餐次锁内核对，不向模型暴露数据表。"""
+    log = repository.get_log(session, on_date=on_date, meal_type=meal_type)
+
+    def values(row: object) -> dict[str, str]:
+        return {column.name: str(getattr(row, column.name)) for column in row.__table__.columns}  # type: ignore[attr-defined]
+
+    items: list[dict[str, str]] = (
+        [] if log is None else [values(row) for row in repository.load_items(session, log.id)]
+    )
+    items.sort(key=lambda item: item["id"])
+    snapshot = None if log is None else {"log": values(log), "items": items}
+    return hashlib.sha256(
+        json.dumps(snapshot, sort_keys=True, ensure_ascii=False).encode()
+    ).hexdigest()
 
 
 def list_logs(

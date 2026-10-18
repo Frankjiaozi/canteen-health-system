@@ -226,7 +226,9 @@ def predict_dishes(
     context = strategy.day_context(
         on_date, repository.load_holidays(session, start=start, end=on_date)
     )
-    history = repository.load_dish_history(session, start=start, end=on_date - timedelta(days=1))
+    history = repository.load_dish_history(
+        session, start=start, end=on_date - timedelta(days=1), meal_type=meal_type
+    )
     dishes = repository.load_active_dishes(session)
     profile = strategy.weekday_profile(
         [
@@ -334,7 +336,7 @@ def build_purchase_list(
         # 单价是「元 / 公斤」、用量是克，所以除以 1000 再乘
         cost = None if price is None else quantity * price
         if cost is not None:
-            total_cost += cost
+            total_cost += cost.quantize(Decimal("0.01"))
             priced = True
         requirements.append(
             IngredientRequirement(
@@ -367,13 +369,7 @@ def backtest(
     end = datetime.now(get_settings().timezone).date()
     start = end - timedelta(days=days - 1)
     history = repository.load_dish_history(
-        session, start=start - timedelta(weeks=HISTORY_WEEKS), end=end
-    )
-    profile = strategy.weekday_profile(
-        [
-            [strategy.HistoryPoint(day, servings) for day, servings in points]
-            for points in history.values()
-        ]
+        session, start=start - timedelta(weeks=HISTORY_WEEKS), end=end, meal_type=meal_type
     )
     holidays = repository.load_holidays(session, start=start - timedelta(weeks=1), end=end)
 
@@ -382,6 +378,13 @@ def backtest(
     for offset in range(days):
         day = start + timedelta(days=offset)
         context = strategy.day_context(day, holidays)
+        # 星期规律也是预测输入，必须按当时可见的历史重建，不能偷看回测区间后半段。
+        profile = strategy.weekday_profile(
+            [
+                [strategy.HistoryPoint(when, value) for when, value in rows if when < day]
+                for rows in history.values()
+            ]
+        )
         pairs: list[tuple[Decimal, Decimal]] = []
         for dish_history in history.values():
             actual = next((value for when, value in dish_history if when == day), None)

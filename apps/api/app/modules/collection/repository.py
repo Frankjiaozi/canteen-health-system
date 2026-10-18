@@ -18,7 +18,9 @@ from app.shared.enums import MealType
 
 def get_log(session: Session, *, on_date: date, meal_type: MealType) -> DailyLog | None:
     return session.scalar(
-        select(DailyLog).where(DailyLog.date == on_date, DailyLog.meal_type == meal_type)
+        select(DailyLog)
+        .where(DailyLog.date == on_date, DailyLog.meal_type == meal_type)
+        .execution_options(populate_existing=True)
     )
 
 
@@ -28,6 +30,7 @@ def load_items(session: Session, daily_log_id: UUID) -> list[DailyLogItem]:
             select(DailyLogItem)
             .where(DailyLogItem.daily_log_id == daily_log_id)
             .order_by(DailyLogItem.created_at)
+            .execution_options(populate_existing=True)
         ).all()
     )
 

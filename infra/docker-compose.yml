@@ -66,6 +66,32 @@ services:
       retries: 10
       start_period: 20s
 
+  agent:
+    build:
+      context: ..
+      dockerfile: apps/agent/Dockerfile
+      args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.13-slim}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      AGENT_BUSINESS_API_URL: http://api:8000/api/v1
+      AGENT_DATA_PATH: /app/data/agent-state.sqlite3
+      AGENT_MODE: ${AGENT_MODE:-auto}
+      AGENT_MODEL_BASE_URL: ${AGENT_MODEL_BASE_URL:-}
+      AGENT_MODEL_NAME: ${AGENT_MODEL_NAME:-}
+      AGENT_MODEL_API_KEY: ${AGENT_MODEL_API_KEY:-}
+      AGENT_DATA_NOTICE: ${AGENT_DATA_NOTICE:-数据来源尚未核实，仅用于功能演示，不代表真实食堂经营结果。}
+    volumes:
+      - agent-state:/app/data
+    healthcheck:
+      test: ['CMD-SHELL', 'python -c "import urllib.request;urllib.request.urlopen(\"http://127.0.0.1:8001/health\")"']
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
   web:
     build:
       context: ..
@@ -77,8 +103,11 @@ services:
     depends_on:
       api:
         condition: service_healthy
+      agent:
+        condition: service_healthy
     ports:
       - '${WEB_PORT:-8080}:80'
 
 volumes:
   canteen-pg:
+  agent-state:

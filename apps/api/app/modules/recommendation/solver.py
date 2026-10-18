@@ -408,10 +408,14 @@ def _binding(constraints: PlanConstraints, totals: dict[str, Decimal]) -> list[s
         actual = totals.get(target.code)
         if actual is None:
             continue
-        if target.upper is not None and actual > target.upper * Decimal("0.98"):
+        if target.upper is not None and target.upper * Decimal(
+            "0.98"
+        ) <= actual <= target.upper * Decimal("1.001"):
             notes.append(f"{target.label}已接近上限 {target.upper}{target.unit}")
-        if target.lower is not None and actual < target.lower * Decimal("1.02"):
-            notes.append(f"{target.label}刚好达到下限 {target.lower}{target.unit}")
+        if target.lower is not None and target.lower * Decimal(
+            "0.999"
+        ) <= actual <= target.lower * Decimal("1.02"):
+            notes.append(f"{target.label}在下限附近 {target.lower}{target.unit}，请结合差距核对")
     return notes
 
 

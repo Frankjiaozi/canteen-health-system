@@ -31,7 +31,10 @@ from app.modules.collection import service as collection_service
 from app.modules.dish import service as dish_service
 from app.modules.ingredient import service as ingredient_service
 from app.modules.menu import service as menu_service
+from app.modules.menu.locking import lock_meal
+from app.modules.menuplan import publication
 from app.modules.menuplan import service as menuplan_service
+from app.modules.nutrition import service as nutrition_service
 from app.modules.recommendation import service as recommendation_service
 from app.modules.seasoning import service as seasoning_service
 from app.shared.enums import DishCategory, IngredientCategory, MealType, UserRole
@@ -1077,16 +1080,31 @@ def _collection_snapshot(
         "sugar_total_g": sheet.sugar_total_g,
         "leftover_weight_g": sheet.leftover_weight_g,
         "note": sheet.note,
+        "anomaly_flags": [row.value for row in sheet.anomaly_flags if not row.system],
         "dishes": [
             {
                 "dish_id": row.dish_id,
                 "servings_produced": row.servings_produced or "0",
                 "leftover_ratio": row.leftover_ratio,
+                "leftover_weight_g": row.leftover_weight_g,
+                "is_substituted": row.is_substituted,
+                "substitution_note": row.substitution_note,
             }
             for row in sheet.dishes
             if row.selected
         ],
     }
+
+
+def _collection_token(session: Session, *, on_date: date, meal_type: MealType) -> str:
+    return publication.digest(
+        {
+            "record": collection_service.record_token(
+                session, on_date=on_date, meal_type=meal_type
+            ),
+            "menu": publication.meal_state(session, on_date=on_date, meal_type=meal_type),
+        }
+    )
 
 
 def _menu_snapshot(session: Session, *, on_date: date, meal_type: MealType) -> list[dict[str, Any]]:
@@ -1166,6 +1184,7 @@ def save_collection_draft(
         },
         "payload": {
             "on_date": target.isoformat(),
+            "expected_collection_token": _collection_token(session, on_date=target, meal_type=meal),
             "meal_type": meal.value,
             "diner_count": diner_count,
             "oil_total_g": oil_total_g or "0",
@@ -1182,13 +1201,21 @@ def save_collection_draft(
 
 
 def save_collection_execute(
-    session: Session, payload: dict[str, Any], *, actor: Any
+    session: Session, payload: dict[str, Any], *, actor: Any, commit: bool = True
 ) -> ExecutionOutcome:
     """确认之后真正把这一餐写进去，并记下「怎么撤回」。"""
     from app.modules.collection.schemas import DailyLogWrite, LoggedDishWrite
 
     target = date.fromisoformat(str(payload["on_date"]))
     meal = MealType(str(payload["meal_type"]))
+    lock_meal(session, target, meal)
+    if (
+        not payload.get("expected_collection_token")
+        or _collection_token(session, on_date=target, meal_type=meal)
+        != payload["expected_collection_token"]
+    ):
+        raise BusinessRuleError("这餐采集或菜单在预览后又被修改，请重新提议并核对")
+    before_menu = publication.meal_state(session, on_date=target, meal_type=meal)
     previous = _collection_snapshot(session, on_date=target, meal_type=meal)
     previous_menu = _menu_snapshot(session, on_date=target, meal_type=meal)
 
@@ -1213,7 +1240,11 @@ def save_collection_execute(
             ],
         ),
         actor_id=actor.id,
+        commit=False,
     )
+    expected = _collection_token(session, on_date=target, meal_type=meal)
+    if commit:
+        session.commit()
     return ExecutionOutcome(
         result={
             "实体": "采集记录",
@@ -1230,6 +1261,8 @@ def save_collection_execute(
                     "meal_type": meal.value,
                     "previous": previous,
                     "previous_menu": previous_menu,
+                    "before_menu": before_menu,
+                    "expected_collection_token": expected,
                 },
             ),
         ),
@@ -1237,13 +1270,20 @@ def save_collection_execute(
 
 
 def restore_collection_execute(
-    session: Session, payload: dict[str, Any], *, actor: Any
+    session: Session, payload: dict[str, Any], *, actor: Any, commit: bool = True
 ) -> ExecutionOutcome:
     """撤回一次采集：要么写回原来那条记录，要么把这条误录整份丢掉。"""
     from app.modules.collection.schemas import DailyLogWrite, LoggedDishWrite
 
     target = date.fromisoformat(str(payload["on_date"]))
     meal = MealType(str(payload["meal_type"]))
+    lock_meal(session, target, meal)
+    if (
+        not payload.get("expected_collection_token")
+        or _collection_token(session, on_date=target, meal_type=meal)
+        != payload["expected_collection_token"]
+    ):
+        raise BusinessRuleError("这餐采集或菜单在确认后又被改过，旧卡片不能撤回覆盖，请人工核对")
     previous = payload.get("previous")
 
     if previous:
@@ -1258,16 +1298,21 @@ def restore_collection_execute(
                 sugar_total_g=previous["sugar_total_g"] or "0",
                 leftover_weight_g=previous.get("leftover_weight_g"),
                 note=previous.get("note"),
+                anomaly_flags=previous.get("anomaly_flags") or [],
                 dishes=[
                     LoggedDishWrite(
                         dish_id=item["dish_id"],
                         servings_produced=item["servings_produced"],
                         leftover_ratio=item.get("leftover_ratio"),
+                        leftover_weight_g=item.get("leftover_weight_g"),
+                        is_substituted=item.get("is_substituted", False),
+                        substitution_note=item.get("substitution_note"),
                     )
                     for item in previous["dishes"]
                 ],
             ),
             actor_id=actor.id,
+            commit=False,
         )
         action = "写回原来那条采集记录"
     else:
@@ -1276,19 +1321,26 @@ def restore_collection_execute(
             on_date=target,
             meal_type=meal,
             actor_id=actor.id,
+            commit=False,
             actor_name=actor.display_name,
             audit_note="撤回 AI 助手录入的采集：删掉这条记录",
         )
         action = "删掉这次录入的采集记录"
 
-    # 菜单日恢复成采集之前的样子（可能是同步过来的计划，也可能本来是空的）
-    _write_menu(
+    publication.restore_menu(
         session,
         on_date=target,
         meal_type=meal,
-        items=payload.get("previous_menu") or [],
+        before=payload["before_menu"],
+        expected_token=publication.digest(
+            publication.meal_state(session, on_date=target, meal_type=meal)
+        ),
         actor=actor,
+        commit=False,
+        restoring_collection=True,
     )
+    if commit:
+        session.commit()
     return ExecutionOutcome(result={"实体": "采集记录", "日期": target.isoformat(), "撤回": action})
 
 
@@ -1358,24 +1410,48 @@ def set_menu_day_draft(
             "on_date": target.isoformat(),
             "meal_type": meal.value,
             "dish_ids": [str(dish.id) for dish in resolved],
+            "expected_menu_token": publication.digest(
+                publication.meal_state(session, on_date=target, meal_type=meal)
+            ),
         },
     }
 
 
 def set_menu_day_execute(
-    session: Session, payload: dict[str, Any], *, actor: Any
+    session: Session, payload: dict[str, Any], *, actor: Any, commit: bool = True
 ) -> ExecutionOutcome:
     target = date.fromisoformat(str(payload["on_date"]))
     meal = MealType(str(payload["meal_type"]))
-    previous_menu = _menu_snapshot(session, on_date=target, meal_type=meal)
-
-    _write_menu(
+    lock_meal(session, target, meal)
+    before = publication.meal_state(session, on_date=target, meal_type=meal)
+    if (
+        not payload.get("expected_menu_token")
+        or publication.digest(before) != payload["expected_menu_token"]
+    ):
+        raise BusinessRuleError("菜单在预览后已经变化，或旧卡片缺少版本，请重新提议并确认")
+    menu_service.plan_menu_day(
         session,
         on_date=target,
         meal_type=meal,
-        items=[{"dish_id": dish_id} for dish_id in payload["dish_ids"]],
-        actor=actor,
+        dishes=[
+            menu_service.PlannedDish(dish_id=UUID(str(value))) for value in payload["dish_ids"]
+        ],
+        created_by=actor.id,
     )
+    nutrition_service.compute_menu_day(session, on_date=target, meal_type=meal)
+    after = publication.meal_state(session, on_date=target, meal_type=meal)
+    undo = UndoStep(
+        tool="restore_menu_day",
+        payload={
+            "on_date": target.isoformat(),
+            "meal_type": meal.value,
+            "items": _menu_snapshot_from_state(before),
+            "before": before,
+            "expected_menu_token": publication.digest(after),
+        },
+    )
+    if commit:
+        session.commit()
     return ExecutionOutcome(
         result={
             "实体": "菜单日",
@@ -1383,27 +1459,33 @@ def set_menu_day_execute(
             "餐次": meal.label,
             "菜品数": len(payload["dish_ids"]),
         },
-        undo=(
-            UndoStep(
-                tool="restore_menu_day",
-                payload={
-                    "on_date": target.isoformat(),
-                    "meal_type": meal.value,
-                    "items": previous_menu,
-                },
-            ),
-        ),
+        undo=(undo,),
     )
 
 
+def _menu_snapshot_from_state(state: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        {"dish_id": row[0], "planned_servings": None if row[1] == "None" else row[1]}
+        for row in state.get("items", [])
+    ]
+
+
 def restore_menu_day_execute(
-    session: Session, payload: dict[str, Any], *, actor: Any
+    session: Session, payload: dict[str, Any], *, actor: Any, commit: bool = True
 ) -> ExecutionOutcome:
-    """撤回一次菜单调整：把菜单恢复成改之前那几道菜。只给撤回用。"""
     target = date.fromisoformat(str(payload["on_date"]))
     meal = MealType(str(payload["meal_type"]))
-    _write_menu(
-        session, on_date=target, meal_type=meal, items=payload.get("items") or [], actor=actor
+    if "before" not in payload or not payload.get("expected_menu_token"):
+        raise BusinessRuleError("旧的撤回记录缺少菜单版本快照，请人工核对当前菜单")
+    publication.restore_menu(
+        session,
+        on_date=target,
+        meal_type=meal,
+        before=payload["before"],
+        expected_token=payload["expected_menu_token"],
+        actor=actor,
+        suggestion_id=UUID(payload["suggestion_id"]) if payload.get("suggestion_id") else None,
+        commit=commit,
     )
     return ExecutionOutcome(
         result={"实体": "菜单日", "日期": target.isoformat(), "状态": "已恢复成原来的菜单"}
@@ -1703,18 +1785,49 @@ def sync_menu_plan_draft(
 
 
 def sync_menu_plan_execute(
-    session: Session, payload: dict[str, Any], *, actor: Any
+    session: Session, payload: dict[str, Any], *, actor: Any, commit: bool = True
 ) -> ExecutionOutcome:
     target = date.fromisoformat(str(payload["on_date"]))
     meal = MealType(str(payload["meal_type"]))
-    previous_menu = _menu_snapshot(session, on_date=target, meal_type=meal)
-    result = menuplan_service.sync_to_day(
-        session,
-        on_date=target,
-        meal_type=meal,
-        suggestion_id=UUID(str(payload["suggestion_id"])),
-        actor_id=actor.id,
+    sid = UUID(str(payload["suggestion_id"]))
+    # 与发布一致：先锁建议，再锁餐次；锁内抓取撤回快照。
+    from sqlalchemy import select
+
+    from app.modules.recommendation.models import MenuSuggestion
+
+    suggestion = session.scalar(
+        select(MenuSuggestion)
+        .where(MenuSuggestion.id == sid)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
+    lock_meal(session, target, meal)
+    before = publication.meal_state(session, on_date=target, meal_type=meal)
+    already = bool(suggestion and (suggestion.nutrition_gap or {}).get("publication"))
+    result = menuplan_service.sync_to_day(
+        session, on_date=target, meal_type=meal, suggestion_id=sid, actor_id=actor.id, commit=False
+    )
+    after = publication.meal_state(session, on_date=target, meal_type=meal)
+    # 重复同步只取回执，不能把第一次的已发布菜单当成“撤回前状态”。
+    undo = (
+        ()
+        if already
+        else (
+            UndoStep(
+                tool="restore_menu_day",
+                payload={
+                    "on_date": target.isoformat(),
+                    "meal_type": meal.value,
+                    "suggestion_id": str(sid),
+                    "items": _menu_snapshot_from_state(before),
+                    "before": before,
+                    "expected_menu_token": publication.digest(after),
+                },
+            ),
+        )
+    )
+    if commit:
+        session.commit()
     return ExecutionOutcome(
         result={
             "实体": "菜单日",
@@ -1723,22 +1836,7 @@ def sync_menu_plan_execute(
             "菜品数": result.dish_count,
             "营养结果": result.nutrition_rows,
         },
-        # 撤回两步：菜单恢复原样，再把那一版推荐记录改回「待确认」——
-        # 否则会出现「菜单退回去了，推荐记录却还写着已采纳」这种对不上的状态
-        undo=(
-            UndoStep(
-                tool="restore_menu_day",
-                payload={
-                    "on_date": target.isoformat(),
-                    "meal_type": meal.value,
-                    "items": previous_menu,
-                },
-            ),
-            UndoStep(
-                tool="reopen_suggestion",
-                payload={"suggestion_id": str(payload["suggestion_id"])},
-            ),
-        ),
+        undo=undo,
     )
 
 

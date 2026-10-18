@@ -24,9 +24,16 @@ BASE = "/api/v1/public/board/today"
 
 
 def _today_menu(session: Session) -> MenuDay:
-    menu_day = session.scalar(select(MenuDay).where(MenuDay.date == today_local()))
-    assert menu_day is not None, "需要先执行 pnpm db:seed 准备今天的数据"
-    return menu_day
+    """大屏实际展示的那一餐：午餐优先，其次晚餐，最后早餐。
+
+    一天有三餐之后，`where(date == today)` 加 `scalar()` 会随便返回其中一条——
+    测试必须与大屏用同一套优先级，否则拿晚餐的菜单去比大屏上的午餐，
+    断言会莫名其妙地红。
+    """
+    rows = list(session.scalars(select(MenuDay).where(MenuDay.date == today_local())))
+    assert rows, "需要先执行 pnpm db:seed 准备今天的数据"
+    priority = {MealType.LUNCH: 0, MealType.DINNER: 1, MealType.BREAKFAST: 2}
+    return min(rows, key=lambda row: priority[row.meal_type])
 
 
 def test_board_is_accessible_without_login(client: TestClient) -> None:

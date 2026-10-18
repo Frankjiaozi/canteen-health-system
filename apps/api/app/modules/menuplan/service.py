@@ -21,24 +21,26 @@ from __future__ import annotations
 
 from collections.abc import Collection
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
-from app.core.errors import AppError, BusinessRuleError
+from app.core.errors import AppError, BusinessRuleError, ConflictError
 from app.core.logging import get_logger
+from app.modules.auth import repository as auth_repository
+from app.modules.auth.service import to_auth_user
 from app.modules.collection import service as collection_service
 from app.modules.forecast import service as forecast_service
-from app.modules.menu import service as menu_service
+from app.modules.menuplan import publication
 from app.modules.menuplan.schemas import (
     MenuPlanBatchDay,
     MenuPlanBatchResult,
     MenuPlanDish,
     MenuPlanResponse,
     MenuPlanSyncResult,
+    PublishPlanRequest,
 )
-from app.modules.nutrition import service as nutrition_service
+from app.modules.recommendation import repository as recommendation_repository
 from app.modules.recommendation import service as recommendation_service
-from app.modules.recommendation.schemas import DecideRequest
 from app.shared.enums import MealType, SuggestionStatus
 from sqlalchemy.orm import Session
 
@@ -97,11 +99,18 @@ def build_menu_plan(
     on_date: date,
     meal_type: MealType = MealType.LUNCH,
     diner_count: int | None = None,
+    excluded_dish_ids: frozenset[UUID] = frozenset(),
+    budget_per_person: Decimal | None = None,
     extra_excluded: Collection[UUID] | None = None,
     usage_counts: dict[UUID, int] | None = None,
 ) -> MenuPlanResponse:
     """生成明天的菜单与采购建议。"""
-    candidate_ids = recommendation_service.candidate_dish_ids(session, meal_type=meal_type)
+    candidate_ids = recommendation_service.candidate_dish_ids(
+        session, on_date=on_date, meal_type=meal_type
+    )
+    unknown = excluded_dish_ids - set(recommendation_repository.load_active_dishes(session))
+    if unknown:
+        raise BusinessRuleError("排除列表包含不存在或已停用的菜品，请刷新菜品后重试")
     if not candidate_ids:
         if meal_type is MealType.BREAKFAST:
             raise BusinessRuleError(
@@ -109,8 +118,11 @@ def build_menu_plan(
                 "并确保它们有配方、上过菜单"
             )
         raise BusinessRuleError("没有可用于推荐的菜品：菜品需要有配方，并且至少供应过一次")
+    catalog_before = publication.catalog_tokens(session, candidate_ids)
 
-    diners = diner_count or recommendation_service.latest_diner_count(session, on_date=on_date)
+    diners = diner_count or recommendation_repository.load_latest_diner_count(
+        session, on_date=on_date, meal_type=meal_type
+    )
 
     # 先预测：逐菜独立，所以不必先知道菜单就能算出每道菜的份数
     prediction = forecast_service.predict_dishes(
@@ -120,6 +132,19 @@ def build_menu_plan(
     servings_by_dish = {
         dish_id: prediction.servings.get(dish_id, fallback_servings) for dish_id in candidate_ids
     }
+    scale_note = ""
+    if diner_count is not None and prediction.servings:
+        historical_diners = recommendation_repository.load_latest_diner_count(
+            session, on_date=on_date, meal_type=meal_type
+        )
+        scale = Decimal(diner_count) / Decimal(historical_diners)
+        servings_by_dish = {
+            dish_id: (quantity * scale).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            if dish_id in prediction.servings
+            else quantity
+            for dish_id, quantity in servings_by_dish.items()
+        }
+        scale_note = f"情景份数 = 历史预测 × 指定人次 {diner_count} / 最近采集人次 {historical_diners}；等比例调整是假设，不是新增实测。"
 
     # 再推荐：拿预测份数当营养评估基准，只回答「做哪几道菜」
     try:
@@ -129,14 +154,16 @@ def build_menu_plan(
             meal_type=meal_type,
             diner_count=diners,
             servings_by_dish=servings_by_dish,
+            excluded_dish_ids=excluded_dish_ids,
+            budget_per_person=budget_per_person,
             extra_excluded=extra_excluded,
             usage_counts=usage_counts,
         )
     except BusinessRuleError as error:
-        # 排不出来时，如果人次与份数量级差得离谱，把这件事一并说出来：
-        # 那多半不是菜单的问题，而是最近一次采集的人次填错了
-        note = servings_mismatch_note(prediction.servings.values(), diners=diners)
-        raise BusinessRuleError(f"{error.message}。{note}" if note else error.message) from error
+        note = servings_mismatch_note(servings_by_dish.values(), diners=diners)
+        raise BusinessRuleError(
+            f"{error.message}。{note}" if note else error.message, details=error.details
+        ) from error
 
     recommended_ids = [UUID(dish.dish_id) for dish in suggestion.dishes]
     forecast_service.persist_predictions(
@@ -166,13 +193,14 @@ def build_menu_plan(
             predicted_servings=(
                 None
                 if UUID(dish.dish_id) not in prediction.servings
-                else str(prediction.servings[UUID(dish.dish_id)])
+                else str(servings_by_dish[UUID(dish.dish_id)])
             ),
             predicted_basis_label=next(
                 (row.basis_label for row in prediction.dishes if row.dish_id == UUID(dish.dish_id)),
                 None,
             ),
             prediction_fallback=UUID(dish.dish_id) not in prediction.servings,
+            planned_servings=str(servings_by_dish[UUID(dish.dish_id)]),
         )
         for dish in suggestion.dishes
     ]
@@ -193,6 +221,8 @@ def build_menu_plan(
         notes.append(
             "这几道菜历史不足、预测不出份数，采购量按「每人一份」估算：" + "、".join(fallback_names)
         )
+    if scale_note:
+        notes.append(scale_note)
     logger.info(
         "菜单与采购：%s %s，%d 道菜，采购 %d 项，%s 元",
         on_date,
@@ -201,7 +231,7 @@ def build_menu_plan(
         len(requirements),
         total_cost,
     )
-    return MenuPlanResponse(
+    result = MenuPlanResponse(
         date=on_date,
         meal_type=meal_type,
         meal_type_label=meal_type.label,
@@ -223,7 +253,12 @@ def build_menu_plan(
             "预测不出来时退回「每人一份」估算并逐行标注。"
         ),
         notes=notes,
+        budget_per_person=str(Decimal(suggestion.budget) / Decimal(diners)),
+        requested_excluded_dish_ids=sorted(str(item) for item in excluded_dish_ids),
+        calculation_version=publication.CALCULATION_VERSION,
     )
+    # 保存完整计算快照；发布和导出使用这份快照，不能拿今天的数据重算旧方案。
+    return publication.save_snapshot(session, result, catalog_before)
 
 
 def sync_to_day(
@@ -233,6 +268,7 @@ def sync_to_day(
     meal_type: MealType,
     suggestion_id: UUID,
     actor_id: UUID | None = None,
+    commit: bool = True,
 ) -> MenuPlanSyncResult:
     _ensure_day_is_free(session, on_date=on_date, meal_type=meal_type)
     result = _sync_one(
@@ -241,6 +277,7 @@ def sync_to_day(
         meal_type=meal_type,
         suggestion_id=suggestion_id,
         actor_id=actor_id,
+        commit=commit,
     )
     return result
 
@@ -260,72 +297,40 @@ def _sync_one(
     meal_type: MealType,
     suggestion_id: UUID,
     actor_id: UUID | None = None,
+    commit: bool = True,
 ) -> MenuPlanSyncResult:
-    """把这一版菜单同步到那一天的当日数据：写菜单日 + 算营养 + 记下「已采纳」。
-
-    做完这三件事，第二天会发生什么就确定了：
-
-    - **每日采集**的「当日供应菜品」一打开就是勾好的（整份菜品库都列着，随时能改）；
-    - **公开大屏**当天早上就有内容——它读菜单日与营养结果，两者在这里都齐了；
-      而油盐糖、食物种类那类对照数据来自采集记录，采集之前如实显示「暂无」。
-
-    为什么读快照而不是重算：同步要落的是**人当时看到并确认的那一版**。
-    重算会算出可能不一样的结果，那就不是同步，是悄悄换一份菜单。
-
-    「这一天有没有录过采集」由调用方先查（单日与批量各查一次，错误信息要带上下文）。
-    """
-    planned, status = recommendation_service.planned_dishes(
+    """兼容旧同步入口，统一使用完整快照、目录核验、餐次锁和发布回执。"""
+    _planned, status = recommendation_service.planned_dishes(
         session, suggestion_id=suggestion_id, on_date=on_date, meal_type=meal_type
     )
     if status is SuggestionStatus.REJECTED:
         raise BusinessRuleError("这一版菜单已被否决，不能同步；请重新生成一版")
-
-    menu_service.plan_menu_day(
+    suggestion = recommendation_repository.get_suggestion(session, suggestion_id)
+    snapshot = (suggestion.nutrition_gap or {}).get("menu_plan_snapshot") if suggestion else None
+    if not snapshot:
+        raise ConflictError("旧建议没有完整快照，请重新生成并确认后同步")
+    user = auth_repository.get_by_id(session, actor_id) if actor_id else None
+    if user is None or not user.is_active:
+        raise BusinessRuleError("同步菜单需要有效的当前账号")
+    plan = MenuPlanResponse.model_validate(snapshot["plan"])
+    receipt = publication.publish(
         session,
-        on_date=on_date,
-        meal_type=meal_type,
-        dishes=[
-            menu_service.PlannedDish(dish_id=row.dish_id, planned_servings=row.planned_servings)
-            for row in planned
-        ],
-        created_by=actor_id,
-    )
-    # 大屏只展示有营养结果的菜，所以写菜单日与算营养必须一起做：
-    # 只写菜单日的话，第二天早上大屏还是空的
-    report = nutrition_service.compute_menu_day(session, on_date=on_date, meal_type=meal_type)
-
-    # 同步即采纳：把「这一版被采用了」记下来，历史里查得到是谁在哪天定的菜单
-    if status is SuggestionStatus.PENDING:
-        recommendation_service.decide(
-            session,
-            suggestion_id=suggestion_id,
-            payload=DecideRequest(status=SuggestionStatus.ACCEPTED, reason=None),
-            actor_id=actor_id,
-        )
-    else:
-        session.commit()
-
-    filled = sum(1 for row in planned if row.planned_servings is not None)
-    logger.info(
-        "菜单已同步至当日数据：%s %s，%d 道菜，营养结果 %d 条",
-        on_date,
-        meal_type.label,
-        len(planned),
-        report.rows,
+        suggestion_id=suggestion_id,
+        payload=PublishPlanRequest(
+            snapshot_token=plan.snapshot_token, expected_menu_token=plan.expected_menu_token
+        ),
+        actor=to_auth_user(user),
+        commit=commit,
     )
     return MenuPlanSyncResult(
         date=on_date,
         meal_type=meal_type,
         meal_type_label=meal_type.label,
         suggestion_id=str(suggestion_id),
-        dish_count=len(planned),
-        nutrition_rows=report.rows,
-        planned_servings_filled=filled,
-        message=(
-            f"已写入 {on_date} {meal_type.label}的当日数据：{len(planned)} 道菜，"
-            f"{report.rows} 条营养结果。每日采集的供应菜品已按这份菜单勾好，"
-            "公开大屏也看得到了；提交采集时会按实际供应覆盖。"
-        ),
+        dish_count=receipt.dish_count,
+        nutrition_rows=receipt.dish_count,
+        planned_servings_filled=sum(1 for row in plan.dishes if row.planned_servings is not None),
+        message=f"已写入 {on_date} {meal_type.label}的当日数据：{receipt.dish_count} 道菜。每日采集按计划勾好，公开大屏可查看；实际采集仍需如实录入。",
     )
 
 

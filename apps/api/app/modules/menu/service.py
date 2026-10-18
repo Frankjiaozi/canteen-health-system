@@ -14,7 +14,10 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.core.errors import BusinessRuleError
+from app.modules.collection import repository as collection_repository
 from app.modules.menu import repository
+from app.modules.menu.locking import lock_meal
 from app.shared.enums import MealType
 
 
@@ -46,6 +49,7 @@ def confirm_menu_day(
     created_by: UUID | None = None,
 ) -> UUID:
     """把当餐实际供应的菜品整份写入菜单日，返回菜单日 ID。"""
+    lock_meal(session, on_date, meal_type)
     menu_day = repository.ensure_menu_day(
         session, on_date=on_date, meal_type=meal_type, created_by=created_by
     )
@@ -74,6 +78,9 @@ def plan_menu_day(
     计划份数写进 `planned_servings`，提交采集时**保留**（见 repository.replace_items），
     因此事后能对上「计划做 812 份、实际做了 700 份」。
     """
+    lock_meal(session, on_date, meal_type)
+    if collection_repository.get_log(session, on_date=on_date, meal_type=meal_type):
+        raise BusinessRuleError("这餐已经录过采集，不能用计划覆盖实际供应")
     menu_day = repository.ensure_menu_day(
         session, on_date=on_date, meal_type=meal_type, created_by=created_by
     )

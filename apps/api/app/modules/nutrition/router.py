@@ -90,7 +90,7 @@ def run_daily_closure(
                 label=row.category.label,
                 actual_g=str(row.actual_g),
                 predicted_g=str(row.predicted_g),
-                deviation=str(row.deviation),
+                deviation=str(row.deviation) if row.deviation is not None else None,
                 status=row.status,
             )
             for row in report.checks

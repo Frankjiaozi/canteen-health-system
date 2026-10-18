@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zhiwei-agent"
+version = "0.1.0"
+description = "知味膳食助手：独立编排、业务 HTTP 工具与人工确认"
+requires-python = ">=3.13"
+dependencies = ["fastapi>=0.143.0", "uvicorn[standard]>=0.54.0", "httpx>=0.28.1", "pydantic-settings>=2.15.0", "tzdata>=2026.1"]
+
+[project.optional-dependencies]
+dev = ["pytest>=9.1.1", "ruff>=0.17.0"]
+
+[tool.setuptools.packages.find]
+include = ["zhiwei_agent*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501", "B008"]

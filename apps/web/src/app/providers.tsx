@@ -35,8 +35,16 @@ export function AppProviders({ children }: { children: ReactNode }) {
         // 截图、端到端断言、复制出去的文案都不会莫名其妙多一个空格
         button={{ autoInsertSpace: false }}
         theme={{
+          components: {
+            Menu: {
+              itemSelectedBg: '#e7eee5',
+              itemSelectedColor: '#244d3b',
+              itemHoverBg: '#f1f5ef',
+            },
+          },
           token: {
-            colorPrimary: '#1677ff',
+            colorPrimary: '#315c4c',
+            colorLink: '#315c4c',
             borderRadius: 6,
           },
         }}
