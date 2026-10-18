@@ -9,7 +9,6 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.modules.analytics.router import router as analytics_routes
-from app.modules.assistant.router import router as assistant_routes
 from app.modules.auth.router import router as auth_routes
 from app.modules.collection.router import router as collection_routes
 from app.modules.dish.router import router as dish_routes
@@ -43,4 +42,3 @@ api_router.include_router(collection_routes)
 api_router.include_router(public_routes)
 api_router.include_router(analytics_routes)
 api_router.include_router(calibration_routes)
-api_router.include_router(assistant_routes)

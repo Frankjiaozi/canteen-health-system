@@ -8,11 +8,6 @@ Alembic 的 autogenerate 与 `Base.metadata` 都依赖「所有模型都已被�
 """
 
 from app.db.base import Base
-from app.modules.assistant.models import (
-    AssistantConversation,
-    AssistantMessage,
-    AssistantProposal,
-)
 from app.modules.audit.models import AuditLog
 from app.modules.auth.models import User
 from app.modules.collection.models import DailyLog, DailyLogItem, Feedback
@@ -25,9 +20,6 @@ from app.modules.recommendation.models import MenuSuggestion
 from app.modules.seasoning.models import Seasoning
 
 __all__ = [
-    "AssistantConversation",
-    "AssistantMessage",
-    "AssistantProposal",
     "AuditLog",
     "Base",
     "CalibrationFactor",

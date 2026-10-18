@@ -1,16 +1,25 @@
-"""两套助手、单日/批量同步与实际采集共用业务保护。只在隔离测试库运行。"""
+"""单日 / 批量同步与实际采集共用同一套发布保护。只在隔离测试库运行。
+
+这个文件原本还覆盖「业务侧 AI 助手」那套确认卡与撤回——那个助手已经下线，
+只保留知味膳食助手；相关用例搬走或并入 `test_publication.py`：
+
+| 原来的用例 | 现在在哪 |
+| --- | --- |
+| 撤回要把菜单恢复成发布前的样子 | 这里（改走 `POST /menu-plan/{id}/undo`） |
+| 发布后菜单被改过 / 已录采集就不能撤 | `test_publication.py` |
+| 助手卡片并发确认、proposal 状态回滚 | 随助手一起删除——那套机制不存在了 |
+"""
 
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta
+from datetime import timedelta
 from decimal import Decimal
 from uuid import UUID
 
 import pytest
-from app.core.config import get_settings
 from app.core.errors import AppError
 from app.db import seed
 from app.db.session import get_session_factory
-from app.modules.assistant import repository, tools
+from app.modules.audit.models import AuditLog  # noqa: F401  （保留：发布与撤回都会写审计）
 from app.modules.auth.repository import get_by_username
 from app.modules.auth.service import to_auth_user
 from app.modules.dish.models import Dish, RecipeItem
@@ -20,7 +29,7 @@ from app.modules.menu.models import MenuDay, MenuDayItem
 from app.modules.menuplan import publication
 from app.modules.nutrition import service as nutrition_service
 from app.modules.recommendation.models import MenuSuggestion
-from app.shared.enums import MealType
+from app.shared.enums import MealType, SuggestionStatus
 from sqlalchemy import select
 
 from tests.conftest import _baseline_ids, _delete_rows_outside_baseline
@@ -52,14 +61,24 @@ def actor(session):
     return to_auth_user(get_by_username(session, "recorder"))
 
 
-def sync_draft(session, target):
-    return tools.sync_menu_plan_draft(session, on_date=str(target), meal_type="LUNCH")
+def publish(client, result):
+    return client.post(
+        f"/api/v1/menu-plan/{result['suggestion_id']}/publish",
+        json={
+            "snapshot_token": result["snapshot_token"],
+            "expected_menu_token": result["expected_menu_token"],
+        },
+    )
 
 
-@pytest.mark.parametrize("entry", ["single", "batch", "assistant"])
+def undo(client, result):
+    return client.post(f"/api/v1/menu-plan/{result['suggestion_id']}/undo")
+
+
+@pytest.mark.parametrize("entry", ["single", "batch"])
 def test_all_sync_entries_reject_a_price_change(as_recorder, db_session, entry):
+    """两个写入口都不能拿「单价已经变了」的快照去发布。"""
     target, result = plan(as_recorder, 10)
-    draft = sync_draft(db_session, target)
     recipe = db_session.scalar(
         select(RecipeItem).where(RecipeItem.dish_id == UUID(result["dishes"][0]["dish_id"]))
     )
@@ -68,10 +87,7 @@ def test_all_sync_entries_reject_a_price_change(as_recorder, db_session, entry):
     ingredient.unit_price = (original or Decimal(0)) + 1
     db_session.commit()
     try:
-        if entry == "assistant":
-            with pytest.raises(AppError, match="单价"):
-                tools.sync_menu_plan_execute(db_session, draft["payload"], actor=actor(db_session))
-        elif entry == "batch":
+        if entry == "batch":
             response = as_recorder.post(
                 "/api/v1/menu-plan/batch/sync",
                 params={"start_date": str(target), "end_date": str(target)},
@@ -94,9 +110,8 @@ def test_all_sync_entries_reject_a_price_change(as_recorder, db_session, entry):
 
 
 @pytest.mark.parametrize("had_menu", [False, True])
-def test_sync_undo_restores_full_original_and_invalidates_receipt(
-    as_recorder, db_session, had_menu
-):
+def test_undo_restores_full_original_and_invalidates_receipt(as_recorder, db_session, had_menu):
+    """撤回要把菜单**整份**恢复原样：备注、轮换名、替换标记、空份数都不能丢。"""
     target = today_local() + timedelta(days=12)
     if had_menu:
         dish = db_session.scalar(select(Dish).where(Dish.is_active.is_(True)))
@@ -113,12 +128,12 @@ def test_sync_undo_restores_full_original_and_invalidates_receipt(
         item.is_substituted, item.substitution_note = True, "原替换说明"
         db_session.commit()
     before = publication.meal_state(db_session, on_date=target, meal_type=MealType.LUNCH)
+
     _, result = plan(as_recorder, 12)
-    outcome = tools.sync_menu_plan_execute(
-        db_session, sync_draft(db_session, target)["payload"], actor=actor(db_session)
-    )
-    assert len(outcome.undo) == 1
-    tools.restore_menu_day_execute(db_session, outcome.undo[0].payload, actor=actor(db_session))
+    assert publish(as_recorder, result).status_code == 200
+    assert undo(as_recorder, result).status_code == 200
+
+    db_session.expire_all()
     after = publication.meal_state(db_session, on_date=target, meal_type=MealType.LUNCH)
     if had_menu:
         assert after["note"] == "原菜单备注" and after["rotation_name"] == "原轮换"
@@ -128,158 +143,18 @@ def test_sync_undo_restores_full_original_and_invalidates_receipt(
         assert after["items"][0][1] == "None"
     else:
         assert after == {"menu": None}
+
     saved = db_session.get(MenuSuggestion, UUID(result["suggestion_id"]))
+    assert saved is not None
     assert saved.nutrition_gap["publication"] and saved.nutrition_gap["publication_revoked"]
-    response = as_recorder.post(
-        f"/api/v1/menu-plan/{result['suggestion_id']}/publish",
-        json={
-            "snapshot_token": result["snapshot_token"],
-            "expected_menu_token": result["expected_menu_token"],
-        },
-    )
-    assert response.status_code == 409 and "撤回" in response.json()["message"]
+    # 撤回过的方案不能再发布，也不能被批量导入拿走
+    again = publish(as_recorder, result)
+    assert again.status_code == 409 and "撤回" in again.json()["message"]
     batch = as_recorder.post(
         "/api/v1/menu-plan/batch/sync", params={"start_date": str(target), "end_date": str(target)}
     )
     assert batch.status_code == 200 and batch.json()["failed"] == 1
     assert "撤回" in batch.json()["rows"][0]["reason"]
-
-
-def test_menu_draft_and_undo_cannot_overwrite_a_later_publish(as_recorder, db_session):
-    target, first = plan(as_recorder, 14)
-    names = [row["dish_name"] for row in first["dishes"][:2]]
-    pending = tools.set_menu_day_draft(
-        db_session, on_date=str(target), meal_type="LUNCH", dish_names=names
-    )
-    outcome = tools.set_menu_day_execute(db_session, pending["payload"], actor=actor(db_session))
-    stale = as_recorder.post(
-        "/api/v1/menu-plan/sync",
-        params={"on_date": str(target), "suggestion_id": first["suggestion_id"]},
-    )
-    assert stale.status_code == 409 and "修改" in stale.json()["message"]
-    _, second = plan(as_recorder, 14)
-    published = as_recorder.post(
-        f"/api/v1/menu-plan/{second['suggestion_id']}/publish",
-        json={
-            "snapshot_token": second["snapshot_token"],
-            "expected_menu_token": second["expected_menu_token"],
-        },
-    )
-    assert published.status_code == 200, published.text
-    with pytest.raises(AppError, match="修改"):
-        tools.restore_menu_day_execute(db_session, outcome.undo[0].payload, actor=actor(db_session))
-    with pytest.raises(AppError, match="变化"):
-        tools.set_menu_day_execute(db_session, pending["payload"], actor=actor(db_session))
-
-
-def test_actual_collection_blocks_menu_undo(as_recorder, db_session):
-    target, result = plan(as_recorder, 16)
-    outcome = tools.sync_menu_plan_execute(
-        db_session, sync_draft(db_session, target)["payload"], actor=actor(db_session)
-    )
-    saved = as_recorder.put(
-        f"/api/v1/collection/logs/{target}",
-        json={
-            "meal_type": "LUNCH",
-            "diner_count": 1000,
-            "oil_total_g": "1000",
-            "salt_total_g": "500",
-            "sugar_total_g": "100",
-            "dishes": [{"dish_id": result["dishes"][0]["dish_id"], "servings_produced": "10"}],
-        },
-    )
-    assert saved.status_code == 200, saved.text
-    with pytest.raises(AppError):
-        tools.restore_menu_day_execute(db_session, outcome.undo[0].payload, actor=actor(db_session))
-    assert (
-        as_recorder.get(f"/api/v1/collection/logs/{target}", params={"meal_type": "LUNCH"}).json()[
-            "saved"
-        ]
-        is True
-    )
-
-
-def test_failed_menu_undo_rolls_back_menu_receipt_and_proposal(
-    as_recorder, db_session, monkeypatch
-):
-    target, result = plan(as_recorder, 18)
-    who = actor(db_session)
-    draft = sync_draft(db_session, target)
-    conversation = repository.create_conversation(
-        db_session,
-        user_id=who.id,
-        user_name=who.display_name,
-        title="整合撤回验证",
-        now=datetime.now(get_settings().timezone),
-    )
-    proposal = repository.create_proposal(
-        db_session,
-        conversation_id=conversation.id,
-        tool_name="sync_menu_plan",
-        title=draft["title"],
-        summary=draft["summary"],
-        payload=draft["payload"],
-        preview=draft["preview"],
-        created_by=who.id,
-        created_by_name=who.display_name,
-    )
-    db_session.commit()
-    confirmed = as_recorder.post(f"/api/v1/assistant/proposals/{proposal.id}/confirm")
-    assert confirmed.status_code == 200 and confirmed.json()["status"] == "CONFIRMED"
-    before = publication.meal_state(db_session, on_date=target, meal_type=MealType.LUNCH)
-
-    def broken(*args, **kwargs):
-        raise RuntimeError("injected undo computation failure")
-
-    monkeypatch.setattr(publication.nutrition_service, "compute_menu_day", broken)
-    response = as_recorder.post(f"/api/v1/assistant/proposals/{proposal.id}/revoke")
-    assert response.status_code == 500
-    db_session.expire_all()
-    assert publication.meal_state(db_session, on_date=target, meal_type=MealType.LUNCH) == before
-    assert not db_session.get(MenuSuggestion, UUID(result["suggestion_id"])).nutrition_gap.get(
-        "publication_revoked"
-    )
-    assert repository.get_proposal(db_session, proposal.id).status.value == "CONFIRMED"
-
-
-def test_same_menu_card_concurrent_confirmation_keeps_original_undo(as_recorder, db_session):
-    target, _ = plan(as_recorder, 20)
-    who = actor(db_session)
-    draft = sync_draft(db_session, target)
-    conversation = repository.create_conversation(
-        db_session,
-        user_id=who.id,
-        user_name=who.display_name,
-        title="同卡并发验证",
-        now=datetime.now(get_settings().timezone),
-    )
-    proposal = repository.create_proposal(
-        db_session,
-        conversation_id=conversation.id,
-        tool_name="sync_menu_plan",
-        title=draft["title"],
-        summary=draft["summary"],
-        payload=draft["payload"],
-        preview=draft["preview"],
-        created_by=who.id,
-        created_by_name=who.display_name,
-    )
-    db_session.commit()
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        futures = [
-            pool.submit(as_recorder.post, f"/api/v1/assistant/proposals/{proposal.id}/confirm")
-            for _ in range(2)
-        ]
-        responses = [future.result() for future in futures]
-    assert sorted(response.status_code for response in responses) == [200, 422]
-    db_session.expire_all()
-    saved = repository.get_proposal(db_session, proposal.id)
-    assert len(saved.undo) == 1 and saved.undo[0]["payload"]["before"] == {"menu": None}
-    revoked = as_recorder.post(f"/api/v1/assistant/proposals/{proposal.id}/revoke")
-    assert revoked.status_code == 200 and revoked.json()["status"] == "REVERTED"
-    assert publication.meal_state(db_session, on_date=target, meal_type=MealType.LUNCH) == {
-        "menu": None
-    }
 
 
 def test_sync_parallel_calls_return_the_same_publication(as_recorder):
@@ -303,9 +178,9 @@ def test_sync_parallel_calls_return_the_same_publication(as_recorder):
 
 
 def test_preloaded_suggestion_cannot_hide_a_later_rejection(as_recorder, db_session):
+    """已经拿到手的方案被别人否决之后，发布必须失败，而不是照着旧副本写进菜单。"""
     from app.modules.recommendation import service as recommendation_service
     from app.modules.recommendation.schemas import DecideRequest
-    from app.shared.enums import SuggestionStatus
 
     _target, result = plan(as_recorder, 24)
     sid = UUID(result["suggestion_id"])
@@ -328,35 +203,3 @@ def test_preloaded_suggestion_cannot_hide_a_later_rejection(as_recorder, db_sess
             ),
             actor=actor(db_session),
         )
-
-
-def test_collection_undo_cannot_remove_later_actual_changes(as_recorder, db_session):
-    target = today_local() + timedelta(days=26)
-    dish = db_session.scalar(select(Dish).where(Dish.is_active.is_(True)))
-    who = actor(db_session)
-    draft = tools.save_collection_draft(
-        db_session,
-        on_date=str(target),
-        meal_type="LUNCH",
-        diner_count=1000,
-        dishes=[{"dish_name": dish.name, "servings": "100"}],
-    )
-    outcome = tools.save_collection_execute(db_session, draft["payload"], actor=who)
-    updated = as_recorder.put(
-        f"/api/v1/collection/logs/{target}",
-        json={
-            "meal_type": "LUNCH",
-            "diner_count": 1200,
-            "oil_total_g": "1000",
-            "salt_total_g": "500",
-            "sugar_total_g": "100",
-            "dishes": [{"dish_id": str(dish.id), "servings_produced": "200"}],
-        },
-    )
-    assert updated.status_code == 200, updated.text
-    with pytest.raises(AppError, match="又被改过"):
-        tools.restore_collection_execute(db_session, outcome.undo[0].payload, actor=who)
-    current = as_recorder.get(
-        f"/api/v1/collection/logs/{target}", params={"meal_type": "LUNCH"}
-    ).json()
-    assert current["saved"] and current["diner_count"] == 1200

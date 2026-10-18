@@ -777,148 +777,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/assistant/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 助手是否可用、能做什么 */
-        get: operations["read_status_api_v1_assistant_status_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/assistant/conversations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 历史对话（审计：谁在哪个对话里让助手做了什么） */
-        get: operations["list_conversations_api_v1_assistant_conversations_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/assistant/conversations/{conversation_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 某次对话的全部消息与方案 */
-        get: operations["get_conversation_api_v1_assistant_conversations__conversation_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/assistant/chat": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 问助手一句话 */
-        post: operations["chat_api_v1_assistant_chat_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/assistant/chat/stream": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * 问助手一句话（流式：边查边回）
-         * @description 流式问答。
-         *
-         *     数据库会话在这里自己开、自己在生成器结束时关：`Depends(get_session)` 的生命周期
-         *     是跟着请求走的，而流式响应要等生成器跑完才算结束——自己管更明确，不赌框架的时序。
-         */
-        post: operations["chat_stream_api_v1_assistant_chat_stream_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/assistant/proposals/{proposal_id}/confirm": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 确认并执行助手提出的方案 */
-        post: operations["confirm_proposal_api_v1_assistant_proposals__proposal_id__confirm_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/assistant/proposals/{proposal_id}/cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 取消助手提出的方案（什么也不会发生） */
-        post: operations["cancel_proposal_api_v1_assistant_proposals__proposal_id__cancel_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/assistant/proposals/{proposal_id}/revoke": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 撤回已执行的方案（把数据改回执行之前） */
-        post: operations["revoke_proposal_api_v1_assistant_proposals__proposal_id__revoke_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -943,26 +801,6 @@ export interface components {
             label: string;
             /** System */
             system: boolean;
-        };
-        /**
-         * AssistantProposalStatus
-         * @description 写操作方案的状态。
-         *
-         *     助手**不能**直接写库：它提出的写操作先落成一条方案，等人点确认才执行。
-         *     这个状态就是那道闸门——PENDING 的方案什么也没发生，CANCELLED 的什么也不会发生。
-         * @enum {string}
-         */
-        AssistantProposalStatus: "PENDING" | "CONFIRMED" | "CANCELLED" | "FAILED" | "REVERTED";
-        /** AssistantStatus */
-        AssistantStatus: {
-            /** Enabled */
-            enabled: boolean;
-            /** Model */
-            model?: string | null;
-            /** Note */
-            note?: string | null;
-            /** Tools */
-            tools?: components["schemas"]["ToolInfo"][];
         };
         /**
          * AuthUser
@@ -1070,66 +908,6 @@ export interface components {
          * @enum {string}
          */
         CalibrationSource: "DAILY_CLOSURE" | "SAMPLING";
-        /** ChatMessageRead */
-        ChatMessageRead: {
-            /** Id */
-            id: string;
-            /** Role */
-            role: string;
-            /** Role Label */
-            role_label: string;
-            /** Content */
-            content: string;
-            /** Tool Calls */
-            tool_calls?: components["schemas"]["ToolCallTrace"][];
-            /**
-             * Truncated
-             * @default false
-             */
-            truncated: boolean;
-            /** Model */
-            model?: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-        };
-        /** ChatReply */
-        ChatReply: {
-            /** Reply */
-            reply: string;
-            /** Tool Calls */
-            tool_calls?: components["schemas"]["ToolCallTrace"][];
-            /** Conversation Id */
-            conversation_id: string;
-            /** Proposals */
-            proposals?: components["schemas"]["ProposalRead"][];
-            /**
-             * Rounds
-             * @default 0
-             */
-            rounds: number;
-            /** Model */
-            model?: string | null;
-            /**
-             * Tokens Used
-             * @default 0
-             */
-            tokens_used: number;
-            /**
-             * Truncated
-             * @default false
-             */
-            truncated: boolean;
-        };
-        /** ChatRequest */
-        ChatRequest: {
-            /** Message */
-            message: string;
-            /** Conversation Id */
-            conversation_id?: string | null;
-        };
         /**
          * ClosureCheckRead
          * @description 当天实际总量与拟合预测的对照。
@@ -1279,62 +1057,6 @@ export interface components {
             points: components["schemas"]["CompliancePoint"][];
             /** Overall Rate */
             overall_rate?: string | null;
-        };
-        /** ConversationDetail */
-        ConversationDetail: {
-            /** Id */
-            id: string;
-            /** Title */
-            title: string;
-            /** User Name */
-            user_name?: string | null;
-            /** Message Count */
-            message_count: number;
-            /**
-             * Pending Proposals
-             * @default 0
-             */
-            pending_proposals: number;
-            /**
-             * Last Message At
-             * Format: date-time
-             */
-            last_message_at: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Messages */
-            messages: components["schemas"]["ChatMessageRead"][];
-            /** Proposals */
-            proposals: components["schemas"]["ProposalRead"][];
-        };
-        /** ConversationSummary */
-        ConversationSummary: {
-            /** Id */
-            id: string;
-            /** Title */
-            title: string;
-            /** User Name */
-            user_name?: string | null;
-            /** Message Count */
-            message_count: number;
-            /**
-             * Pending Proposals
-             * @default 0
-             */
-            pending_proposals: number;
-            /**
-             * Last Message At
-             * Format: date-time
-             */
-            last_message_at: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
         };
         /**
          * CookingMethod
@@ -2833,51 +2555,6 @@ export interface components {
             nutrition_basis: string;
         };
         /**
-         * ProposalRead
-         * @description 一份待确认的写操作方案。
-         */
-        ProposalRead: {
-            /** Id */
-            id: string;
-            /** Conversation Id */
-            conversation_id: string;
-            /** Tool Name */
-            tool_name: string;
-            /** Title */
-            title: string;
-            /** Summary */
-            summary: string;
-            /** Preview */
-            preview: {
-                [key: string]: unknown;
-            };
-            status: components["schemas"]["AssistantProposalStatus"];
-            /** Status Label */
-            status_label: string;
-            /** Created By Name */
-            created_by_name?: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Decided At */
-            decided_at?: string | null;
-            /** Result */
-            result?: {
-                [key: string]: unknown;
-            } | null;
-            /** Error */
-            error?: string | null;
-            /**
-             * Can Revoke
-             * @default false
-             */
-            can_revoke: boolean;
-            /** Revoked At */
-            revoked_at?: string | null;
-        };
-        /**
          * PublicBoard
          * @description 公开大屏的全部内容。
          */
@@ -3563,46 +3240,6 @@ export interface components {
             rejected_reason?: string | null;
         };
         /**
-         * ToolCallTrace
-         * @description 助手这一轮调了哪个工具、参数是什么、结果如何。
-         *
-         *     暴露出来有两个用处：界面上能显示「正在查食材库…」，用户也能看见答案是从哪来的——
-         *     只给一段像模像样的话，没法核对。
-         */
-        ToolCallTrace: {
-            /** Name */
-            name: string;
-            /** Label */
-            label: string;
-            /** Arguments */
-            arguments?: {
-                [key: string]: unknown;
-            };
-            /** Ok */
-            ok: boolean;
-            /** Summary */
-            summary: string;
-            /** Error */
-            error?: string | null;
-        };
-        /**
-         * ToolInfo
-         * @description 一个工具能做什么。给界面做「助手能做什么」的说明，也便于排查。
-         */
-        ToolInfo: {
-            /** Name */
-            name: string;
-            /** Label */
-            label: string;
-            /** Description */
-            description: string;
-            /**
-             * Read Only
-             * @default true
-             */
-            read_only: boolean;
-        };
-        /**
          * TrendPoint
          * @description 某一天的油盐糖用量。
          */
@@ -3729,25 +3366,18 @@ export interface components {
 }
 export type SchemaAnomalyFlag = components['schemas']['AnomalyFlag'];
 export type SchemaAnomalyRead = components['schemas']['AnomalyRead'];
-export type SchemaAssistantProposalStatus = components['schemas']['AssistantProposalStatus'];
-export type SchemaAssistantStatus = components['schemas']['AssistantStatus'];
 export type SchemaAuthUser = components['schemas']['AuthUser'];
 export type SchemaBacktestPoint = components['schemas']['BacktestPoint'];
 export type SchemaBacktestResult = components['schemas']['BacktestResult'];
 export type SchemaBodyImportDishesApiV1ImportDishesPost = components['schemas']['Body_import_dishes_api_v1_import_dishes_post'];
 export type SchemaCalibrationFactorRead = components['schemas']['CalibrationFactorRead'];
 export type SchemaCalibrationSource = components['schemas']['CalibrationSource'];
-export type SchemaChatMessageRead = components['schemas']['ChatMessageRead'];
-export type SchemaChatReply = components['schemas']['ChatReply'];
-export type SchemaChatRequest = components['schemas']['ChatRequest'];
 export type SchemaClosureCheckRead = components['schemas']['ClosureCheckRead'];
 export type SchemaClosureFactorRead = components['schemas']['ClosureFactorRead'];
 export type SchemaClosureRunResponse = components['schemas']['ClosureRunResponse'];
 export type SchemaClosureWindowRead = components['schemas']['ClosureWindowRead'];
 export type SchemaCompliancePoint = components['schemas']['CompliancePoint'];
 export type SchemaComplianceResponse = components['schemas']['ComplianceResponse'];
-export type SchemaConversationDetail = components['schemas']['ConversationDetail'];
-export type SchemaConversationSummary = components['schemas']['ConversationSummary'];
 export type SchemaCookingMethod = components['schemas']['CookingMethod'];
 export type SchemaDailyLogPage = components['schemas']['DailyLogPage'];
 export type SchemaDailyLogSaved = components['schemas']['DailyLogSaved'];
@@ -3802,7 +3432,6 @@ export type SchemaNutritionSummary = components['schemas']['NutritionSummary'];
 export type SchemaPerCapitaResponse = components['schemas']['PerCapitaResponse'];
 export type SchemaPlanReadiness = components['schemas']['PlanReadiness'];
 export type SchemaPlannedDishRead = components['schemas']['PlannedDishRead'];
-export type SchemaProposalRead = components['schemas']['ProposalRead'];
 export type SchemaPublicBoard = components['schemas']['PublicBoard'];
 export type SchemaPublicDishCard = components['schemas']['PublicDishCard'];
 export type SchemaPublishPlanReceipt = components['schemas']['PublishPlanReceipt'];
@@ -3832,8 +3461,6 @@ export type SchemaStandardTarget = components['schemas']['StandardTarget'];
 export type SchemaSuggestionReason = components['schemas']['SuggestionReason'];
 export type SchemaSuggestionStatus = components['schemas']['SuggestionStatus'];
 export type SchemaSuggestionSummary = components['schemas']['SuggestionSummary'];
-export type SchemaToolCallTrace = components['schemas']['ToolCallTrace'];
-export type SchemaToolInfo = components['schemas']['ToolInfo'];
 export type SchemaTrendPoint = components['schemas']['TrendPoint'];
 export type SchemaTrendsResponse = components['schemas']['TrendsResponse'];
 export type SchemaUndoPlanReceipt = components['schemas']['UndoPlanReceipt'];
@@ -5567,245 +5194,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NutritionComparison"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    read_status_api_v1_assistant_status_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AssistantStatus"];
-                };
-            };
-        };
-    };
-    list_conversations_api_v1_assistant_conversations_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ConversationSummary"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_conversation_api_v1_assistant_conversations__conversation_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                conversation_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ConversationDetail"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    chat_api_v1_assistant_chat_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ChatRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ChatReply"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    chat_stream_api_v1_assistant_chat_stream_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ChatRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    confirm_proposal_api_v1_assistant_proposals__proposal_id__confirm_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                proposal_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProposalRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    cancel_proposal_api_v1_assistant_proposals__proposal_id__cancel_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                proposal_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProposalRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    revoke_proposal_api_v1_assistant_proposals__proposal_id__revoke_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                proposal_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProposalRead"];
                 };
             };
             /** @description Validation Error */
