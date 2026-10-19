@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import {
   fetchCompliance,
+  fetchMenuOverview,
   fetchPerCapita,
   fetchSummary,
   fetchTrends,
@@ -40,4 +41,12 @@ export function useDashboard(days: number) {
   });
 
   return { summary, trends, perCapita, compliance, waste };
+}
+
+export function useMenuOverview() {
+  return useQuery({
+    queryKey: ['dashboard', 'menus'],
+    queryFn: fetchMenuOverview,
+    staleTime: 30_000,
+  });
 }

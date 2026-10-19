@@ -726,6 +726,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/dashboard/menus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 今明两天菜单 */
+        get: operations["read_menus_api_v1_dashboard_menus_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/calibration/daily-closure": {
         parameters: {
             query?: never;
@@ -2148,6 +2165,63 @@ export interface components {
          * @enum {string}
          */
         MealType: "BREAKFAST" | "LUNCH" | "DINNER";
+        /** MenuOverviewDay */
+        MenuOverviewDay: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Day Label */
+            day_label: string;
+            /** Meals */
+            meals: components["schemas"]["MenuOverviewMeal"][];
+        };
+        /** MenuOverviewDish */
+        MenuOverviewDish: {
+            /** Dish Id */
+            dish_id: string;
+            /** Name */
+            name: string;
+            /** Category Label */
+            category_label: string;
+            /** Cooking Method Label */
+            cooking_method_label: string;
+            /** Planned Servings */
+            planned_servings?: string | null;
+        };
+        /** MenuOverviewMeal */
+        MenuOverviewMeal: {
+            meal_type: components["schemas"]["MealType"];
+            /** Meal Type Label */
+            meal_type_label: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "PLANNED" | "ACTUAL" | "NOT_PLANNED";
+            /** Status Label */
+            status_label: string;
+            /** Diner Count */
+            diner_count?: number | null;
+            /** Dishes */
+            dishes: components["schemas"]["MenuOverviewDish"][];
+        };
+        /** MenuOverviewResponse */
+        MenuOverviewResponse: {
+            /**
+             * Today
+             * Format: date
+             */
+            today: string;
+            /**
+             * Tomorrow
+             * Format: date
+             */
+            tomorrow: string;
+            /** Days */
+            days: components["schemas"]["MenuOverviewDay"][];
+        };
         /**
          * MenuPlanBatchDay
          * @description 批量排菜单里的一天。
@@ -3544,6 +3618,10 @@ export type SchemaLoggedDish = components['schemas']['LoggedDish'];
 export type SchemaLoggedDishWrite = components['schemas']['LoggedDishWrite'];
 export type SchemaLoginRequest = components['schemas']['LoginRequest'];
 export type SchemaMealType = components['schemas']['MealType'];
+export type SchemaMenuOverviewDay = components['schemas']['MenuOverviewDay'];
+export type SchemaMenuOverviewDish = components['schemas']['MenuOverviewDish'];
+export type SchemaMenuOverviewMeal = components['schemas']['MenuOverviewMeal'];
+export type SchemaMenuOverviewResponse = components['schemas']['MenuOverviewResponse'];
 export type SchemaMenuPlanBatchDay = components['schemas']['MenuPlanBatchDay'];
 export type SchemaMenuPlanBatchResult = components['schemas']['MenuPlanBatchResult'];
 export type SchemaMenuPlanConstraints = components['schemas']['MenuPlanConstraints'];
@@ -5230,6 +5308,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_menus_api_v1_dashboard_menus_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuOverviewResponse"];
                 };
             };
         };

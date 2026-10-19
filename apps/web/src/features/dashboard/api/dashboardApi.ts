@@ -3,6 +3,7 @@ import { unwrap } from '@/shared/api/result';
 import type {
   ComplianceResponse,
   DashboardSummary,
+  MenuOverviewResponse,
   PerCapitaResponse,
   TrendsResponse,
   WasteResponse,
@@ -28,4 +29,8 @@ export async function fetchCompliance(args: Query): Promise<ComplianceResponse> 
 
 export async function fetchWaste(args: Query): Promise<WasteResponse> {
   return unwrap(await api.GET('/api/v1/dashboard/waste', { params: args }));
+}
+
+export async function fetchMenuOverview(): Promise<MenuOverviewResponse> {
+  return unwrap(await api.GET('/api/v1/dashboard/menus'));
 }

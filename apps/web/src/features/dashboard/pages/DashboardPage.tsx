@@ -6,6 +6,7 @@ import {
   Skeleton,
   Space,
   Statistic,
+  Tabs,
   Table,
   Tag,
   Typography,
@@ -14,6 +15,7 @@ import type { TableProps } from 'antd';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { EChart, type EChartOption } from '@/shared/components/EChart';
+import { MenuOverview } from '../components/MenuOverview';
 import { useDashboard } from '../hooks/useDashboard';
 import { RANGE_OPTIONS, formatPercent, toNumber, trimDecimal } from '../lib/format';
 import type {
@@ -50,147 +52,170 @@ export function DashboardPage() {
         </div>
         <Link to="/admin/agent">打开知味膳食助手</Link>
       </section>
-      <Card
-        title="数据看板"
-        extra={
-          <Segmented
-            options={RANGE_OPTIONS.map((option) => ({ label: option.label, value: option.value }))}
-            value={days}
-            onChange={(value) => setDays(Number(value))}
-          />
-        }
-      >
-        <Row gutter={[16, 16]}>
-          <Col xs={12} md={6}>
-            <Statistic
-              title="平均每餐人次"
-              value={summary.data?.avg_diner_count ?? 0}
-              loading={summary.isPending}
-            />
-          </Col>
-          <Col xs={12} md={6}>
-            <Statistic
-              title="人均食盐（克/日）"
-              value={trimDecimal(summary.data?.avg_salt_per_capita_g)}
-              loading={summary.isPending}
-            />
-          </Col>
-          <Col xs={12} md={6}>
-            <Statistic
-              title="人均烹调油（克/日）"
-              value={trimDecimal(summary.data?.avg_oil_per_capita_g)}
-              loading={summary.isPending}
-            />
-          </Col>
-          <Col xs={12} md={6}>
-            <Statistic
-              title="最近一日达标率"
-              value={formatPercent(summary.data?.latest_compliance_rate)}
-              loading={summary.isPending}
-            />
-          </Col>
-          <Col xs={12} md={6}>
-            <Statistic
-              title="人均添加糖（克/日）"
-              value={trimDecimal(summary.data?.avg_added_sugar_per_capita_g)}
-              loading={summary.isPending}
-            />
-          </Col>
-          <Col xs={12} md={6}>
-            <Statistic
-              title="平均浪费率"
-              value={formatPercent(summary.data?.avg_waste_ratio)}
-              loading={summary.isPending}
-            />
-          </Col>
-          <Col xs={12} md={6}>
-            <Statistic
-              title="每日食物种类数"
-              value={trimDecimal(summary.data?.avg_dish_variety)}
-              loading={summary.isPending}
-            />
-          </Col>
-          <Col xs={12} md={6}>
-            <Statistic
-              title="有记录天数"
-              value={summary.data?.days_with_records ?? 0}
-              loading={summary.isPending}
-            />
-          </Col>
-        </Row>
-      </Card>
-
-      <Row gutter={[16, 16]}>
-        <Col xs={24} xl={14}>
-          <Card title="油盐糖用量趋势" size="small">
-            {trends.isPending ? (
-              <Skeleton active />
-            ) : (
-              <>
-                <EChart
-                  height={300}
-                  ariaLabel="油盐糖每日用量趋势图"
-                  option={buildTrendOption(trends.data)}
-                />
-                <Typography.Paragraph
-                  type="secondary"
-                  style={{ marginTop: 8, marginBottom: 0, fontSize: 12 }}
+      <Tabs
+        defaultActiveKey="metrics"
+        items={[
+          {
+            key: 'metrics',
+            label: '经营指标',
+            children: (
+              <Space orientation="vertical" size={16} style={{ display: 'flex' }}>
+                <Card
+                  title="数据看板"
+                  extra={
+                    <Segmented
+                      options={RANGE_OPTIONS.map((option) => ({
+                        label: option.label,
+                        value: option.value,
+                      }))}
+                      value={days}
+                      onChange={(value) => setDays(Number(value))}
+                    />
+                  }
                 >
-                  注：这里统计的是当餐全部就餐人次的总量，与「每人每日」的基准不是同一量纲，
-                  因此不在此图直接画目标线；达标判断以右侧「人均摄入与推荐值」为准。
-                </Typography.Paragraph>
-              </>
-            )}
-          </Card>
-        </Col>
-        <Col xs={24} xl={10}>
-          <Card title="人均摄入与推荐值" size="small">
-            {perCapita.isPending ? (
-              <Skeleton active />
-            ) : (
-              <Space orientation="vertical" size={12} style={{ display: 'flex' }}>
-                <Typography.Text type="secondary">{perCapita.data?.basis_note}</Typography.Text>
-                <Table<StandardComparison>
-                  rowKey="code"
-                  size="small"
-                  pagination={false}
-                  dataSource={perCapita.data?.comparisons ?? []}
-                  columns={comparisonColumns}
-                />
-              </Space>
-            )}
-          </Card>
-        </Col>
-      </Row>
+                  <Row gutter={[16, 16]}>
+                    <Col xs={12} md={6}>
+                      <Statistic
+                        title="平均每餐人次"
+                        value={summary.data?.avg_diner_count ?? 0}
+                        loading={summary.isPending}
+                      />
+                    </Col>
+                    <Col xs={12} md={6}>
+                      <Statistic
+                        title="人均食盐（克/日）"
+                        value={trimDecimal(summary.data?.avg_salt_per_capita_g)}
+                        loading={summary.isPending}
+                      />
+                    </Col>
+                    <Col xs={12} md={6}>
+                      <Statistic
+                        title="人均烹调油（克/日）"
+                        value={trimDecimal(summary.data?.avg_oil_per_capita_g)}
+                        loading={summary.isPending}
+                      />
+                    </Col>
+                    <Col xs={12} md={6}>
+                      <Statistic
+                        title="最近一日达标率"
+                        value={formatPercent(summary.data?.latest_compliance_rate)}
+                        loading={summary.isPending}
+                      />
+                    </Col>
+                    <Col xs={12} md={6}>
+                      <Statistic
+                        title="人均添加糖（克/日）"
+                        value={trimDecimal(summary.data?.avg_added_sugar_per_capita_g)}
+                        loading={summary.isPending}
+                      />
+                    </Col>
+                    <Col xs={12} md={6}>
+                      <Statistic
+                        title="平均浪费率"
+                        value={formatPercent(summary.data?.avg_waste_ratio)}
+                        loading={summary.isPending}
+                      />
+                    </Col>
+                    <Col xs={12} md={6}>
+                      <Statistic
+                        title="每日食物种类数"
+                        value={trimDecimal(summary.data?.avg_dish_variety)}
+                        loading={summary.isPending}
+                      />
+                    </Col>
+                    <Col xs={12} md={6}>
+                      <Statistic
+                        title="有记录天数"
+                        value={summary.data?.days_with_records ?? 0}
+                        loading={summary.isPending}
+                      />
+                    </Col>
+                  </Row>
+                </Card>
 
-      <Row gutter={[16, 16]}>
-        <Col xs={24} xl={12}>
-          <Card title="营养达标率" size="small">
-            {compliance.isPending ? (
-              <Skeleton active />
-            ) : (
-              <EChart
-                height={280}
-                ariaLabel="每日营养达标率图"
-                option={buildComplianceOption(compliance.data)}
-              />
-            )}
-          </Card>
-        </Col>
-        <Col xs={24} xl={12}>
-          <Card title="剩餐量与浪费率" size="small">
-            {waste.isPending ? (
-              <Skeleton active />
-            ) : (
-              <EChart
-                height={280}
-                ariaLabel="每日剩餐量与浪费率图"
-                option={buildWasteOption(waste.data)}
-              />
-            )}
-          </Card>
-        </Col>
-      </Row>
+                <Row gutter={[16, 16]}>
+                  <Col xs={24} xl={14}>
+                    <Card title="油盐糖用量趋势" size="small">
+                      {trends.isPending ? (
+                        <Skeleton active />
+                      ) : (
+                        <>
+                          <EChart
+                            height={300}
+                            ariaLabel="油盐糖每日用量趋势图"
+                            option={buildTrendOption(trends.data)}
+                          />
+                          <Typography.Paragraph
+                            type="secondary"
+                            style={{ marginTop: 8, marginBottom: 0, fontSize: 12 }}
+                          >
+                            注：这里统计的是当餐全部就餐人次的总量，与「每人每日」的基准不是同一量纲，
+                            因此不在此图直接画目标线；达标判断以右侧「人均摄入与推荐值」为准。
+                          </Typography.Paragraph>
+                        </>
+                      )}
+                    </Card>
+                  </Col>
+                  <Col xs={24} xl={10}>
+                    <Card title="人均摄入与推荐值" size="small">
+                      {perCapita.isPending ? (
+                        <Skeleton active />
+                      ) : (
+                        <Space orientation="vertical" size={12} style={{ display: 'flex' }}>
+                          <Typography.Text type="secondary">
+                            {perCapita.data?.basis_note}
+                          </Typography.Text>
+                          <Table<StandardComparison>
+                            rowKey="code"
+                            size="small"
+                            pagination={false}
+                            dataSource={perCapita.data?.comparisons ?? []}
+                            columns={comparisonColumns}
+                          />
+                        </Space>
+                      )}
+                    </Card>
+                  </Col>
+                </Row>
+
+                <Row gutter={[16, 16]}>
+                  <Col xs={24} xl={12}>
+                    <Card title="营养达标率" size="small">
+                      {compliance.isPending ? (
+                        <Skeleton active />
+                      ) : (
+                        <EChart
+                          height={280}
+                          ariaLabel="每日营养达标率图"
+                          option={buildComplianceOption(compliance.data)}
+                        />
+                      )}
+                    </Card>
+                  </Col>
+                  <Col xs={24} xl={12}>
+                    <Card title="剩餐量与浪费率" size="small">
+                      {waste.isPending ? (
+                        <Skeleton active />
+                      ) : (
+                        <EChart
+                          height={280}
+                          ariaLabel="每日剩餐量与浪费率图"
+                          option={buildWasteOption(waste.data)}
+                        />
+                      )}
+                    </Card>
+                  </Col>
+                </Row>
+              </Space>
+            ),
+          },
+          {
+            key: 'menus',
+            label: '今明菜单',
+            children: <MenuOverview />,
+          },
+        ]}
+      />
     </Space>
   );
 }

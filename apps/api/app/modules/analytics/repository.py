@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from datetime import date
+from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -28,6 +29,34 @@ def load_daily_logs(session: Session, *, start: date, end: date) -> list[DailyLo
             .order_by(DailyLog.date, DailyLog.meal_type)
         ).all()
     )
+
+
+def load_menu_days(session: Session, *, start: date, end: date) -> list[MenuDay]:
+    return list(
+        session.scalars(
+            select(MenuDay)
+            .where(MenuDay.date >= start, MenuDay.date <= end)
+            .order_by(MenuDay.date, MenuDay.meal_type)
+        ).all()
+    )
+
+
+def load_menu_items(
+    session: Session, menu_day_ids: list[UUID]
+) -> dict[UUID, list[tuple[Dish, MenuDayItem]]]:
+    """菜单日里的菜与计划份数，按菜单日分组。"""
+    if not menu_day_ids:
+        return {}
+    rows = session.execute(
+        select(MenuDayItem, Dish)
+        .join(Dish, Dish.id == MenuDayItem.dish_id)
+        .where(MenuDayItem.menu_day_id.in_(menu_day_ids))
+        .order_by(MenuDayItem.menu_day_id, Dish.category, Dish.name)
+    ).all()
+    grouped: dict[UUID, list[tuple[Dish, MenuDayItem]]] = {}
+    for item, dish in rows:
+        grouped.setdefault(item.menu_day_id, []).append((dish, item))
+    return grouped
 
 
 def load_waste_rows(

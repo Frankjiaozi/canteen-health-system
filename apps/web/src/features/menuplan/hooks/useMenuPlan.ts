@@ -85,6 +85,7 @@ export function useSyncMenuPlan() {
       await queryClient.invalidateQueries({ queryKey: forecastKeys.all });
       await queryClient.invalidateQueries({ queryKey: ['collection'] });
       await queryClient.invalidateQueries({ queryKey: ['public'] });
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       void message.success(result.message, 6);
     },
     onError: (error: unknown) => {

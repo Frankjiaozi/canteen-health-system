@@ -6,10 +6,12 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from app.modules.nutrition.schemas import StandardComparison
+from app.shared.enums import MealType
 
 
 class StandardTarget(BaseModel):
@@ -106,3 +108,32 @@ class DashboardSummary(BaseModel):
     avg_waste_ratio: str | None = None
     avg_dish_variety: str | None = None
     latest_compliance_rate: str | None = None
+
+
+class MenuOverviewDish(BaseModel):
+    dish_id: str
+    name: str
+    category_label: str
+    cooking_method_label: str
+    planned_servings: str | None = None
+
+
+class MenuOverviewMeal(BaseModel):
+    meal_type: MealType
+    meal_type_label: str
+    status: Literal["PLANNED", "ACTUAL", "NOT_PLANNED"]
+    status_label: str
+    diner_count: int | None = None
+    dishes: list[MenuOverviewDish]
+
+
+class MenuOverviewDay(BaseModel):
+    date: date
+    day_label: str
+    meals: list[MenuOverviewMeal]
+
+
+class MenuOverviewResponse(BaseModel):
+    today: date
+    tomorrow: date
+    days: list[MenuOverviewDay]

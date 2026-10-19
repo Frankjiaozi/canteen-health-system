@@ -10,3 +10,7 @@ export type ComplianceResponse = components['schemas']['ComplianceResponse'];
 export type CompliancePoint = components['schemas']['CompliancePoint'];
 export type WasteResponse = components['schemas']['WasteResponse'];
 export type StandardComparison = components['schemas']['StandardComparison'];
+export type MenuOverviewResponse = components['schemas']['MenuOverviewResponse'];
+export type MenuOverviewDay = components['schemas']['MenuOverviewDay'];
+export type MenuOverviewMeal = components['schemas']['MenuOverviewMeal'];
+export type MenuOverviewDish = components['schemas']['MenuOverviewDish'];

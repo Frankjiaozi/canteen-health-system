@@ -14,6 +14,10 @@ from app.modules.analytics.schemas import (
     CompliancePoint,
     ComplianceResponse,
     DashboardSummary,
+    MenuOverviewDay,
+    MenuOverviewDish,
+    MenuOverviewMeal,
+    MenuOverviewResponse,
     NutrientAmount,
     PerCapitaResponse,
     StandardTarget,
@@ -25,7 +29,7 @@ from app.modules.analytics.schemas import (
 from app.modules.collection.models import DailyLog
 from app.modules.nutrition.models import NutritionStandard
 from app.modules.nutrition.schemas import StandardComparison
-from app.shared.enums import StandardCode
+from app.shared.enums import MealType, StandardCode
 from app.shared.nutrients import (
     FIELD_TO_NUTRIENT_CODE,
     NUTRIENT_FIELDS,
@@ -63,6 +67,55 @@ BASIS_NOTE = (
 def _range(days: int) -> tuple[date, date]:
     today = datetime.now(get_settings().timezone).date()
     return today - timedelta(days=days - 1), today
+
+
+def build_menu_overview(session: Session) -> MenuOverviewResponse:
+    """今明两天菜单。只读菜单日；没有同步/发布过的计划不会出现在这里。"""
+    today = datetime.now(get_settings().timezone).date()
+    tomorrow = today + timedelta(days=1)
+    menus = repository.load_menu_days(session, start=today, end=tomorrow)
+    logs = repository.load_daily_logs(session, start=today, end=tomorrow)
+    grouped = repository.load_menu_items(session, [row.id for row in menus])
+    menu_by_slot = {(row.date, row.meal_type): row for row in menus}
+    log_by_slot = {(row.date, row.meal_type): row for row in logs}
+    status_labels = {
+        "PLANNED": "计划供应",
+        "ACTUAL": "实际供应",
+        "NOT_PLANNED": "未安排",
+    }
+    days: list[MenuOverviewDay] = []
+    for target, label in ((today, "今天"), (tomorrow, "明天")):
+        meals: list[MenuOverviewMeal] = []
+        for meal_type in (MealType.BREAKFAST, MealType.LUNCH, MealType.DINNER):
+            menu = menu_by_slot.get((target, meal_type))
+            log = log_by_slot.get((target, meal_type))
+            status = "NOT_PLANNED" if menu is None else "ACTUAL" if log else "PLANNED"
+            rows = grouped.get(menu.id, []) if menu is not None else []
+            meals.append(
+                MenuOverviewMeal(
+                    meal_type=meal_type,
+                    meal_type_label=meal_type.label,
+                    status=status,
+                    status_label=status_labels[status],
+                    diner_count=None if log is None else log.diner_count,
+                    dishes=[
+                        MenuOverviewDish(
+                            dish_id=str(dish.id),
+                            name=dish.name,
+                            category_label=dish.category.label,
+                            cooking_method_label=dish.cooking_method.label,
+                            planned_servings=(
+                                None
+                                if item.planned_servings is None
+                                else str(item.planned_servings)
+                            ),
+                        )
+                        for dish, item in rows
+                    ],
+                )
+            )
+        days.append(MenuOverviewDay(date=target, day_label=label, meals=meals))
+    return MenuOverviewResponse(today=today, tomorrow=tomorrow, days=days)
 
 
 def _daily_seasoning_actuals(

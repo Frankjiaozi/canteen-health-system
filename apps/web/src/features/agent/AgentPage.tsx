@@ -174,6 +174,7 @@ export function AgentPage() {
     onSuccess: (value) => {
       updateConversation(value);
       void client.invalidateQueries({ queryKey: ['collection'] });
+      void client.invalidateQueries({ queryKey: ['dashboard'] });
       void message.success('菜单已确认发布');
     },
     onError: (error) => {
@@ -212,6 +213,7 @@ export function AgentPage() {
     onSuccess: (value) => {
       updateConversation(value);
       void client.invalidateQueries({ queryKey: ['collection'] });
+      void client.invalidateQueries({ queryKey: ['dashboard'] });
       void message.success('已撤回这次发布，菜单恢复成发布前的样子');
     },
     onError: (error) => {

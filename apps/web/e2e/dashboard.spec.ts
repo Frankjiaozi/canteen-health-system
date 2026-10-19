@@ -42,6 +42,18 @@ test('切换时间范围后数据随之变化', async ({ page }) => {
   await expect(recordedDays).toContainText('30');
 });
 
+test('看板可以切到今明菜单，并按三餐展示', async ({ page }) => {
+  await loginAs(page, 'school');
+  await page.goto('/admin');
+
+  await page.getByRole('tab', { name: '今明菜单' }).click();
+  await expect(page.getByText(/^今天 · \d{4}-\d{2}-\d{2}$/)).toBeVisible();
+  await expect(page.getByText(/^明天 · \d{4}-\d{2}-\d{2}$/)).toBeVisible();
+  await expect(page.getByText('早餐').first()).toBeVisible();
+  await expect(page.getByText('午餐').first()).toBeVisible();
+  await expect(page.getByText('晚餐').first()).toBeVisible();
+});
+
 test('未登录访问看板会被拦到登录页', async ({ page }) => {
   await page.goto('/admin');
 

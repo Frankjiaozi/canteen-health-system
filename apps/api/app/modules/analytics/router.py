@@ -13,6 +13,7 @@ from app.modules.analytics import service
 from app.modules.analytics.schemas import (
     ComplianceResponse,
     DashboardSummary,
+    MenuOverviewResponse,
     PerCapitaResponse,
     TrendsResponse,
     WasteResponse,
@@ -72,3 +73,11 @@ def read_waste(
     _: AuthUser = Depends(require_roles(*VIEW_ROLES)),
 ) -> WasteResponse:
     return service.build_waste(session, days=days)
+
+
+@router.get("/menus", response_model=MenuOverviewResponse, summary="今明两天菜单")
+def read_menus(
+    session: Session = Depends(get_session),
+    _: AuthUser = Depends(require_roles(*VIEW_ROLES)),
+) -> MenuOverviewResponse:
+    return service.build_menu_overview(session)

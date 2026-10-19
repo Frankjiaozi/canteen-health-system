@@ -6,15 +6,21 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterator
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
-from app.modules.collection.models import DailyLog
+import pytest
+from app.db.session import get_session_factory
+from app.modules.collection.models import DailyLog, DailyLogItem
+from app.modules.forecast.models import Forecast
+from app.modules.menu.models import MenuDay, MenuDayItem
 from app.modules.nutrition.models import DishNutrition
+from app.modules.recommendation.models import MenuSuggestion
 from app.shared.enums import NutrientCaliber
 from app.shared.nutrients import NUTRIENT_FIELDS
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from tests.helpers import today_local
@@ -25,8 +31,28 @@ BASE = "/api/v1/dashboard"
 SEEDED_WINDOW_DAYS = 56
 
 
+@pytest.fixture(autouse=True)
+def cleanup_tomorrow_plan() -> Iterator[None]:
+    """看板菜单用例只碰明天，结束后清掉，避免给别的用例留下未来菜单。"""
+    cutoff = today_local()
+    yield
+    with get_session_factory()() as session:
+        log_ids = list(session.scalars(select(DailyLog.id).where(DailyLog.date > cutoff)))
+        if log_ids:
+            session.execute(delete(DailyLogItem).where(DailyLogItem.daily_log_id.in_(log_ids)))
+        session.execute(delete(DailyLog).where(DailyLog.date > cutoff))
+        menu_ids = list(session.scalars(select(MenuDay.id).where(MenuDay.date > cutoff)))
+        if menu_ids:
+            session.execute(delete(MenuDayItem).where(MenuDayItem.menu_day_id.in_(menu_ids)))
+        session.execute(delete(MenuDay).where(MenuDay.date > cutoff))
+        session.execute(delete(DishNutrition).where(DishNutrition.date > cutoff))
+        session.execute(delete(Forecast).where(Forecast.date > cutoff))
+        session.execute(delete(MenuSuggestion).where(MenuSuggestion.date > cutoff))
+        session.commit()
+
+
 def test_dashboard_requires_login(client: TestClient) -> None:
-    for path in ("summary", "trends", "per-capita", "compliance", "waste"):
+    for path in ("summary", "trends", "per-capita", "compliance", "waste", "menus"):
         assert client.get(f"{BASE}/{path}").status_code == 401
 
 
@@ -218,3 +244,69 @@ def test_per_capita_sums_one_row_per_dish(as_recorder: TestClient, db_session: S
 def test_days_parameter_is_validated(as_recorder: TestClient) -> None:
     assert as_recorder.get(f"{BASE}/trends", params={"days": 0}).status_code == 422
     assert as_recorder.get(f"{BASE}/trends", params={"days": 365}).status_code == 422
+
+
+def test_menu_overview_has_today_and_tomorrow_three_meals(
+    as_school_admin: TestClient,
+) -> None:
+    body = as_school_admin.get(f"{BASE}/menus").json()
+
+    assert body["today"] == today_local().isoformat()
+    assert body["tomorrow"] == (today_local() + timedelta(days=1)).isoformat()
+    assert [day["day_label"] for day in body["days"]] == ["今天", "明天"]
+    for day in body["days"]:
+        assert [meal["meal_type"] for meal in day["meals"]] == [
+            "BREAKFAST",
+            "LUNCH",
+            "DINNER",
+        ]
+    # 种子数据录过今天的采集，今天三餐应当标成实际供应
+    assert all(meal["status"] == "ACTUAL" for meal in body["days"][0]["meals"])
+    assert all(meal["diner_count"] for meal in body["days"][0]["meals"])
+
+
+def test_menu_overview_hides_a_plan_that_was_not_adopted(as_recorder: TestClient) -> None:
+    target = today_local() + timedelta(days=1)
+    generated = as_recorder.post(
+        "/api/v1/menu-plan/generate",
+        params={"on_date": target.isoformat(), "meal_type": "LUNCH"},
+    )
+    assert generated.status_code == 200, generated.text
+
+    body = as_recorder.get(f"{BASE}/menus").json()
+    lunch = next(meal for meal in body["days"][1]["meals"] if meal["meal_type"] == "LUNCH")
+
+    assert lunch["status"] == "NOT_PLANNED"
+    assert lunch["dishes"] == []
+
+
+def test_menu_overview_shows_tomorrows_adopted_plan(as_recorder: TestClient) -> None:
+    """采纳（同步）之后，明天的菜单与份数要立刻出现在看板菜单页。"""
+    target = today_local() + timedelta(days=1)
+    generated = as_recorder.post(
+        "/api/v1/menu-plan/generate",
+        params={"on_date": target.isoformat(), "meal_type": "LUNCH"},
+    )
+    assert generated.status_code == 200, generated.text
+    plan = generated.json()
+
+    synced = as_recorder.post(
+        "/api/v1/menu-plan/sync",
+        params={
+            "on_date": target.isoformat(),
+            "meal_type": "LUNCH",
+            "suggestion_id": plan["suggestion_id"],
+        },
+    )
+    assert synced.status_code == 200, synced.text
+
+    body = as_recorder.get(f"{BASE}/menus").json()
+    lunch = next(meal for meal in body["days"][1]["meals"] if meal["meal_type"] == "LUNCH")
+
+    assert lunch["status"] == "PLANNED"
+    assert lunch["status_label"] == "计划供应"
+    assert {dish["name"] for dish in lunch["dishes"]} == {
+        dish["dish_name"] for dish in plan["dishes"]
+    }
+    assert all(dish["planned_servings"] for dish in lunch["dishes"])
+    assert lunch["diner_count"] is None
