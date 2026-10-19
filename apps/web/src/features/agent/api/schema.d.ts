@@ -155,7 +155,7 @@ export interface paths {
     put?: never;
     /**
      * Undo
-     * @description 撤回最近一次发布：菜单恢复成发布前的样子，那一版方案回到待确认。
+     * @description 撤回最近一次发布：恢复原菜单并保留历史，该版本需重新生成后才能再发布。
      *
      *     与「发布」对称——同样不经过模型，同样以当前用户身份调业务接口。
      *     业务那边会核对发布时留下的快照凭据：这餐菜单在发布之后被别人改过、
@@ -285,6 +285,50 @@ export interface components {
         [key: string]: unknown;
       } | null;
       pending_task?: components['schemas']['PendingTask'] | null;
+    };
+    /**
+     * DinerForecast
+     * @description 业务人数预测的 HTTP 投影；只校验协议，不在 Agent 中计算。
+     */
+    DinerForecast: {
+      /**
+       * On Date
+       * Format: date
+       */
+      on_date: string;
+      /**
+       * Meal Type
+       * @enum {string}
+       */
+      meal_type: 'BREAKFAST' | 'LUNCH' | 'DINNER';
+      /** Meal Type Label */
+      meal_type_label: string;
+      /** Predicted Diner Count */
+      predicted_diner_count?: number | null;
+      /** Lower */
+      lower?: number | null;
+      /** Upper */
+      upper?: number | null;
+      /** Basis */
+      basis: string;
+      /** Basis Label */
+      basis_label: string;
+      /** Samples */
+      samples: components['schemas']['DinerForecastSample'][];
+      /** Calendar Note */
+      calendar_note?: string | null;
+      /** Note */
+      note: string;
+    };
+    /** DinerForecastSample */
+    DinerForecastSample: {
+      /**
+       * Date
+       * Format: date
+       */
+      date: string;
+      /** Diner Count */
+      diner_count: number;
     };
     /** HTTPValidationError */
     HTTPValidationError: {
@@ -451,6 +495,11 @@ export interface components {
       truncated: boolean;
       /** Note */
       note: string;
+      /**
+       * Data Notice
+       * @default
+       */
+      data_notice: string;
     };
     /** SessionSummary */
     SessionSummary: {
@@ -589,7 +638,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          'application/json': unknown;
+          'application/json': components['schemas']['DinerForecast'];
         };
       };
       /** @description Validation Error */
@@ -753,7 +802,11 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    requestBody?: {
+      content: {
+        'application/json': components['schemas']['PublishRequest'] | null;
+      };
+    };
     responses: {
       /** @description Successful Response */
       200: {
