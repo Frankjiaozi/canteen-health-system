@@ -69,6 +69,12 @@ NODE_IMAGE=dockerproxy.net/library/node:24-alpine
 NGINX_IMAGE=dockerproxy.net/library/nginx:alpine
 ```
 
+如果 `pypi.org` 本身也不稳定，可以单独指定 Python 包索引，不需要改 Dockerfile：
+
+```dotenv
+PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
 ## 四、启用 HTTPS
 
 登录 Cookie 默认不要求加密连接（`COOKIE_SECURE=false`），便于内网先用起来。

@@ -6,12 +6,19 @@ import { canWriteBusinessData } from '@/features/auth/lib/permissions';
 import { useSuggestionDetail } from '@/features/recommendation/hooks/useRecommendation';
 import { useDateMealSelection } from '@/shared/hooks/useDateMealSelection';
 import { useEnumOptions } from '@/shared/hooks/useEnumOptions';
+import { DailyPlanView } from '../components/DailyPlanView';
 import { PlanEvidence } from '../components/PlanEvidence';
 import { PurchaseList } from '../components/PurchaseList';
 import { RecommendedDishes } from '../components/RecommendedDishes';
 import { BatchPlanner } from '../components/BatchPlanner';
-import { useGenerateMenuPlan, useSyncMenuPlan } from '../hooks/useMenuPlan';
-import type { MealType } from '../types';
+import {
+  useGenerateDailyMenuPlan,
+  useGenerateMenuPlan,
+  useSyncDailyMenuPlan,
+  useSyncMenuPlan,
+  type DailySyncOutcome,
+} from '../hooks/useMenuPlan';
+import type { DailyMenuPlanResponse, MealType } from '../types';
 
 /**
  * 明日菜单与采购。
@@ -32,11 +39,15 @@ export function MenuPlanPage() {
   const canWrite = canWriteBusinessData(user);
 
   const generate = useGenerateMenuPlan();
+  const dailyGenerate = useGenerateDailyMenuPlan();
+  const dailySync = useSyncDailyMenuPlan();
   const plan = generate.data ?? null;
+  const dailyPlan: DailyMenuPlanResponse | null = dailyGenerate.data ?? null;
   // 「已同步」只对**当前这一版**成立：换日期或重新生成之后，计划又变回未同步
   const [syncedId, setSyncedId] = useState<string | null>(null);
+  const [syncOutcomes, setSyncOutcomes] = useState<DailySyncOutcome[] | null>(null);
   // 单日 / 批量：同一件事的两个粒度，放一页里用模式切换，导航里不再多一个入口
-  const [mode, setMode] = useState<'single' | 'batch'>('single');
+  const [mode, setMode] = useState<'daily' | 'single' | 'batch'>('daily');
   // 结论（待确认 / 已采纳 / 已否决）是会变的，以详情查询为唯一来源；
   // 菜单内容本身来自生成结果——它不可变，没必要再查一次
   const suggestion = useSuggestionDetail(plan?.suggestion_id ?? null);
@@ -48,6 +59,11 @@ export function MenuPlanPage() {
     generate.mutate({ onDate, mealType });
   };
 
+  const handleGenerateDaily = () => {
+    setSyncOutcomes(null);
+    dailyGenerate.mutate(onDate);
+  };
+
   const handleSync = () => {
     if (!plan) return;
     syncMutation.mutate(
@@ -56,6 +72,12 @@ export function MenuPlanPage() {
     );
   };
 
+  const handleSyncDaily = () => {
+    if (!dailyPlan) return;
+    dailySync.mutate(dailyPlan, { onSuccess: (outcomes) => setSyncOutcomes(outcomes) });
+  };
+
+  const daily = mode === 'daily';
   const single = mode === 'single';
 
   return (
@@ -64,16 +86,20 @@ export function MenuPlanPage() {
         title="明日菜单与采购"
         extra={
           <Space>
-            <Segmented<'single' | 'batch'>
+            <Segmented<'daily' | 'single' | 'batch'>
               value={mode}
-              onChange={setMode}
+              onChange={(value) => {
+                setMode(value);
+                setSyncOutcomes(null);
+              }}
               options={[
+                { value: 'daily', label: '一天三餐' },
                 { value: 'single', label: '单日' },
                 { value: 'batch', label: '批量排菜单' },
               ]}
             />
-            {/* 日期只在单日模式下有意义：批量用的是它自己的日期区间 */}
-            {single ? (
+            {/* 批量用的是它自己的日期区间 */}
+            {mode !== 'batch' ? (
               <DatePicker
                 value={dayjs(onDate)}
                 allowClear={false}
@@ -81,30 +107,64 @@ export function MenuPlanPage() {
                   if (value) {
                     setDate(value.format('YYYY-MM-DD'));
                     setSyncedId(null);
+                    setSyncOutcomes(null);
+                    dailyGenerate.reset();
                   }
                 }}
               />
             ) : null}
-            <Segmented<MealType>
-              value={mealType}
-              onChange={(value) => {
-                setMeal(value);
-                setSyncedId(null);
-              }}
-              options={(enumOptions?.meal_type ?? []).map((option) => ({
-                value: option.value as MealType,
-                label: option.label,
-              }))}
-            />
+            {mode !== 'daily' ? (
+              <Segmented<MealType>
+                value={mealType}
+                onChange={(value) => {
+                  setMeal(value);
+                  setSyncedId(null);
+                  setSyncOutcomes(null);
+                  dailyGenerate.reset();
+                }}
+                options={(enumOptions?.meal_type ?? []).map((option) => ({
+                  value: option.value as MealType,
+                  label: option.label,
+                }))}
+              />
+            ) : null}
             {canWrite && single ? (
               <Button type="primary" loading={generate.isPending} onClick={handleGenerate}>
                 生成明日菜单
               </Button>
             ) : null}
+            {canWrite && daily ? (
+              <Button
+                type="primary"
+                loading={dailyGenerate.isPending}
+                onClick={handleGenerateDaily}
+              >
+                生成三餐
+              </Button>
+            ) : null}
           </Space>
         }
       >
-        {single ? (
+        {daily ? (
+          dailyPlan ? (
+            <DailyPlanView
+              plan={dailyPlan}
+              canWrite={canWrite}
+              syncing={dailySync.isPending}
+              outcomes={syncOutcomes}
+              onSync={handleSyncDaily}
+            />
+          ) : (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description={
+                canWrite
+                  ? '选好日期后点「生成三餐」，一次排出早餐、午餐、晚餐，并生成合并采购单。'
+                  : '三餐菜单由食堂这边生成；生成后这里的菜品与采购单你都能看到。'
+              }
+            />
+          )
+        ) : single ? (
           <>
             <Typography.Paragraph type="secondary">
               一次生成三件事：在营养目标下选出做哪几道菜 →

@@ -3,7 +3,9 @@
 # 基础镜像做成构建参数：默认官方源，网络受限的环境（例如需要走 Docker Hub 镜像）
 # 通过 --build-arg 覆盖即可，不必改这个文件。
 ARG PYTHON_IMAGE=python:3.13-slim
+ARG PIP_INDEX_URL=https://pypi.org/simple
 FROM ${PYTHON_IMAGE}
+ARG PIP_INDEX_URL
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -18,7 +20,7 @@ COPY apps/api/app ./app
 COPY apps/api/alembic ./alembic
 COPY apps/api/alembic.ini ./
 
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir --index-url "${PIP_INDEX_URL}" .
 
 EXPOSE 8000
 

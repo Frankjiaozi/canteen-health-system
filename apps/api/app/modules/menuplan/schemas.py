@@ -68,6 +68,21 @@ class MenuPlanResponse(BaseModel):
     calculation_version: str | None = None
 
 
+class DailyMenuPlanResponse(BaseModel):
+    """同一天早/午/晚三餐的合并结果。"""
+
+    date: date
+    meals: list[MenuPlanResponse]
+    requirements: list[IngredientRequirement]
+    total_cost: str | None = None
+    budget: str
+    servings_note: str
+    fallback_dishes: list[str] = Field(default_factory=list)
+    notes: list[str]
+    suggestion_ids: dict[str, str]
+    calculation_version: str | None = None
+
+
 class MenuPlanConstraints(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

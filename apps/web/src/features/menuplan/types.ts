@@ -7,6 +7,7 @@ import type { components } from '@canteen/api-client';
  * forecast / recommendation 域，直接用它们已导出的类型，免得同一种结构有两个定义。
  */
 export type MenuPlanResponse = components['schemas']['MenuPlanResponse'];
+export type DailyMenuPlanResponse = components['schemas']['DailyMenuPlanResponse'];
 export type MenuPlanDish = components['schemas']['MenuPlanDish'];
 export type MenuPlanSyncResult = components['schemas']['MenuPlanSyncResult'];
 export type MenuPlanBatchResult = components['schemas']['MenuPlanBatchResult'];

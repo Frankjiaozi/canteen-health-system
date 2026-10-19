@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 from collections.abc import Collection
+from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
@@ -30,8 +31,10 @@ from app.modules.auth import repository as auth_repository
 from app.modules.auth.service import to_auth_user
 from app.modules.collection import service as collection_service
 from app.modules.forecast import service as forecast_service
+from app.modules.forecast.schemas import IngredientRequirement
 from app.modules.menuplan import publication
 from app.modules.menuplan.schemas import (
+    DailyMenuPlanResponse,
     MenuPlanBatchDay,
     MenuPlanBatchResult,
     MenuPlanDish,
@@ -58,6 +61,15 @@ BATCH_MAX_DAYS = 31
 #: 正常一天里，各菜的份数大致是就餐人次的一半上下（米饭接近一，汤菜更低），
 #: 平均到 1.0 以上意味着多数菜都要做出比就餐人数还多的份数——那不是菜单问题，是数据问题。
 SERVINGS_PER_DINER_LIMIT = Decimal("1")
+
+
+@dataclass
+class _PurchaseTotal:
+    unit: str
+    quantity: Decimal = Decimal("0")
+    unit_price: str | None = None
+    estimated_cost: Decimal = Decimal("0")
+    priced: bool = False
 
 
 def _date_range(start: date, end: date) -> list[date]:
@@ -283,6 +295,124 @@ def build_menu_plan(
     )
     # 保存完整计算快照；发布和导出使用这份快照，不能拿今天的数据重算旧方案。
     return publication.save_snapshot(session, result, catalog_before)
+
+
+def build_daily_plan(
+    session: Session,
+    *,
+    on_date: date,
+    budget_per_person: Decimal | None = None,
+    excluded_dish_ids: frozenset[UUID] = frozenset(),
+) -> DailyMenuPlanResponse:
+    """一次排出早、午、晚三餐，并把采购单合并成一张。
+
+    顺序是早餐 → 午餐 → 晚餐：早餐固定组合；午餐先选；晚餐读取同一天已生成的午餐，
+    避开它的非主食菜。每餐仍使用自己的系统预测人次与份数预测，不把三餐硬凑成同一个规模。
+    """
+    meals: list[MenuPlanResponse] = []
+    used_counts: dict[UUID, int] = {}
+    previous_lunch: tuple[UUID, ...] = ()
+    for meal_type in (MealType.BREAKFAST, MealType.LUNCH, MealType.DINNER):
+        plan = build_menu_plan(
+            session,
+            on_date=on_date,
+            meal_type=meal_type,
+            budget_per_person=budget_per_person,
+            excluded_dish_ids=excluded_dish_ids,
+            # 早餐与午晚池子互不相交；晚餐把刚生成的午餐带进排除集。
+            extra_excluded=previous_lunch if meal_type is MealType.DINNER else None,
+            usage_counts=used_counts,
+        )
+        meals.append(plan)
+        previous_lunch = (
+            tuple(UUID(dish.dish_id) for dish in plan.dishes) if meal_type is MealType.LUNCH else ()
+        )
+        for dish in plan.dishes:
+            dish_id = UUID(dish.dish_id)
+            used_counts[dish_id] = used_counts.get(dish_id, 0) + 1
+
+    requirements, total_cost = aggregate_requirements(meals)
+    budget = sum((Decimal(meal.budget) for meal in meals), Decimal("0")).quantize(Decimal("0.01"))
+    fallback = [
+        dish.dish_name for meal in meals for dish in meal.dishes if dish.prediction_fallback
+    ]
+    notes = [
+        "一键生成早、午、晚三餐：早餐固定组合；午餐先排，晚餐避开午餐已选的非主食菜。",
+        "三餐各自使用系统预测的就餐人次与份数；采购单已把相同食材和调味料合并。",
+        "同步时按餐次分别校验：已录采集的那一餐跳过，其余餐次继续写入当日数据。",
+    ]
+    if fallback:
+        notes.append("部分菜历史不足，份数按「每人一份」估算：" + "、".join(fallback))
+    result = DailyMenuPlanResponse(
+        date=on_date,
+        meals=meals,
+        requirements=requirements,
+        total_cost=total_cost,
+        budget=str(budget),
+        servings_note=(
+            "采购量 = 三餐各自推荐菜 × 该菜预测份数；相同食材/调味料合并后按公斤报量，"
+            "按金额从大到小排。"
+        ),
+        fallback_dishes=fallback,
+        notes=notes,
+        suggestion_ids={meal.meal_type.value: meal.suggestion_id for meal in meals},
+        calculation_version=publication.CALCULATION_VERSION,
+    )
+    logger.info(
+        "三餐菜单：%s，%d 餐，合并采购 %d 项，%s 元",
+        on_date,
+        len(meals),
+        len(requirements),
+        total_cost,
+    )
+    return result
+
+
+def aggregate_requirements(
+    meals: Collection[MenuPlanResponse],
+) -> tuple[list[IngredientRequirement], str | None]:
+    """把各餐采购项按名称合并；金额只用有单价的项相加。"""
+    totals: dict[str, _PurchaseTotal] = {}
+    for meal in meals:
+        for row in meal.requirements:
+            entry = totals.setdefault(row.name, _PurchaseTotal(unit=row.unit))
+            entry.quantity += Decimal(row.quantity)
+            if row.unit_price is not None:
+                entry.unit_price = row.unit_price
+            if row.estimated_cost is not None:
+                entry.estimated_cost += Decimal(row.estimated_cost)
+                entry.priced = True
+
+    rows: list[IngredientRequirement] = []
+    total_cost = Decimal("0")
+    any_priced = False
+    for name, entry in totals.items():
+        quantity = entry.quantity.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+        cost = (
+            entry.estimated_cost.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            if entry.priced
+            else None
+        )
+        if cost is not None:
+            total_cost += cost
+            any_priced = True
+        rows.append(
+            IngredientRequirement(
+                name=name,
+                unit=entry.unit,
+                quantity=str(quantity),
+                unit_price=None if entry.unit_price is None else str(entry.unit_price),
+                estimated_cost=None if cost is None else str(cost),
+            )
+        )
+    rows.sort(
+        key=lambda row: (
+            row.estimated_cost is None,
+            -Decimal(row.estimated_cost or "0"),
+            row.name,
+        )
+    )
+    return rows, str(total_cost.quantize(Decimal("0.01"))) if any_priced else None
 
 
 def sync_to_day(

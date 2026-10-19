@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 from uuid import UUID
 
 from app.core.errors import ConflictError
@@ -16,6 +17,7 @@ from app.modules.auth.dependencies import require_roles
 from app.modules.auth.schemas import AuthUser
 from app.modules.menuplan import publication, readiness, service
 from app.modules.menuplan.schemas import (
+    DailyMenuPlanResponse,
     MenuPlanBatchResult,
     MenuPlanConstraints,
     MenuPlanResponse,
@@ -67,6 +69,28 @@ def generate(
         diner_count=diner_count,
         excluded_dish_ids=frozenset(constraints.excluded_dish_ids) if constraints else frozenset(),
         budget_per_person=constraints.budget_per_person if constraints else None,
+    )
+
+
+@router.post(
+    "/generate-day",
+    response_model=DailyMenuPlanResponse,
+    summary="一键生成早中晚三餐与合并采购单",
+)
+def generate_day(
+    on_date: date = Query(description="要安排的日期"),
+    budget_per_person: Decimal | None = Query(
+        default=None, gt=0, le=1000, max_digits=8, decimal_places=2
+    ),
+    excluded_dish_ids: list[UUID] = Query(default=[], max_length=50),
+    session: Session = Depends(get_session),
+    _: AuthUser = Depends(require_roles(*WRITE_ROLES)),
+) -> DailyMenuPlanResponse:
+    return service.build_daily_plan(
+        session,
+        on_date=on_date,
+        budget_per_person=budget_per_person,
+        excluded_dish_ids=frozenset(excluded_dish_ids),
     )
 
 

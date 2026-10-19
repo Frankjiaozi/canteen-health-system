@@ -3,6 +3,49 @@ import { formatAmount, formatQuantity } from '@/features/forecast/lib/format';
 import { summarizePurchase } from '../lib/present';
 import type { IngredientRequirement, MenuPlanResponse } from '../types';
 
+export function PurchaseTable({ requirements }: { requirements: IngredientRequirement[] }) {
+  return (
+    <Table<IngredientRequirement>
+      rowKey="name"
+      size="small"
+      pagination={false}
+      dataSource={requirements}
+      columns={[
+        {
+          title: '排名',
+          width: 70,
+          align: 'right',
+          render: (_, __, index) => index + 1,
+        },
+        { title: '食材 / 调味料', dataIndex: 'name', width: 180 },
+        {
+          title: '建议采购量',
+          width: 150,
+          align: 'right',
+          render: (_, row) => `${formatQuantity(row.quantity)} ${row.unit}`,
+        },
+        {
+          title: '单价（元/公斤市品）',
+          width: 170,
+          align: 'right',
+          render: (_, row) =>
+            row.unit_price === null ? (
+              <Typography.Text type="secondary">未录入</Typography.Text>
+            ) : (
+              formatAmount(row.unit_price)
+            ),
+        },
+        {
+          title: '预计金额（元）',
+          width: 140,
+          align: 'right',
+          render: (_, row) => formatAmount(row.estimated_cost),
+        },
+      ]}
+    />
+  );
+}
+
 /**
  * ② 明天要买多少料。
  *
@@ -43,44 +86,7 @@ export function PurchaseList({ plan }: { plan: MenuPlanResponse }) {
         />
       ) : null}
 
-      <Table<IngredientRequirement>
-        rowKey="name"
-        size="small"
-        pagination={false}
-        dataSource={plan.requirements}
-        columns={[
-          {
-            title: '排名',
-            width: 70,
-            align: 'right',
-            render: (_, __, index) => index + 1,
-          },
-          { title: '食材 / 调味料', dataIndex: 'name', width: 180 },
-          {
-            title: '建议采购量',
-            width: 150,
-            align: 'right',
-            render: (_, row) => `${formatQuantity(row.quantity)} ${row.unit}`,
-          },
-          {
-            title: '单价（元/公斤市品）',
-            width: 170,
-            align: 'right',
-            render: (_, row) =>
-              row.unit_price === null ? (
-                <Typography.Text type="secondary">未录入</Typography.Text>
-              ) : (
-                formatAmount(row.unit_price)
-              ),
-          },
-          {
-            title: '预计金额（元）',
-            width: 140,
-            align: 'right',
-            render: (_, row) => formatAmount(row.estimated_cost),
-          },
-        ]}
-      />
+      <PurchaseTable requirements={plan.requirements} />
 
       <Space style={{ marginTop: 12 }} wrap>
         <Typography.Text type="secondary">

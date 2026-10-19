@@ -4,12 +4,20 @@ import { forecastKeys } from '@/features/forecast/hooks/useForecast';
 import { recommendationKeys } from '@/features/recommendation/hooks/useRecommendation';
 import { ApiError } from '@/shared/api/errors';
 import {
+  generateDailyMenuPlan,
   generateMenuPlan,
   generateMenuPlanBatch,
   syncMenuPlan,
   syncMenuPlanBatch,
 } from '../api/menuPlanApi';
-import type { MealType } from '../types';
+import type { DailyMenuPlanResponse, MealType } from '../types';
+
+export interface DailySyncOutcome {
+  meal_type: MealType;
+  meal_type_label: string;
+  ok: boolean;
+  message: string;
+}
 
 /**
  * 生成明天的菜单与采购建议。
@@ -40,6 +48,25 @@ export function useGenerateMenuPlan() {
   });
 }
 
+export function useGenerateDailyMenuPlan() {
+  const queryClient = useQueryClient();
+  const { message } = App.useApp();
+
+  return useMutation({
+    mutationFn: (onDate: string) => generateDailyMenuPlan(onDate),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: recommendationKeys.all });
+      await queryClient.invalidateQueries({ queryKey: forecastKeys.all });
+      void message.success(
+        `已排出早中晚 ${result.meals.length} 餐，合并采购 ${result.requirements.length} 项`,
+      );
+    },
+    onError: (error: unknown) => {
+      void message.error(error instanceof ApiError ? error.message : '三餐生成失败，请稍后重试', 8);
+    },
+  });
+}
+
 /**
  * 同步至当日数据。
  *
@@ -63,6 +90,48 @@ export function useSyncMenuPlan() {
     onError: (error: unknown) => {
       // 「这一天已经录过采集了」这类原因要说给用户看，它决定接下来该去哪儿改
       void message.error(error instanceof ApiError ? error.message : '同步失败，请稍后重试', 8);
+    },
+  });
+}
+
+export function useSyncDailyMenuPlan() {
+  const queryClient = useQueryClient();
+  const { message } = App.useApp();
+
+  return useMutation({
+    mutationFn: async (plan: DailyMenuPlanResponse) => {
+      const outcomes: DailySyncOutcome[] = [];
+      for (const meal of plan.meals) {
+        try {
+          const result = await syncMenuPlan(plan.date, meal.meal_type, meal.suggestion_id);
+          outcomes.push({
+            meal_type: meal.meal_type,
+            meal_type_label: meal.meal_type_label,
+            ok: true,
+            message: result.message,
+          });
+        } catch (error) {
+          outcomes.push({
+            meal_type: meal.meal_type,
+            meal_type_label: meal.meal_type_label,
+            ok: false,
+            message: error instanceof ApiError ? error.message : '同步失败，请稍后重试',
+          });
+        }
+      }
+      return outcomes;
+    },
+    onSuccess: async (outcomes) => {
+      await queryClient.invalidateQueries({ queryKey: recommendationKeys.all });
+      await queryClient.invalidateQueries({ queryKey: forecastKeys.all });
+      await queryClient.invalidateQueries({ queryKey: ['collection'] });
+      await queryClient.invalidateQueries({ queryKey: ['public'] });
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      const ok = outcomes.filter((row) => row.ok).length;
+      const failed = outcomes.length - ok;
+      const text = `已同步 ${ok} 餐${failed ? `，${failed} 餐未同步` : ''}`;
+      if (failed) void message.warning(text, 8);
+      else void message.success(text, 6);
     },
   });
 }

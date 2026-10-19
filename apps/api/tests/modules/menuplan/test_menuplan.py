@@ -284,6 +284,49 @@ def test_explicit_diner_count_equal_to_prediction_keeps_the_same_servings(
     assert not any("历史人数不足" in note for note in explicit["notes"])
 
 
+def test_generate_day_returns_three_meals_and_one_merged_purchase_list(
+    as_recorder: TestClient,
+) -> None:
+    target = today_local() + timedelta(days=1)
+    body = as_recorder.post(f"{BASE}/generate-day", params={"on_date": target.isoformat()}).json()
+
+    assert [meal["meal_type"] for meal in body["meals"]] == [
+        "BREAKFAST",
+        "LUNCH",
+        "DINNER",
+    ]
+    assert all(meal["diner_count"] > 0 for meal in body["meals"])
+    assert set(body["suggestion_ids"]) == {"BREAKFAST", "LUNCH", "DINNER"}
+
+    breakfast = {dish["dish_name"] for dish in body["meals"][0]["dishes"]}
+    lunch = {dish["dish_name"] for dish in body["meals"][1]["dishes"]}
+    dinner = {dish["dish_name"] for dish in body["meals"][2]["dishes"]}
+    assert breakfast.isdisjoint(lunch | dinner)
+    lunch_non_staple = {
+        dish["dish_name"] for dish in body["meals"][1]["dishes"] if dish["category_label"] != "主食"
+    }
+    dinner_non_staple = {
+        dish["dish_name"] for dish in body["meals"][2]["dishes"] if dish["category_label"] != "主食"
+    }
+    assert lunch_non_staple.isdisjoint(dinner_non_staple)
+
+    expected: dict[str, Decimal] = {}
+    expected_cost = Decimal("0")
+    for meal in body["meals"]:
+        for row in meal["requirements"]:
+            expected[row["name"]] = expected.get(row["name"], Decimal("0")) + Decimal(
+                row["quantity"]
+            )
+            if row["estimated_cost"] is not None:
+                expected_cost += Decimal(row["estimated_cost"])
+    actual = {row["name"]: Decimal(row["quantity"]) for row in body["requirements"]}
+    assert actual == expected
+    assert Decimal(body["total_cost"]) == expected_cost.quantize(Decimal("0.01"))
+    assert Decimal(body["budget"]) == sum(
+        (Decimal(meal["budget"]) for meal in body["meals"]), Decimal("0")
+    ).quantize(Decimal("0.01"))
+
+
 def test_purchase_list_reads_in_kg_and_by_amount(
     as_recorder: TestClient,
 ) -> None:

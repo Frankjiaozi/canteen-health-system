@@ -1,6 +1,12 @@
 import { api } from '@/shared/api/client';
 import { unwrap } from '@/shared/api/result';
-import type { MealType, MenuPlanBatchResult, MenuPlanResponse, MenuPlanSyncResult } from '../types';
+import type {
+  DailyMenuPlanResponse,
+  MealType,
+  MenuPlanBatchResult,
+  MenuPlanResponse,
+  MenuPlanSyncResult,
+} from '../types';
 
 /** 生成「明日菜单与采购」：一次调用把推荐、预测、采购三件事都算完。 */
 export async function generateMenuPlan(
@@ -11,6 +17,15 @@ export async function generateMenuPlan(
   return unwrap(
     await api.POST('/api/v1/menu-plan/generate', {
       params: { query: { on_date: onDate, meal_type: mealType, diner_count: dinerCount } },
+    }),
+  );
+}
+
+/** 一键生成早、午、晚三餐，并返回三餐合并后的采购单。 */
+export async function generateDailyMenuPlan(onDate: string): Promise<DailyMenuPlanResponse> {
+  return unwrap(
+    await api.POST('/api/v1/menu-plan/generate-day', {
+      params: { query: { on_date: onDate } },
     }),
   );
 }

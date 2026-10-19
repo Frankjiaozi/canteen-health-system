@@ -481,6 +481,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/menu-plan/generate-day": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 一键生成早中晚三餐与合并采购单 */
+        post: operations["generate_day_api_v1_menu_plan_generate_day_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/menu-plan/{suggestion_id}/publish": {
         parameters: {
             query?: never;
@@ -1223,6 +1240,37 @@ export interface components {
             anomaly_flags?: components["schemas"]["AnomalyFlag"][];
             /** Dishes */
             dishes?: components["schemas"]["LoggedDishWrite"][];
+        };
+        /**
+         * DailyMenuPlanResponse
+         * @description 同一天早/午/晚三餐的合并结果。
+         */
+        DailyMenuPlanResponse: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Meals */
+            meals: components["schemas"]["MenuPlanResponse"][];
+            /** Requirements */
+            requirements: components["schemas"]["IngredientRequirement"][];
+            /** Total Cost */
+            total_cost?: string | null;
+            /** Budget */
+            budget: string;
+            /** Servings Note */
+            servings_note: string;
+            /** Fallback Dishes */
+            fallback_dishes?: string[];
+            /** Notes */
+            notes: string[];
+            /** Suggestion Ids */
+            suggestion_ids: {
+                [key: string]: string;
+            };
+            /** Calculation Version */
+            calculation_version?: string | null;
         };
         /** DashboardSummary */
         DashboardSummary: {
@@ -3460,6 +3508,7 @@ export type SchemaDailyLogSaved = components['schemas']['DailyLogSaved'];
 export type SchemaDailyLogSheet = components['schemas']['DailyLogSheet'];
 export type SchemaDailyLogSummary = components['schemas']['DailyLogSummary'];
 export type SchemaDailyLogWrite = components['schemas']['DailyLogWrite'];
+export type SchemaDailyMenuPlanResponse = components['schemas']['DailyMenuPlanResponse'];
 export type SchemaDashboardSummary = components['schemas']['DashboardSummary'];
 export type SchemaDatabaseHealthResponse = components['schemas']['DatabaseHealthResponse'];
 export type SchemaDecideRequest = components['schemas']['DecideRequest'];
@@ -4671,6 +4720,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MenuPlanResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_day_api_v1_menu_plan_generate_day_post: {
+        parameters: {
+            query: {
+                /** @description 要安排的日期 */
+                on_date: string;
+                budget_per_person?: number | string | null;
+                excluded_dish_ids?: string[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyMenuPlanResponse"];
                 };
             };
             /** @description Validation Error */
