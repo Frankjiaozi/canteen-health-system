@@ -16,6 +16,8 @@ test('生成明日菜单后，菜品、采购单与份数口径都在', async ({
   // 默认日期必须是明天：这一页回答的就是「明天做什么、买什么」
   await expect(page.getByRole('textbox', { name: /日期/ })).toHaveValue(tomorrow);
 
+  // 默认入口是「一天三餐」；这条用例验的是单餐详情，先切到单日。
+  await page.getByText('单日', { exact: true }).click();
   await page.getByRole('button', { name: '生成明日菜单' }).click();
   await expect(page.getByText(/已排出 \d+ 道菜，采购 \d+ 项/)).toBeVisible();
 
@@ -60,6 +62,7 @@ test('依据与校验里能查到每道菜的份数来源、回测误差与日�
 
   const tomorrow = dayjs().add(1, 'day').format('YYYY-MM-DD');
   await page.goto(`/admin/menu-plan?date=${tomorrow}&meal=LUNCH`);
+  await page.getByText('单日', { exact: true }).click();
   await page.getByRole('button', { name: '生成明日菜单' }).click();
   await expect(page.getByText(/已排出 \d+ 道菜/)).toBeVisible();
 
@@ -87,6 +90,7 @@ test('否决必须写明原因，写了才记录得下来', async ({ page }) => 
 
   const target = dayjs().add(2, 'day').format('YYYY-MM-DD');
   await page.goto(`/admin/menu-plan?date=${target}&meal=LUNCH`);
+  await page.getByText('单日', { exact: true }).click();
   await page.getByRole('button', { name: '生成明日菜单' }).click();
   await expect(page.getByText(/已排出 \d+ 道菜/)).toBeVisible();
 
@@ -105,5 +109,20 @@ test('学校管理方看得到结果，但没有生成与采纳入口', async ({
   await page.getByRole('menuitem', { name: '明日菜单与采购' }).click();
 
   await expect(page.getByText('明日菜单与采购')).toBeVisible();
+  await expect(page.getByRole('button', { name: '生成三餐' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: '生成明日菜单' })).toHaveCount(0);
+});
+
+test('一天三餐默认入口生成三餐与合并采购单', async ({ page }) => {
+  await loginAs(page, 'recorder');
+
+  await page.goto('/admin/menu-plan');
+  await page.getByRole('button', { name: '生成三餐' }).click();
+
+  await expect(page.getByText(/① 明日三餐安排/)).toBeVisible();
+  await expect(page.getByText(/早餐 · \d+ 人次/)).toBeVisible();
+  await expect(page.getByText(/午餐 · \d+ 人次/)).toBeVisible();
+  await expect(page.getByText(/晚餐 · \d+ 人次/)).toBeVisible();
+  await expect(page.getByText(/② 全天食材采购建议/)).toBeVisible();
+  await expect(page.getByRole('button', { name: '同步三餐至当日数据' })).toBeVisible();
 });

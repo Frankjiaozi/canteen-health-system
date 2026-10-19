@@ -19,6 +19,7 @@ test('同步之后：采集页按计划勾好，公开大屏不用登录就看�
   await saveCollection(page, dayjs(TARGET).subtract(1, 'day').format('YYYY-MM-DD'));
 
   await page.goto(`/admin/menu-plan?date=${TARGET}&meal=LUNCH`);
+  await page.getByText('单日', { exact: true }).click();
   await page.getByRole('button', { name: '生成明日菜单' }).click();
   await expect(page.getByText(/已排出 \d+ 道菜/)).toBeVisible();
 
@@ -70,6 +71,7 @@ test('已经录过采集的那一天，计划不会再盖上去', async ({ page 
   await saveCollection(page, target);
 
   await page.goto(`/admin/menu-plan?date=${target}&meal=LUNCH`);
+  await page.getByText('单日', { exact: true }).click();
   await page.getByRole('button', { name: '生成明日菜单' }).click();
   await expect(page.getByText(/已排出 \d+ 道菜/)).toBeVisible();
   await page.getByRole('button', { name: '同步至当日数据' }).click();
