@@ -1,4 +1,16 @@
-import { Alert, Button, Card, Input, Modal, Popconfirm, Space, Table, Tag, Typography } from 'antd';
+import {
+  Alert,
+  Button,
+  Card,
+  Collapse,
+  Input,
+  Modal,
+  Popconfirm,
+  Space,
+  Table,
+  Tag,
+  Typography,
+} from 'antd';
 import { useState } from 'react';
 import { useCurrentUser } from '@/features/auth/hooks/useAuth';
 import { canWriteBusinessData } from '@/features/auth/lib/permissions';
@@ -119,67 +131,16 @@ export function RecommendedDishes({
         ]}
       />
 
-      <Card size="small" title="与营养目标的差距" style={{ marginTop: 16 }}>
-        <Table<NutrientGap>
-          rowKey="code"
-          size="small"
-          pagination={false}
-          dataSource={plan.gaps}
-          columns={[
-            { title: '指标', dataIndex: 'label', width: 120 },
-            { title: '目标', dataIndex: 'target_text', width: 180 },
-            { title: '实际', dataIndex: 'actual', width: 110, align: 'right' },
-            {
-              title: '结论',
-              width: 280,
-              render: (_, row) => {
-                const style = describeGapStatus(row);
-                return (
-                  <Space>
-                    <Tag color={TONE_COLOR[style.tone]}>{style.label}</Tag>
-                    <Typography.Text>{describeGap(row)}</Typography.Text>
-                  </Space>
-                );
-              },
-            },
-            {
-              title: '口径',
-              render: (_, row) =>
-                row.note ? (
-                  <Typography.Text type="secondary">{row.note}</Typography.Text>
-                ) : (
-                  <Typography.Text type="secondary">—</Typography.Text>
-                ),
-            },
-          ]}
-        />
-      </Card>
-
-      <Card size="small" title="推荐理由" style={{ marginTop: 16 }}>
-        <Table<SuggestionReason>
-          rowKey={(row) => `${row.kind}-${row.text}`}
-          size="small"
-          pagination={false}
-          showHeader={false}
-          dataSource={plan.reasons}
-          columns={[
-            {
-              title: '类别',
-              width: 110,
-              render: (_, row) => <Tag>{reasonLabel(row)}</Tag>,
-            },
-            { title: '说明', render: (_, row) => row.text },
-          ]}
-        />
-        {plan.excluded_dishes.length > 0 ? (
-          <Typography.Text type="secondary">
-            因「不连续两日重复」排除：{plan.excluded_dishes.join('、')}
-          </Typography.Text>
-        ) : null}
-      </Card>
-
       {canWrite ? (
-        <Space style={{ marginTop: 16 }}>
+        <Space
+          wrap
+          style={{
+            width: '100%',
+            marginTop: 16,
+            paddingTop: 16,
+            borderTop: '1px solid #f0f0f0',
+          }}
+        >
           <Popconfirm
             title={`把这一版菜单同步至 ${plan.date} 的当日数据？`}
             description={
@@ -222,6 +183,81 @@ export function RecommendedDishes({
           description="它会被用来改进后续推荐。"
         />
       ) : null}
+
+      <Collapse
+        style={{ marginTop: 16 }}
+        items={[
+          {
+            key: 'gaps',
+            label: `与营养目标的差距（${
+              plan.gaps.filter((gap) => gap.status !== 'ok').length
+            } 项需关注）`,
+            children: (
+              <Table<NutrientGap>
+                rowKey="code"
+                size="small"
+                pagination={false}
+                dataSource={plan.gaps}
+                columns={[
+                  { title: '指标', dataIndex: 'label', width: 120 },
+                  { title: '目标', dataIndex: 'target_text', width: 180 },
+                  { title: '实际', dataIndex: 'actual', width: 110, align: 'right' },
+                  {
+                    title: '结论',
+                    width: 280,
+                    render: (_, row) => {
+                      const style = describeGapStatus(row);
+                      return (
+                        <Space>
+                          <Tag color={TONE_COLOR[style.tone]}>{style.label}</Tag>
+                          <Typography.Text>{describeGap(row)}</Typography.Text>
+                        </Space>
+                      );
+                    },
+                  },
+                  {
+                    title: '口径',
+                    render: (_, row) =>
+                      row.note ? (
+                        <Typography.Text type="secondary">{row.note}</Typography.Text>
+                      ) : (
+                        <Typography.Text type="secondary">—</Typography.Text>
+                      ),
+                  },
+                ]}
+              />
+            ),
+          },
+          {
+            key: 'reasons',
+            label: `推荐理由（${plan.reasons.length} 条）`,
+            children: (
+              <>
+                <Table<SuggestionReason>
+                  rowKey={(row) => `${row.kind}-${row.text}`}
+                  size="small"
+                  pagination={false}
+                  showHeader={false}
+                  dataSource={plan.reasons}
+                  columns={[
+                    {
+                      title: '类别',
+                      width: 110,
+                      render: (_, row) => <Tag>{reasonLabel(row)}</Tag>,
+                    },
+                    { title: '说明', render: (_, row) => row.text },
+                  ]}
+                />
+                {plan.excluded_dishes.length > 0 ? (
+                  <Typography.Text type="secondary">
+                    因「不连续两日重复」排除：{plan.excluded_dishes.join('、')}
+                  </Typography.Text>
+                ) : null}
+              </>
+            ),
+          },
+        ]}
+      />
 
       <Modal
         open={rejecting}
