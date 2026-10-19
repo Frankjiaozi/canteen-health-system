@@ -104,22 +104,79 @@ class Tools:
         parameters: PlanParameters,
         data_notice: str = "",
         user_content: str = "",
+        *,
+        enforce_user_parameters: bool = False,
     ):
         self.business, self.conversation, self.role = business, conversation, role
         self.parameters = parameters
         self.data_notice = data_notice
         self.user_content = user_content
+        self.enforce_user_parameters = enforce_user_parameters
         self.known_dishes: list[dict] = []
         self.generated = False
         self.readiness_parameters: dict | None = None
 
+    async def resolve_parameters(self, arguments: dict) -> PlanParameters:
+        """用户消息与面板为条件事实源；工具参数不能悄悄覆盖未改变的字段。"""
+        if (
+            any(word in self.user_content for word in (*rules.NEGATIVE, "恢复"))
+            and not self.known_dishes
+        ):
+            await self.execute("list_dishes", {})
+        pending = self.conversation.pending_task
+        changed_fields: set[str] = set()
+        try:
+            resolved = rules.parameters_from_text(
+                rules.followup(self.user_content, pending.field) if pending else self.user_content,
+                self.parameters,
+                self.known_dishes,
+                rules.remaining_questions(pending, self.parameters) if pending else None,
+                changed_fields=changed_fields,
+                allow_multiple_intents=True,
+            )
+        except TaskClarification as question:
+            question.message = (
+                question.message.replace("规则模式请", "请")
+                .replace("规则模式不能判断", "不能替你确定")
+                .replace("规则模式无法理解泛指替换", "不能按泛指替换猜测菜品")
+            )
+            raise
+        resolved_data = resolved.model_dump(mode="json")
+        proposed = PlanParameters.model_validate(arguments).model_dump(mode="json")
+        labels = {
+            "on_date": "供餐日期",
+            "meal_type": "餐次",
+            "diner_count": "就餐人次",
+            "budget_per_person": "每人预算",
+            "excluded_dish_ids": "排除菜品",
+        }
+        for field in PlanParameters.model_fields:
+            if field not in changed_fields and proposed[field] != resolved_data[field]:
+                question = TaskClarification(
+                    f"请明确本次的{labels[field]}，或在条件面板中设置；其余条件保持不变。",
+                    field,
+                )
+                question.parameters = resolved_data
+                raise question
+        return resolved
+
     async def execute(self, name: str, arguments: dict) -> Any:
         if name not in ARGUMENTS:
             raise AgentError("助手请求了未开放的工具", code="unknown_tool")
+        if name == "generate_menu_plan" and rules.generation_forbidden(self.user_content):
+            raise AgentError(
+                "本次要求只查询或检查数据，不生成菜单方案", 422, "generation_not_requested"
+            )
         # 模型可能只传改变的字段；省略不等于恢复午餐/默认预算/空排除。
         if name in {"generate_menu_plan", "check_data_readiness"}:
             arguments = {**self.parameters.model_dump(mode="json"), **arguments}
-        if name == "generate_menu_plan" and self.conversation.pending_task:
+            if self.user_content and self.enforce_user_parameters:
+                arguments = (await self.resolve_parameters(arguments)).model_dump(mode="json")
+        if (
+            name == "generate_menu_plan"
+            and self.conversation.pending_task
+            and not self.enforce_user_parameters
+        ):
             pending = self.conversation.pending_task
             questions = rules.remaining_questions(pending, self.parameters)
             # 模型传来的参数不是用户回答。只接受当前消息或面板中的明确补充。
@@ -149,6 +206,10 @@ class Tools:
                     **parsed.known_parameters.model_dump(mode="json", exclude_unset=True),
                 }
             ).model_dump(mode="json")
+            if self.user_content and self.enforce_user_parameters:
+                question.parameters = (
+                    await self.resolve_parameters(question.parameters)
+                ).model_dump(mode="json")
             raise question
         if name == "check_data_readiness":
             return await self.readiness(PlanParameters.model_validate(parsed.model_dump()))
@@ -158,6 +219,13 @@ class Tools:
             if self.generated:
                 raise AgentError("一次请求最多生成一个方案，请先核对这版结果")
             parameters = PlanParameters.model_validate(parsed.model_dump())
+            # 即使模型或客户端提供了语法合法的 UUID，也必须由真实业务记录验证。
+            if parameters.excluded_dish_ids and not self.known_dishes:
+                await self.execute("list_dishes", {})
+            known_ids = {str(row["id"]) for row in self.known_dishes}
+            for dish_id in parameters.excluded_dish_ids:
+                if str(dish_id) not in known_ids:
+                    await self.business.request("GET", f"dishes/{dish_id}")
             today = datetime.now(ZoneInfo("Asia/Shanghai")).date()
             if parameters.on_date < today:
                 raise AgentError("请安排今天或之后的菜单；历史日期可使用记录核查")
@@ -404,6 +472,11 @@ class Tools:
             "menu_confirmed": sheet.get("menu_confirmed"),
             "warning": sheet.get("warning"),
             "selected_count": len(dishes),
+            "total_selected_count": sum(
+                bool(row.get("selected")) for row in sheet.get("dishes", [])
+            ),
+            "truncated": sum(bool(row.get("selected")) for row in sheet.get("dishes", []))
+            > len(dishes),
             "dishes": dishes,
             "note": "营养为单份可食部；优先抽样实测，其次当日校准，最后标准配方理论值。油盐糖是这一餐的投料总量。",
         }
@@ -657,6 +730,7 @@ class Tools:
             "rows": rows,
             "truncated": len(rows) < result["total"],
             "note": "仅列出需要人工核查的记录，不认定原因。无记录日期可能未营业；15% 与 1.5 倍为演示核查阈值，不是医学或行业合规标准。",
+            "data_notice": self.data_notice,
         }
         self.conversation.review = ReviewReport.model_validate(review)
         return review

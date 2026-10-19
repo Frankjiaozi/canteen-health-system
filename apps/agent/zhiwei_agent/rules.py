@@ -12,6 +12,17 @@ from .schemas import PendingTask, PlanParameters
 
 MEALS = {"早餐": "BREAKFAST", "午餐": "LUNCH", "晚餐": "DINNER"}
 NEGATIVE = ("换掉", "替换", "排除", "不要", "去掉", "不做")
+GENERATION_PROHIBITION = (
+    r"(?:不要|不用|先别|先不|取消|暂不)(?:再|继续|重新)?(?:安排|生成|重算)(?:菜单|方案|采购单)?"
+)
+
+
+def generation_forbidden(content: str) -> bool:
+    return bool(re.search(GENERATION_PROHIBITION, content))
+
+
+def without_generation_prohibition(content: str) -> str:
+    return re.sub(GENERATION_PROHIBITION + r"(?=$|[，,。；;！!])", "", content)
 
 
 def is_cancel(content: str) -> bool:
@@ -21,12 +32,14 @@ def is_cancel(content: str) -> bool:
         "取消澄清",
         "先停一下",
         "停止任务",
-    } or bool(
-        re.search(r"(?:不要|不用|先别|先不|取消|暂不)(?:再|继续|重新)?(?:安排|生成|重算)", content)
+    } or (
+        generation_forbidden(content)
+        and not re.search(r"检查|体检|核查|查询|查看|列出|解释|分析|对比|比较", content)
     )
 
 
 def intent(content: str) -> str:
+    content = without_generation_prohibition(content)
     if any(
         word in content for word in ("数据体检", "数据准备", "检查数据", "数据够不够", "缺什么数据")
     ):
@@ -193,6 +206,7 @@ def parse_budget(content: str, data: dict):
 
 
 def parse_exclusions(content: str, data: dict, dishes: list[dict]):
+    content = without_generation_prohibition(content)
     if any(word in content for word in ("清空排除", "恢复全部菜品")) or (
         "不再排除" in content and not any(row["name"] in content for row in dishes)
     ):
@@ -259,7 +273,13 @@ def remaining_questions(pending: PendingTask, parameters: PlanParameters) -> lis
 
 
 def parameters_from_text(
-    content: str, base: PlanParameters, dishes: list[dict], pending: list[dict] | None = None
+    content: str,
+    base: PlanParameters,
+    dishes: list[dict],
+    pending: list[dict] | None = None,
+    *,
+    changed_fields: set[str] | None = None,
+    allow_multiple_intents: bool = False,
 ) -> PlanParameters:
     data = ParsedParameters(base.model_dump(mode="json"))
     questions = {
@@ -288,7 +308,11 @@ def parameters_from_text(
         )
     elif "只按当前任务条件安排" in content:
         questions.pop("conditions", None)
-    if re.search(r"核查|分析|周报", content) and re.search(r"安排|生成|重算", content):
+    if (
+        not allow_multiple_intents
+        and re.search(r"核查|分析|周报", content)
+        and re.search(r"安排|生成|重算", content)
+    ):
         questions["intent"] = TaskClarification(
             "这条消息同时包含记录核查和菜单安排。规则模式先选一个任务；模型模式可按工具分步处理。",
             "intent",
@@ -299,6 +323,8 @@ def parameters_from_text(
         )
     elif intent(content) in {"review_operations", "generate_menu_plan", "check_data_readiness"}:
         questions.pop("intent", None)
+    if changed_fields is not None:
+        changed_fields.update(data.touched)
     if questions:
         records = [
             {"field": row.field, "message": row.message, "choices": row.choices}

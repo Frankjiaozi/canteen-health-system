@@ -5,9 +5,10 @@ from typing import Literal
 from urllib.parse import urlsplit
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Body, Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response, StreamingResponse
+from pydantic import ValidationError
 
 from .business import BusinessClient
 from .config import Settings, get_settings
@@ -15,7 +16,14 @@ from .errors import AgentError
 from .exports import purchase_csv, review_markdown
 from .report import report_html
 from .runner import event, run
-from .schemas import AgentStatus, Conversation, MessageRequest, PublishRequest, SessionSummary
+from .schemas import (
+    AgentStatus,
+    Conversation,
+    DinerForecast,
+    MessageRequest,
+    PublishRequest,
+    SessionSummary,
+)
 from .store import Store
 
 
@@ -114,18 +122,22 @@ def create_app(settings: Settings | None = None, business_transport=None) -> Fas
     async def dishes(current: Access = Depends(access)):
         return await current.business.request("GET", "dishes", params={"page_size": 100})
 
-    @app.get("/agent-api/v1/diner-forecast")
+    @app.get("/agent-api/v1/diner-forecast", response_model=DinerForecast)
     async def diner_forecast(
         on_date: date,
         meal_type: Literal["BREAKFAST", "LUNCH", "DINNER"] = "LUNCH",
         current: Access = Depends(access),
     ):
         """任务条件面板的默认人数：只读业务预测，不经过模型。"""
-        return await current.business.request(
+        result = await current.business.request(
             "GET",
             "forecast/diner-count",
             params={"on_date": str(on_date), "meal_type": meal_type},
         )
+        try:
+            return DinerForecast.model_validate(result)
+        except ValidationError as exc:
+            raise AgentError("业务人数预测响应不符合接口契约", 502, "contract_mismatch") from exc
 
     @app.get("/agent-api/v1/sessions", response_model=list[SessionSummary])
     async def list_sessions(current: Access = Depends(access)):
@@ -182,6 +194,8 @@ def create_app(settings: Settings | None = None, business_transport=None) -> Fas
             if not conversation.plans or payload.revision != conversation.revision:
                 raise AgentError("只能确认对话里的最新方案，请核对版本", 409, "revision_conflict")
             version = conversation.plans[-1]
+            if version.undone:
+                raise AgentError("这版方案已撤回，请重新生成后再发布", 409, "revision_conflict")
             result = version.result
             receipt = await current.business.request(
                 "POST",
@@ -198,8 +212,12 @@ def create_app(settings: Settings | None = None, business_transport=None) -> Fas
             store.release(sid, owner)
 
     @app.post("/agent-api/v1/sessions/{session_id}/undo", response_model=Conversation)
-    async def undo(session_id: UUID, current: Access = Depends(access)):
-        """撤回最近一次发布：菜单恢复成发布前的样子，那一版方案回到待确认。
+    async def undo(
+        session_id: UUID,
+        payload: PublishRequest | None = Body(default=None),
+        current: Access = Depends(access),
+    ):
+        """撤回最近一次发布：恢复原菜单并保留历史，该版本需重新生成后才能再发布。
 
         与「发布」对称——同样不经过模型，同样以当前用户身份调业务接口。
         业务那边会核对发布时留下的快照凭据：这餐菜单在发布之后被别人改过、
@@ -219,6 +237,9 @@ def create_app(settings: Settings | None = None, business_transport=None) -> Fas
             if not published:
                 raise AgentError("这个对话里没有可撤回的发布", 409, "nothing_to_undo")
             version = published[-1]
+            # 暂时兼容旧前端的无请求体调用；提供版本时必须严格核对。
+            if payload is not None and payload.revision != version.revision:
+                raise AgentError("待撤回的发布版本已变化，请刷新并核对", 409, "revision_conflict")
             receipt = await current.business.request(
                 "POST", f"menu-plan/{version.result['suggestion_id']}/undo"
             )

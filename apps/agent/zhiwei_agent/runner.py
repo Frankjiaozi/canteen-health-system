@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 from pydantic import ValidationError
 
 from . import model, rules
+from .answers import plan_summary
 from .business import BusinessClient
 from .config import Settings
 from .errors import AgentError, TaskClarification
@@ -44,13 +45,8 @@ def grounded_summary(tools: Tools, name: str) -> str:
         return f"已核查 {review['start']} 至 {review['end']} 的 {review['record_count']} 份采集记录，覆盖 {review['days_with_records']} 天，列出 {len(review['issues'])} 项需要核对的记录。请在核查结果里打开原始采集单；异常原因仍需人工确认。"
     if conversation.plans:
         version = conversation.plans[-1]
-        plan = version.result
-        if name == "get_current_plan":
-            reasons = "\n".join("· " + row["text"] for row in plan.get("reasons", [])[:4])
-            status = "已确认发布" if version.publication else "尚未发布"
-            return f"第 {version.revision} 版{status}。选菜由约束求解完成，份数来自历史预测，采购量由配方用量乘以份数汇总。\n{reasons}\n完整假设、营养差距和快照编号在「计算依据」中；多版结果可在「方案对比」查看。"
-        cost_label = "已知价格部分合计" if plan.get("missing_price_warning") else "采购合计"
-        return f"方案第 {version.revision} 版已生成：{plan['date']} {plan['meal_type_label']}，{plan['diner_count']} 人次，{len(plan['dishes'])} 道菜。{cost_label} {plan.get('total_cost') or '暂无完整金额'} 元，预算 {plan['budget']} 元。菜品、营养差距和采购量均来自业务计算，尚未发布。请核对结果区与警告后确认。"
+        previous = conversation.plans[-2] if len(conversation.plans) > 1 else None
+        return plan_summary(version, previous)
     return (
         "还没有菜单方案。请设定日期、餐次、人数和每人预算，再安排菜单；也可以先核查近期供应记录。"
     )
@@ -66,7 +62,13 @@ async def run(
     request: MessageRequest,
 ):
     tools = Tools(
-        business, conversation, role, request.parameters, settings.data_notice, request.content
+        business,
+        conversation,
+        role,
+        request.parameters,
+        settings.data_notice,
+        request.content,
+        enforce_user_parameters=settings.effective_mode == "model",
     )
     pending = conversation.pending_task
     task_content = rules.followup(request.content, pending.field) if pending else request.content
@@ -153,11 +155,13 @@ async def run(
                     "不要描述隐藏推理；只报告可核对的工具步骤与结论。任何发布必须由界面独立确认，你没有发布工具。"
                     "每次最多生成一个方案。生成前用 check_data_readiness 检查数据，缺口需要如实说明。修改时保留未被用户改变的条件。排除菜品先用真实菜名查询ID，不得编造UUID。"
                     "若用户请求不支持的能力、提出含糊或相互矛盾的要求，用 clarify_task 问清楚并停止执行，不能声称已经完成。候选回复只是选项，不能当作用户已经选择。"
+                    "方案 gaps 是整餐人均供给（计划供应总量除以就餐人次），不能称为单菜每份；dishes 中的营养才是单菜每份。供给不等于摄入。"
+                    "只能引用业务返回的原始数值，不自行计算预算占比、四舍五入、节省比例或新的营养结论。"
                     "方案营养指标是建议目标，不能声称全部合规；不做个人医疗判断。数据来源未核实，不得宣称为真实学校案例。"
                     # 对话栏是窄列、按纯文本渲染：Markdown 标题/表格/加粗会原样显示成 ## 和 **
                     "回答用纯文本：短段落加「-」列表就够，不要用 Markdown 标题、表格或加粗标记。"
                     "可用工具菜单（按用户意图选择；查数先调工具，不能凭记忆补数）："
-                    "- 看板指标 get_dashboard：最近若干天的油盐糖趋势、人均摄入、达标率、剩餐浪费；"
+                    "- 看板指标 get_dashboard：最近若干天的油盐糖趋势、人均供给对照、达标率、剩餐浪费；"
                     "- 当日供应 get_menu_day：某天某餐实际供应了什么、份数与每道菜单份营养；"
                     "- 菜品配方 get_dish_recipe：按完整菜名查每份食材、调味料与单份营养；"
                     "- 食材营养 list_ingredients：按名称查每100克可食部的五项营养与来源；"
@@ -168,7 +172,7 @@ async def run(
                     "- 菜单方案 generate_menu_plan：计算待确认方案，不能发布。"
                     "回答数据问题时写清日期、餐次、口径与来源；菜品名有歧义时先返回候选并问用户，不能猜一道继续。"
                     "任务条件中的 diner_count 是系统按同星期历史与日历预填的预计人次：非空时直接用于计算，"
-                    "不要再要求用户确认；只有为空且无法预测时才请用户补充。"
+                    "不要再要求用户确认；为空时向 generate_menu_plan 保持 diner_count=null，让业务接口预测，不把预测值改称用户指定值；只有无法预测时才请用户补充。"
                     "用户已在任务条件中明确提供以下参数，消息中有新条件时按新条件更新："
                     + request.parameters.model_dump_json()
                 )
@@ -186,7 +190,7 @@ async def run(
                     ],
                 ]
                 for attempt in range(5):
-                    response = await model.complete(settings, messages)
+                    response = model.validate_message(await model.complete(settings, messages))
                     calls = response.get("tool_calls") or []
                     if not calls:
                         content = (response.get("content") or "").strip()[:8000]
@@ -197,10 +201,11 @@ async def run(
                         # 再给它一次机会；连续为空才如实说拿不到结果。
                         if attempt < 4:
                             continue
-                        content = (
-                            "这次没能从模型拿到结果，请重试一次；已完成的方案与计算结果都会保留。"
+                        raise AgentError(
+                            "这次没能从模型拿到结果，请重试一次；已完成的方案与计算结果都会保留。",
+                            503,
+                            "model_empty_response",
                         )
-                        break
                     if len(calls) > 4:
                         raise AgentError("模型一次请求了过多工具，请缩小任务范围")
                     messages.append({**response, "role": "assistant"})
@@ -218,12 +223,19 @@ async def run(
                         except TaskClarification:
                             raise
                         except (ValidationError, ValueError):
-                            result = {"error": "工具参数无效，请根据字段约束修正，不要编造数据"}
+                            result = {
+                                "error": "工具参数无效，请根据字段约束修正，不要编造数据",
+                                "code": "invalid_tool_arguments",
+                            }
                             entry.status, entry.detail = "error", "工具参数校验未通过"
                         except AgentError as exc:
                             if exc.status in {401, 403, 503}:
                                 raise
-                            result = {"error": exc.message, "details": exc.details}
+                            result = {
+                                "error": exc.message,
+                                "code": exc.code,
+                                "details": exc.details,
+                            }
                             entry.status, entry.detail = "error", exc.message
                         yield event("trace", trace=entry.model_dump())
                         messages.append(
@@ -234,11 +246,17 @@ async def run(
                             }
                         )
                 else:
-                    content = "本次已达到工具调用上限。" + grounded_summary(
-                        tools, "generate_menu_plan"
+                    raise AgentError(
+                        "本次已达到工具调用上限，已完成的结果会保留。请核对工具记录后继续。",
+                        422,
+                        "tool_limit",
                     )
             if tools.generated:
                 conversation.pending_task = None
+            if tools.generated or (
+                trace and trace[-1].tool == "get_current_plan" and trace[-1].status == "success"
+            ):
+                content = grounded_summary(tools, "get_current_plan")
             conversation.messages.append(
                 ChatMessage(
                     id=str(uuid4()),
@@ -316,12 +334,37 @@ async def run(
         yield event(
             "error",
             message=message,
-            code=exc.code if isinstance(exc, AgentError) else "invalid_task",
+            code=exc.code
+            if isinstance(exc, AgentError)
+            else ("task_timeout" if isinstance(exc, TimeoutError) else "invalid_task"),
         )
         yield event("done", conversation=conversation.model_dump(mode="json"))
-    except Exception:
-        logging.getLogger(__name__).exception("Agent task failed: session=%s", conversation.id)
+    except (asyncio.CancelledError, GeneratorExit):
+        # 断流没有 done；持久化中断记录与已完成的计算，重放原请求不能再次执行工具。
+        if str(request.request_id) not in conversation.completed_requests:
+            message = "连接已中断，已完成的结果已保留；请刷新查看，继续执行时发送新请求。"
+            if trace and trace[-1].status == "running":
+                trace[-1].status, trace[-1].detail = "error", message
+            conversation.messages.append(
+                ChatMessage(
+                    id=str(uuid4()),
+                    role="assistant",
+                    content=message,
+                    created_at=now(),
+                    trace=trace,
+                    kind="failure",
+                )
+            )
+            conversation.completed_requests.append(str(request.request_id))
+            store.save(conversation, owner)
+        raise
+    except Exception as exc:
+        logging.getLogger(__name__).error(
+            "Agent task failed: session=%s error_type=%s", conversation.id, type(exc).__name__
+        )
         # 不把供应商响应、环境路径、Cookie 或密钥返回客户端。
+        if trace and trace[-1].status == "running":
+            trace[-1].status, trace[-1].detail = "error", "工具执行中断，请刷新后重试"
         conversation.messages.append(
             ChatMessage(
                 id=str(uuid4()),
@@ -332,6 +375,7 @@ async def run(
                 kind="failure",
             )
         )
+        conversation.completed_requests.append(str(request.request_id))
         store.save(conversation, owner)
         yield event(
             "error", message="任务处理失败，已完成的结果已保留，请刷新后重试", code="internal_error"

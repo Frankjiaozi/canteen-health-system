@@ -70,12 +70,17 @@ def report_html(version: PlanVersion, notice: str) -> str:
             warnings.append(
                 f"{gap['label']}：{gap['actual']} {gap['unit']}，{STATUS.get(gap['status'], gap['status'])}（{gap['target_text']}）。"
             )
-    status = "本版曾确认发布" if receipt else "待人工确认的草案"
+    status = version.publication_label if receipt or version.undone else "待人工确认的草案"
     confirmation = (
         f"确认人：{h(receipt['published_by'])}；时间：{h(timestamp(receipt['published_at']))}（北京时间）。"
         if receipt
         else "本报告不会发布菜单、生成实际采集或向供应商下单。"
     )
+    if version.undone:
+        confirmation += (
+            f" 本版已撤回，撤回人：{h(version.undone.get('undone_by'))}；"
+            f"时间：{h(timestamp(version.undone.get('undone_at')))}（北京时间）。原发布回执仅供追溯。"
+        )
     dishes = [
         [
             row["dish_name"],
