@@ -24,6 +24,7 @@ test('生成明日菜单后，菜品、采购单与份数口径都在', async ({
   await expect(page.getByRole('columnheader', { name: '单份能量' })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: '建议份数' })).toHaveCount(0);
   await expect(page.getByText('与营养目标的差距')).toBeVisible();
+  await page.getByText(/与营养目标的差距/).click();
   await expect(page.getByText(/实际 [\d.]+/).first()).toBeVisible();
   await expect(page.getByText('推荐理由')).toBeVisible();
   // 能量目标还没核实，界面上必须标出来
