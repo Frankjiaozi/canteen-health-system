@@ -35,6 +35,20 @@ export type Readiness = Business['schemas']['PlanReadiness'];
 export type AgentStatus = Agent['schemas']['AgentStatus'];
 export type SessionSummary = Agent['schemas']['SessionSummary'];
 
+export type DinerForecast = {
+  on_date: string;
+  meal_type: string;
+  meal_type_label: string;
+  predicted_diner_count: number | null;
+  lower: number | null;
+  upper: number | null;
+  basis: string;
+  basis_label: string;
+  samples: { date: string; diner_count: number }[];
+  calendar_note: string | null;
+  note: string;
+};
+
 /** 对应 shared-contract.md 的 NDJSON 逐行事件，不包含推理文本。 */
 export type AgentEvent =
   | { type: 'status'; message: string; mode: string }

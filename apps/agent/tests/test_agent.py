@@ -44,6 +44,23 @@ class BusinessFake:
             )
         if request.url.path.endswith("dishes"):
             return httpx.Response(200, json={"items": DISHES, "total": len(DISHES)})
+        if request.url.path.endswith("forecast/diner-count"):
+            return httpx.Response(
+                200,
+                json={
+                    "on_date": request.url.params["on_date"],
+                    "meal_type": request.url.params["meal_type"],
+                    "meal_type_label": "午餐",
+                    "predicted_diner_count": 920,
+                    "lower": 840,
+                    "upper": 1030,
+                    "basis": "SAME_WEEKDAY",
+                    "basis_label": "同星期几中位数",
+                    "samples": [],
+                    "calendar_note": None,
+                    "note": "预测值说明",
+                },
+            )
         if request.url.path.endswith("menu-plan/readiness"):
             return httpx.Response(
                 200,
@@ -207,6 +224,18 @@ def test_owner_and_expired_cookie_are_enforced_on_every_request(context):
     assert client.get("/agent-api/v1/status").status_code == 401
     client.cookies.clear()
     assert client.get("/agent-api/v1/sessions").status_code == 401
+
+
+def test_diner_forecast_proxy_returns_the_business_prediction(context):
+    client, business, _ = context
+    response = client.get(
+        "/agent-api/v1/diner-forecast",
+        params={"on_date": str(TODAY), "meal_type": "LUNCH"},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["predicted_diner_count"] == 920
+    assert any(call.url.path.endswith("forecast/diner-count") for call in business.calls)
 
 
 def test_revision_conflict_busy_and_idempotent_retry(context):

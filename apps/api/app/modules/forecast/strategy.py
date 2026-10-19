@@ -11,8 +11,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
-from decimal import Decimal
-from statistics import fmean, pstdev
+from decimal import ROUND_HALF_UP, Decimal
+from statistics import fmean, median, pstdev
 
 from app.shared.enums import HolidayKind
 
@@ -44,6 +44,14 @@ class HistoryPoint:
 
 
 @dataclass(frozen=True, slots=True)
+class DinerPoint:
+    """一次历史就餐人次。与菜品份数分开，避免把「做了多少份」当成人次。"""
+
+    date: date
+    diners: Decimal
+
+
+@dataclass(frozen=True, slots=True)
 class ForecastResult:
     predicted: Decimal
     lower: Decimal
@@ -56,6 +64,21 @@ class ForecastResult:
     calendar_note: str | None
     #: SAME_WEEKDAY = 同星期几平均；OVERALL = 同星期样本不足，退化为全期平均
     basis: str
+
+
+@dataclass(frozen=True, slots=True)
+class DinerForecastResult:
+    """就餐人次预测。"""
+
+    predicted: int
+    lower: int
+    upper: int
+    samples: tuple[DinerPoint, ...]
+    baseline: Decimal
+    adjustment: Decimal
+    basis: str
+    basis_label: str
+    calendar_note: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -200,6 +223,71 @@ def forecast_dish(
         adjustment=day.factor,
         calendar_note=day.note,
         basis=basis,
+    )
+
+
+def forecast_diners(
+    history: Sequence[DinerPoint],
+    *,
+    target: date,
+    context: DayContext | None = None,
+    window: int = DEFAULT_WINDOW,
+) -> DinerForecastResult | None:
+    """预测某一餐的就餐人次。
+
+    菜品份数回答「这道菜做多少」，就餐人次回答「有多少人来吃」。后者不能拿份数
+    反推，也不能拿最近一条记录直接充数——周末、节假日和调休的量级完全不同。
+
+    取同星期几的**中位数**而不是平均数：就餐人次会受一次临时活动影响，中位数
+    不会被单个极端值拖走。样本不足时退化为工作日/全期中位数，并如实标注。
+    """
+    day = context or DayContext()
+    earlier = [point for point in history if point.date < target and point.diners > 0]
+    if not earlier:
+        return None
+
+    pool = (
+        [point for point in earlier if point.date.weekday() < 5]
+        if day.use_workday_baseline
+        else earlier
+    )
+    exact = sorted(
+        (point for point in pool if point.date.weekday() == target.weekday()),
+        key=lambda point: point.date,
+    )
+    samples = tuple(exact[-window:])
+    basis = "SAME_WEEKDAY"
+    if len(samples) < MIN_SAMPLES:
+        samples = tuple(sorted(pool, key=lambda point: point.date)[-(window * 2) :])
+        basis = "WORKDAY" if day.use_workday_baseline else "OVERALL"
+    if len(samples) < MIN_SAMPLES:
+        return None
+
+    values = [float(point.diners) for point in samples]
+    baseline = Decimal(str(median(values)))
+    predicted = int((baseline * day.factor).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    spread = Decimal(str(pstdev(values))) if len(values) > 1 else Decimal("0")
+    half_width = max(
+        (spread * day.factor * INTERVAL_SIGMA).quantize(Decimal("1"), rounding=ROUND_HALF_UP),
+        (Decimal(predicted) * MIN_INTERVAL_RATIO).quantize(Decimal("1"), rounding=ROUND_HALF_UP),
+    )
+    lower = max(0, int(Decimal(predicted) - half_width))
+    upper = int(Decimal(predicted) + half_width)
+    labels = {
+        "SAME_WEEKDAY": "同星期几中位数",
+        "WORKDAY": "工作日历史中位数",
+        "OVERALL": "全期历史中位数",
+    }
+    return DinerForecastResult(
+        predicted=predicted,
+        lower=lower,
+        upper=upper,
+        samples=samples,
+        baseline=baseline.quantize(Decimal("1")),
+        adjustment=day.factor,
+        basis=basis,
+        basis_label=labels[basis],
+        calendar_note=day.note,
     )
 
 

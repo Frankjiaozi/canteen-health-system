@@ -88,6 +88,29 @@ class BacktestResult(BaseModel):
     end: date
 
 
+class DinerForecastSample(BaseModel):
+    date: date
+    diner_count: int
+
+
+class DinerForecast(BaseModel):
+    """某一餐的就餐人次预测。"""
+
+    on_date: date
+    meal_type: MealType
+    meal_type_label: str
+    predicted_diner_count: int | None = Field(
+        default=None, description="预测人次；历史不足且无兜底时为空"
+    )
+    lower: int | None = Field(default=None, description="参考区间下界")
+    upper: int | None = Field(default=None, description="参考区间上界")
+    basis: str
+    basis_label: str
+    samples: list[DinerForecastSample]
+    calendar_note: str | None = None
+    note: str
+
+
 class HolidayRead(BaseModel):
     id: str
     date: date

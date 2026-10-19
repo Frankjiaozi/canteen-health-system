@@ -24,6 +24,9 @@ def test_readiness_is_readonly_and_available_to_school(as_school_admin, db_sessi
     body = response.json()
     assert body["available_count"] > 0
     assert body["predicted_count"] <= body["available_count"]
+    assert body["predicted_diner_count"] > 0
+    assert body["diner_count_lower"] <= body["predicted_diner_count"] <= body["diner_count_upper"]
+    assert body["diner_count_basis"] and body["diner_count_basis_label"]
     assert body["history_end"] < body["on_date"]
     assert body["note"] and body["categories"]
     after = [
@@ -60,6 +63,7 @@ def test_other_meal_history_does_not_claim_readiness(db_session):
     assert report.candidate_count == 0
     assert report.history_record_count == 0
     assert report.latest_diner_count is None
+    assert report.predicted_diner_count is None
     assert any(row.code == "missing_category" for row in report.issues)
 
 

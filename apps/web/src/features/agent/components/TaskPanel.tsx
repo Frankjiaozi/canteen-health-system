@@ -6,7 +6,7 @@ import {
 } from '@ant-design/icons';
 import { Button, DatePicker, InputNumber, Select } from 'antd';
 import dayjs from 'dayjs';
-import type { AgentDish, PlanParameters, SessionSummary } from '../api/types';
+import type { AgentDish, DinerForecast, PlanParameters, SessionSummary } from '../api/types';
 
 interface Props {
   parameters: PlanParameters;
@@ -18,6 +18,8 @@ interface Props {
   onNew: () => void;
   busy: boolean;
   canPlan: boolean;
+  dinerForecast: DinerForecast | null;
+  dinerForecastLoading: boolean;
   onCheckData: () => void;
   unavailable: boolean;
 }
@@ -32,10 +34,17 @@ export function TaskPanel({
   onNew,
   busy,
   canPlan,
+  dinerForecast,
+  dinerForecastLoading,
   onCheckData,
   unavailable,
 }: Props) {
   const update = (patch: Partial<PlanParameters>) => onChange({ ...parameters, ...patch });
+  const predictedDiners = dinerForecast?.predicted_diner_count ?? null;
+  const manualDiners =
+    predictedDiners != null &&
+    parameters.diner_count != null &&
+    parameters.diner_count !== predictedDiners;
   return (
     <aside className="zw-agent-task" aria-label="任务条件与历史对话">
       <div className="zw-agent-task-heading">
@@ -75,7 +84,7 @@ export function TaskPanel({
               max={100000}
               precision={0}
               value={parameters.diner_count}
-              placeholder="按最近记录"
+              placeholder={dinerForecastLoading ? '系统预测中' : '填写人数'}
               disabled={busy || !canPlan}
               onChange={(value) => update({ diner_count: value })}
             />
@@ -93,6 +102,15 @@ export function TaskPanel({
             />
           </div>
         </div>
+        {predictedDiners != null && (
+          <p className="zw-agent-diner-source">
+            系统预测 {predictedDiners} 人
+            {dinerForecast?.lower != null && dinerForecast.upper != null
+              ? ` · 参考区间 ${dinerForecast.lower}–${dinerForecast.upper} 人`
+              : ''}
+            {manualDiners ? ' · 当前为手动值' : ` · ${dinerForecast?.basis_label ?? ''}`}
+          </p>
+        )}
         <label htmlFor="agent-exclusions">本次不做的菜</label>
         <Select
           id="agent-exclusions"

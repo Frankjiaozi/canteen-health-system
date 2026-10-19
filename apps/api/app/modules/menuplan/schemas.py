@@ -140,6 +140,13 @@ class PlanReadiness(BaseModel):
     days_with_records: int
     latest_record_date: date | None
     latest_diner_count: int | None
+    #: 系统按同星期历史和日历预测的就餐人次；与「最近一条记录」分开，
+    #: 后者只是参考，不能直接当明天的规模。
+    predicted_diner_count: int | None = None
+    diner_count_lower: int | None = None
+    diner_count_upper: int | None = None
+    diner_count_basis: str | None = None
+    diner_count_basis_label: str | None = None
     missing_price_count: int
     missing_nutrition_count: int
     categories: list[ReadinessCategory]

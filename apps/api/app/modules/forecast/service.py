@@ -23,6 +23,8 @@ from app.modules.forecast.models import Holiday
 from app.modules.forecast.schemas import (
     BacktestPoint,
     BacktestResult,
+    DinerForecast,
+    DinerForecastSample,
     DishForecast,
     ForecastRunResult,
     ForecastSample,
@@ -282,6 +284,80 @@ def predict_dishes(
         dishes=sorted(predictions, key=lambda item: item.predicted, reverse=True),
         skipped=sorted(skipped),
         calendar_note=context.note,
+    )
+
+
+def predict_diner_count(
+    session: Session, *, on_date: date, meal_type: MealType = MealType.LUNCH
+) -> DinerForecast:
+    """预测某一餐有多少人来吃。
+
+    只回答「人数规模」，不拿菜品份数反推。历史按同一餐次取最近 8 周，
+    排除异常日与法定假日；目标日是法定假日时按 `day_context` 的系数折减，
+    调休上班日改用工作日基线。历史不足时才退回最近一次采集，并明确标成参考值。
+    """
+    start = on_date - timedelta(weeks=HISTORY_WEEKS)
+    holidays = repository.load_holidays(session, start=start, end=on_date)
+    history = repository.load_diner_history(
+        session, start=start, end=on_date - timedelta(days=1), meal_type=meal_type
+    )
+    points = [
+        strategy.DinerPoint(day, Decimal(count))
+        for day, count in history
+        if holidays.get(day) is not HolidayKind.HOLIDAY
+    ]
+    context = strategy.day_context(on_date, holidays)
+    result = strategy.forecast_diners(points, target=on_date, context=context)
+    if result is not None:
+        return DinerForecast(
+            on_date=on_date,
+            meal_type=meal_type,
+            meal_type_label=meal_type.label,
+            predicted_diner_count=result.predicted,
+            lower=result.lower,
+            upper=result.upper,
+            basis=result.basis,
+            basis_label=result.basis_label,
+            samples=[
+                DinerForecastSample(date=point.date, diner_count=int(point.diners))
+                for point in result.samples
+            ],
+            calendar_note=result.calendar_note,
+            note=(
+                "预测值 = 最近 6 个同星期几的就餐人次中位数 × 日历修正；"
+                "已排除异常日与法定假日，区间来自历史波动，至少 ±10%。"
+            ),
+        )
+
+    latest = repository.load_latest_diner_count(session, on_date=on_date, meal_type=meal_type)
+    if latest is None:
+        return DinerForecast(
+            on_date=on_date,
+            meal_type=meal_type,
+            meal_type_label=meal_type.label,
+            predicted_diner_count=None,
+            lower=None,
+            upper=None,
+            basis="UNAVAILABLE",
+            basis_label="历史不足",
+            samples=[],
+            calendar_note=context.note,
+            note="没有足够的同餐次历史，无法预测就餐人次；请先在每日采集中录入至少 3 次有效记录。",
+        )
+    lower = max(0, int(Decimal(latest) * Decimal("0.85")))
+    upper = int(Decimal(latest) * Decimal("1.15"))
+    return DinerForecast(
+        on_date=on_date,
+        meal_type=meal_type,
+        meal_type_label=meal_type.label,
+        predicted_diner_count=latest,
+        lower=lower,
+        upper=upper,
+        basis="LATEST",
+        basis_label="最近一次采集（参考值）",
+        samples=[],
+        calendar_note=context.note,
+        note="同星期历史不足，暂时退回最近一次有效采集；这不是严格预测，建议核对后修改。",
     )
 
 

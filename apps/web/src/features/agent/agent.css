@@ -273,6 +273,12 @@
 .zw-agent-field-pair .ant-input-number {
   width: 100%;
 }
+.zw-agent-diner-source {
+  margin: -1px 0 3px;
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: #60766a;
+}
 .zw-agent-task-note {
   font-size: 11px;
   color: #6d7c70;

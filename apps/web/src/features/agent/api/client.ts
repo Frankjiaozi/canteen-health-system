@@ -4,6 +4,7 @@ import type {
   AgentEvent,
   AgentStatus,
   Conversation,
+  DinerForecast,
   PlanParameters,
   SessionSummary,
 } from './types';
@@ -29,6 +30,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const agentApi = {
   status: () => request<AgentStatus>('/status'),
   dishes: async () => (await request<{ items: AgentDish[] }>('/dishes')).items,
+  dinerForecast: (onDate: string, mealType: string) =>
+    request<DinerForecast>(
+      `/diner-forecast?on_date=${encodeURIComponent(onDate)}&meal_type=${encodeURIComponent(mealType)}`,
+    ),
   sessions: () => request<SessionSummary[]>('/sessions'),
   create: () => request<Conversation>('/sessions', { method: 'POST' }),
   session: (id: string) => request<Conversation>(`/sessions/${encodeURIComponent(id)}`),

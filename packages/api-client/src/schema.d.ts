@@ -328,6 +328,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/forecast/diner-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 预测某天某一餐的就餐人次 */
+        get: operations["diner_count_api_v1_forecast_diner_count_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/forecast/holidays": {
         parameters: {
             query?: never;
@@ -1272,6 +1289,55 @@ export interface components {
             status: components["schemas"]["SuggestionStatus"];
             /** Reason */
             reason?: string | null;
+        };
+        /**
+         * DinerForecast
+         * @description 某一餐的就餐人次预测。
+         */
+        DinerForecast: {
+            /**
+             * On Date
+             * Format: date
+             */
+            on_date: string;
+            meal_type: components["schemas"]["MealType"];
+            /** Meal Type Label */
+            meal_type_label: string;
+            /**
+             * Predicted Diner Count
+             * @description 预测人次；历史不足且无兜底时为空
+             */
+            predicted_diner_count?: number | null;
+            /**
+             * Lower
+             * @description 参考区间下界
+             */
+            lower?: number | null;
+            /**
+             * Upper
+             * @description 参考区间上界
+             */
+            upper?: number | null;
+            /** Basis */
+            basis: string;
+            /** Basis Label */
+            basis_label: string;
+            /** Samples */
+            samples: components["schemas"]["DinerForecastSample"][];
+            /** Calendar Note */
+            calendar_note?: string | null;
+            /** Note */
+            note: string;
+        };
+        /** DinerForecastSample */
+        DinerForecastSample: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Diner Count */
+            diner_count: number;
         };
         /**
          * DishCategory
@@ -2509,6 +2575,16 @@ export interface components {
             latest_record_date: string | null;
             /** Latest Diner Count */
             latest_diner_count: number | null;
+            /** Predicted Diner Count */
+            predicted_diner_count?: number | null;
+            /** Diner Count Lower */
+            diner_count_lower?: number | null;
+            /** Diner Count Upper */
+            diner_count_upper?: number | null;
+            /** Diner Count Basis */
+            diner_count_basis?: string | null;
+            /** Diner Count Basis Label */
+            diner_count_basis_label?: string | null;
             /** Missing Price Count */
             missing_price_count: number;
             /** Missing Nutrition Count */
@@ -3387,6 +3463,8 @@ export type SchemaDailyLogWrite = components['schemas']['DailyLogWrite'];
 export type SchemaDashboardSummary = components['schemas']['DashboardSummary'];
 export type SchemaDatabaseHealthResponse = components['schemas']['DatabaseHealthResponse'];
 export type SchemaDecideRequest = components['schemas']['DecideRequest'];
+export type SchemaDinerForecast = components['schemas']['DinerForecast'];
+export type SchemaDinerForecastSample = components['schemas']['DinerForecastSample'];
 export type SchemaDishCategory = components['schemas']['DishCategory'];
 export type SchemaDishCreate = components['schemas']['DishCreate'];
 export type SchemaDishDetail = components['schemas']['DishDetail'];
@@ -4289,6 +4367,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BacktestResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    diner_count_api_v1_forecast_diner_count_get: {
+        parameters: {
+            query: {
+                /** @description 要预测的日期 */
+                on_date: string;
+                meal_type?: components["schemas"]["MealType"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DinerForecast"];
                 };
             };
             /** @description Validation Error */

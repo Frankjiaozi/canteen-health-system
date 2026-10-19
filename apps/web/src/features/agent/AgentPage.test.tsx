@@ -15,6 +15,7 @@ vi.mock('./api/client', () => ({
     status: vi.fn(),
     sessions: vi.fn(),
     dishes: vi.fn(),
+    dinerForecast: vi.fn(),
     session: vi.fn(),
     create: vi.fn(),
     publish: vi.fn(),
@@ -42,6 +43,19 @@ const parameters: PlanParameters = {
   diner_count: 1000,
   budget_per_person: '12',
   excluded_dish_ids: ['excluded-dish'],
+};
+const emptyDinerForecast = {
+  on_date: '2026-10-20',
+  meal_type: 'LUNCH',
+  meal_type_label: '午餐',
+  predicted_diner_count: null,
+  lower: null,
+  upper: null,
+  basis: 'UNAVAILABLE',
+  basis_label: '历史不足',
+  samples: [],
+  calendar_note: null,
+  note: '',
 };
 const empty: Conversation = {
   id: 'fresh',
@@ -78,6 +92,7 @@ beforeEach(() => {
   });
   vi.mocked(agentApi.sessions).mockResolvedValue([]);
   vi.mocked(agentApi.dishes).mockResolvedValue([]);
+  vi.mocked(agentApi.dinerForecast).mockResolvedValue(emptyDinerForecast);
   vi.mocked(agentApi.session).mockImplementation(async (id) => (id === 'old' ? existing : empty));
   vi.mocked(agentApi.create).mockResolvedValue(empty);
   vi.mocked(sendMessage).mockResolvedValue(empty);
@@ -134,5 +149,35 @@ it('模型接入状态收进标题栏，数据来源提示不再占据工作区�
   );
   expect(await screen.findByText('已接入 DeepSeek V4 Pro')).toBeInTheDocument();
   expect(screen.queryByText('数据来源尚未核实，仅用于功能演示。')).not.toBeInTheDocument();
+  client.clear();
+});
+
+it('预计人次为空时自动填入系统预测人数', async () => {
+  vi.mocked(agentApi.dinerForecast).mockResolvedValue({
+    on_date: '2026-10-20',
+    meal_type: 'LUNCH',
+    meal_type_label: '午餐',
+    predicted_diner_count: 920,
+    lower: 840,
+    upper: 1030,
+    basis: 'SAME_WEEKDAY',
+    basis_label: '同星期几中位数',
+    samples: [],
+    calendar_note: null,
+    note: '',
+  });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <App>
+        <MemoryRouter initialEntries={['/admin/agent']}>
+          <AgentPage />
+        </MemoryRouter>
+      </App>
+    </QueryClientProvider>,
+  );
+  await waitFor(() =>
+    expect(screen.getByTestId('parameters').textContent).toContain('"diner_count":920'),
+  );
   client.clear();
 });

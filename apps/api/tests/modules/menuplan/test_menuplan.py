@@ -243,6 +243,47 @@ def test_purchase_list_is_recommended_dishes_times_predicted_servings(
     ).quantize(Decimal("0.01"))
 
 
+def test_generate_without_diner_count_uses_the_same_diner_forecast(
+    as_recorder: TestClient,
+) -> None:
+    """任务条件不填人数时，生成用系统预测，而不是最近一条采集直接充数。"""
+    target = today_local() + timedelta(days=1)
+    forecast = as_recorder.get(
+        "/api/v1/forecast/diner-count",
+        params={"on_date": target.isoformat(), "meal_type": "LUNCH"},
+    ).json()
+
+    plan = as_recorder.post(
+        f"{BASE}/generate", params={"on_date": target.isoformat(), "meal_type": "LUNCH"}
+    ).json()
+
+    assert plan["diner_count"] == forecast["predicted_diner_count"]
+    assert any("就餐人次使用系统预计" in note for note in plan["notes"])
+
+
+def test_explicit_diner_count_equal_to_prediction_keeps_the_same_servings(
+    as_recorder: TestClient,
+) -> None:
+    """指定 922 人、系统也预计 922 人时，不应该再拿最近一条 411 人放大份数。"""
+    target = today_local() + timedelta(days=1)
+    auto = as_recorder.post(
+        f"{BASE}/generate", params={"on_date": target.isoformat(), "meal_type": "LUNCH"}
+    ).json()
+    explicit = as_recorder.post(
+        f"{BASE}/generate",
+        params={
+            "on_date": target.isoformat(),
+            "meal_type": "LUNCH",
+            "diner_count": auto["diner_count"],
+        },
+    ).json()
+
+    expected = {row["dish_name"]: row["predicted_servings"] for row in auto["dishes"]}
+    actual = {row["dish_name"]: row["predicted_servings"] for row in explicit["dishes"]}
+    assert actual == expected
+    assert not any("历史人数不足" in note for note in explicit["notes"])
+
+
 def test_purchase_list_reads_in_kg_and_by_amount(
     as_recorder: TestClient,
 ) -> None:

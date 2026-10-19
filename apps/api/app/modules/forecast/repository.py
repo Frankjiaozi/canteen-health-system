@@ -96,6 +96,43 @@ def load_dish_history(
     return dict(history)
 
 
+def load_diner_history(
+    session: Session, *, start: date, end: date, meal_type: MealType = MealType.LUNCH
+) -> list[tuple[date, int]]:
+    """区间内的就餐人次，剔除异常日和零人次。
+
+    人次与菜品份数分开取：份数受菜品轮换影响，人次回答的是「有多少人来」。
+    异常日的数字同样会把中位数带偏，不能进基线。
+    """
+    rows = session.execute(
+        select(DailyLog.date, DailyLog.diner_count, DailyLog.anomaly_flags)
+        .where(DailyLog.date >= start, DailyLog.date <= end, DailyLog.meal_type == meal_type)
+        .order_by(DailyLog.date)
+    ).all()
+    return [
+        (day, int(count))
+        for day, count, flags in rows
+        if not flags and count is not None and count > 0
+    ]
+
+
+def load_latest_diner_count(
+    session: Session, *, on_date: date, meal_type: MealType = MealType.LUNCH
+) -> int | None:
+    """目标日期之前最近一次有效人次，只在预测不可用时做显式兜底。"""
+    value = session.scalar(
+        select(DailyLog.diner_count)
+        .where(
+            DailyLog.date < on_date,
+            DailyLog.meal_type == meal_type,
+            DailyLog.diner_count > 0,
+        )
+        .order_by(DailyLog.date.desc())
+        .limit(1)
+    )
+    return None if value is None else int(value)
+
+
 def load_active_dishes(session: Session) -> dict[UUID, Dish]:
     return {
         dish.id: dish

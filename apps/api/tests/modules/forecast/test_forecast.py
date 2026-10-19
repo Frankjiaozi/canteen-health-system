@@ -28,6 +28,10 @@ def _points(start: date, servings: list[int]) -> list[strategy.HistoryPoint]:
     ]
 
 
+def _diner_points(values: dict[date, int]) -> list[strategy.DinerPoint]:
+    return [strategy.DinerPoint(day, Decimal(value)) for day, value in sorted(values.items())]
+
+
 # ---------------------------------------------------------------------------
 # 算法
 # ---------------------------------------------------------------------------
@@ -104,6 +108,55 @@ def test_short_history_yields_no_prediction() -> None:
     history = _points(start, [400, 410])
 
     assert strategy.forecast_dish(history, target=start + timedelta(days=3)) is None
+
+
+def test_diner_forecast_uses_same_weekday_median_not_latest_record() -> None:
+    """周二的人数不能用周日最新一条记录充数。"""
+    history = _diner_points(
+        {
+            date(2026, 9, 1): 840,
+            date(2026, 9, 8): 873,
+            date(2026, 9, 15): 1063,
+            date(2026, 9, 20): 411,  # 周日，不能混进周二基线
+        }
+    )
+
+    result = strategy.forecast_diners(history, target=date(2026, 9, 22))
+
+    assert result is not None
+    assert result.predicted == 873
+    assert result.basis == "SAME_WEEKDAY"
+    assert all(point.date.weekday() == 1 for point in result.samples)
+    assert result.lower <= result.predicted <= result.upper
+    assert result.predicted > 411 * 2
+
+
+def test_diner_forecast_applies_holiday_and_makeup_workday_context() -> None:
+    history = _diner_points(
+        {
+            date(2026, 9, 1): 840,
+            date(2026, 9, 8): 873,
+            date(2026, 9, 15): 1063,
+        }
+    )
+
+    holiday = strategy.forecast_diners(
+        history,
+        target=date(2026, 9, 22),
+        context=strategy.DayContext(factor=Decimal("0.45"), note="法定假日"),
+    )
+    assert holiday is not None and holiday.predicted == 393
+
+    workday = strategy.forecast_diners(
+        [
+            strategy.DinerPoint(date(2026, 8, 3) + timedelta(days=index), Decimal("900"))
+            for index in range(20)
+            if (date(2026, 8, 3) + timedelta(days=index)).weekday() < 5
+        ],
+        target=date(2026, 10, 10),
+        context=strategy.DayContext(note="调休上班", use_workday_baseline=True),
+    )
+    assert workday is not None and workday.predicted == 900
 
 
 def test_fallback_uses_weekday_profile() -> None:
@@ -260,6 +313,10 @@ def test_forecast_requires_login(client: TestClient) -> None:
         client.post(f"{BASE}/run", params={"on_date": today_local().isoformat()}).status_code == 401
     )
     assert client.get(f"{BASE}/backtest").status_code == 401
+    assert (
+        client.get(f"{BASE}/diner-count", params={"on_date": today_local().isoformat()}).status_code
+        == 401
+    )
 
 
 def test_school_admin_reads_but_does_not_run(
@@ -268,7 +325,26 @@ def test_school_admin_reads_but_does_not_run(
     """学校管理方看得到预测与回测，但不该替食堂下采购单。"""
     assert as_school_admin.get(f"{BASE}/backtest").status_code == 200
     assert as_school_admin.get(f"{BASE}/holidays", params={"year": 2026}).status_code == 200
+    assert (
+        as_school_admin.get(
+            f"{BASE}/diner-count", params={"on_date": today_local().isoformat()}
+        ).status_code
+        == 200
+    )
 
     target = today_local() + timedelta(days=2)
     response = as_school_admin.post(f"{BASE}/run", params={"on_date": target.isoformat()})
     assert response.status_code == 403
+
+
+def test_diner_count_forecast_reads_real_history(as_recorder: TestClient) -> None:
+    target = today_local() + timedelta(days=1)
+    body = as_recorder.get(
+        f"{BASE}/diner-count", params={"on_date": target.isoformat(), "meal_type": "LUNCH"}
+    ).json()
+
+    assert body["predicted_diner_count"] and body["predicted_diner_count"] > 0
+    assert body["lower"] <= body["predicted_diner_count"] <= body["upper"]
+    assert body["basis"] in {"SAME_WEEKDAY", "WORKDAY", "OVERALL", "LATEST"}
+    assert body["samples"] or body["basis"] == "LATEST"
+    assert body["meal_type_label"] == "午餐"

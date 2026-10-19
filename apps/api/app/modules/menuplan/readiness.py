@@ -52,6 +52,7 @@ def inspect(
         .order_by(DailyLog.date.desc())
         .limit(1)
     )
+    diner_forecast = forecast.predict_diner_count(session, on_date=on_date, meal_type=meal_type)
     issues: list[ReadinessIssue] = []
 
     def add(
@@ -168,6 +169,24 @@ def inspect(
             "核对这段时间是否营业，并显式设置预计人次。",
             "/admin/collection",
         )
+    if diner_forecast.predicted_diner_count is None:
+        add(
+            "missing_diner_forecast",
+            "warning",
+            "无法预测就餐人次",
+            "同餐次历史不足，采购规模与人均营养没有可靠分母。",
+            "先在每日采集中录入至少 3 次有效记录，或在任务条件中明确填写预计人次。",
+            "/admin/collection",
+        )
+    elif diner_forecast.basis == "LATEST":
+        add(
+            "diner_forecast_fallback",
+            "warning",
+            "就餐人次暂时按最近一次采集兜底",
+            diner_forecast.note,
+            "核对最近一次采集是否具有代表性；必要时手动修改预计人次。",
+            "/admin/collection",
+        )
 
     ingredient_rows = session.scalars(
         select(Ingredient)
@@ -256,6 +275,11 @@ def inspect(
         days_with_records=len({row.date for row in records}),
         latest_record_date=latest.date if latest else None,
         latest_diner_count=latest.diner_count if latest else None,
+        predicted_diner_count=diner_forecast.predicted_diner_count,
+        diner_count_lower=diner_forecast.lower,
+        diner_count_upper=diner_forecast.upper,
+        diner_count_basis=diner_forecast.basis,
+        diner_count_basis_label=diner_forecast.basis_label,
         missing_price_count=missing_price,
         missing_nutrition_count=missing_nutrition,
         categories=categories,

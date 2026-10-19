@@ -1,5 +1,7 @@
 import hashlib
 from dataclasses import dataclass
+from datetime import date
+from typing import Literal
 from urllib.parse import urlsplit
 from uuid import UUID
 
@@ -111,6 +113,19 @@ def create_app(settings: Settings | None = None, business_transport=None) -> Fas
     @app.get("/agent-api/v1/dishes")
     async def dishes(current: Access = Depends(access)):
         return await current.business.request("GET", "dishes", params={"page_size": 100})
+
+    @app.get("/agent-api/v1/diner-forecast")
+    async def diner_forecast(
+        on_date: date,
+        meal_type: Literal["BREAKFAST", "LUNCH", "DINNER"] = "LUNCH",
+        current: Access = Depends(access),
+    ):
+        """任务条件面板的默认人数：只读业务预测，不经过模型。"""
+        return await current.business.request(
+            "GET",
+            "forecast/diner-count",
+            params={"on_date": str(on_date), "meal_type": meal_type},
+        )
 
     @app.get("/agent-api/v1/sessions", response_model=list[SessionSummary])
     async def list_sessions(current: Access = Depends(access)):

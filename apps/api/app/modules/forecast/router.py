@@ -18,6 +18,7 @@ from app.modules.auth.schemas import AuthUser
 from app.modules.forecast import service
 from app.modules.forecast.schemas import (
     BacktestResult,
+    DinerForecast,
     ForecastRunResult,
     HolidayPage,
     HolidayRead,
@@ -49,6 +50,16 @@ def backtest(
     _: AuthUser = Depends(require_roles(*VIEW_ROLES)),
 ) -> BacktestResult:
     return service.backtest(session, days=days, meal_type=meal_type)
+
+
+@router.get("/diner-count", response_model=DinerForecast, summary="预测某天某一餐的就餐人次")
+def diner_count(
+    on_date: date = Query(description="要预测的日期"),
+    meal_type: MealType = Query(default=MealType.LUNCH),
+    session: Session = Depends(get_session),
+    _: AuthUser = Depends(require_roles(*VIEW_ROLES)),
+) -> DinerForecast:
+    return service.predict_diner_count(session, on_date=on_date, meal_type=meal_type)
 
 
 @router.get("/holidays", response_model=HolidayPage, summary="法定节假日日历")

@@ -68,6 +68,7 @@ export function AgentPage() {
     queryFn: agentApi.dishes,
     retry: false,
   });
+  const canPlan = status.data?.can_plan ?? false;
   const current = useQuery({
     queryKey: key(sessionId ?? ''),
     queryFn: () => agentApi.session(sessionId!),
@@ -85,6 +86,25 @@ export function AgentPage() {
     );
     setRevision(null);
   }
+  const pendingDinerQuestion =
+    conversation?.pending_task?.field === 'diner_count' ||
+    (conversation?.pending_task?.questions?.some((question) => question.field === 'diner_count') ??
+      false);
+  const dinerForecast = useQuery({
+    queryKey: ['agent', 'diner-forecast', user?.id, parameters.on_date, parameters.meal_type],
+    queryFn: () => agentApi.dinerForecast(parameters.on_date, parameters.meal_type),
+    enabled: canPlan && parameters.diner_count == null && !pendingDinerQuestion,
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+  // 不把预测值写回 state：它是「当前条件下的默认值」，条件一变就应重新算。
+  // 展示与发送都用这份合成参数，用户一改预算/菜品，TaskPanel 会把它固化成新条件。
+  const effectiveParameters: PlanParameters = {
+    ...parameters,
+    diner_count:
+      parameters.diner_count ??
+      (pendingDinerQuestion ? null : (dinerForecast.data?.predicted_diner_count ?? null)),
+  };
 
   const updateConversation = (value: Conversation) => {
     client.setQueryData(key(value.id), value);
@@ -106,7 +126,7 @@ export function AgentPage() {
       return sendMessage(
         currentConversation.id,
         text,
-        parameters,
+        effectiveParameters,
         currentConversation.plans.length,
         (event) => {
           if (event.type === 'status') setStatusText(event.message);
@@ -249,6 +269,13 @@ export function AgentPage() {
       run.mutate(text);
     }
   };
+  const updateParameters = (value: PlanParameters) => {
+    const dateOrMealChanged =
+      value.on_date !== effectiveParameters.on_date ||
+      value.meal_type !== effectiveParameters.meal_type;
+    // 换日期或餐次后，原人数不再有依据；清空后由系统重新预测。
+    setParameters(dateOrMealChanged ? { ...value, diner_count: null } : value);
+  };
   const modelStatus = status.isPending
     ? '连接中'
     : status.isError
@@ -342,15 +369,17 @@ export function AgentPage() {
       </div>
       <div className="zw-agent-workbench" data-mobile-panel={mobilePanel}>
         <TaskPanel
-          parameters={parameters}
-          onChange={setParameters}
+          parameters={effectiveParameters}
+          onChange={updateParameters}
           dishes={dishes.data ?? []}
           sessions={sessions.data ?? []}
           activeSession={sessionId}
           onSelectSession={selectSession}
           onNew={newSession}
           busy={busy}
-          canPlan={status.data?.can_plan ?? false}
+          canPlan={canPlan}
+          dinerForecast={dinerForecast.data ?? null}
+          dinerForecastLoading={dinerForecast.isFetching}
           onCheckData={() => send('按当前任务条件做数据体检')}
           unavailable={unavailable}
         />
@@ -367,7 +396,7 @@ export function AgentPage() {
             trace={trace}
             statusText={statusText}
             disabled={unavailable || current.isError || publish.isPending}
-            canPlan={status.data?.can_plan ?? false}
+            canPlan={canPlan}
             pending={conversation?.pending_task ?? null}
           />
         )}

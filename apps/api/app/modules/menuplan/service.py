@@ -120,9 +120,14 @@ def build_menu_plan(
         raise BusinessRuleError("没有可用于推荐的菜品：菜品需要有配方，并且至少供应过一次")
     catalog_before = publication.catalog_tokens(session, candidate_ids)
 
-    diners = diner_count or recommendation_repository.load_latest_diner_count(
+    diner_prediction = forecast_service.predict_diner_count(
         session, on_date=on_date, meal_type=meal_type
     )
+    diners = diner_count or diner_prediction.predicted_diner_count
+    if diners is None:
+        raise BusinessRuleError(
+            "无法预测就餐人次：同餐次历史不足，请在任务条件中填写预计人次后再生成"
+        )
 
     # 先预测：逐菜独立，所以不必先知道菜单就能算出每道菜的份数
     prediction = forecast_service.predict_dishes(
@@ -134,17 +139,26 @@ def build_menu_plan(
     }
     scale_note = ""
     if diner_count is not None and prediction.servings:
-        historical_diners = recommendation_repository.load_latest_diner_count(
-            session, on_date=on_date, meal_type=meal_type
+        historical_diners = (
+            diner_prediction.predicted_diner_count
+            or recommendation_repository.load_latest_diner_count(
+                session, on_date=on_date, meal_type=meal_type
+            )
         )
-        scale = Decimal(diner_count) / Decimal(historical_diners)
-        servings_by_dish = {
-            dish_id: (quantity * scale).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            if dish_id in prediction.servings
-            else quantity
-            for dish_id, quantity in servings_by_dish.items()
-        }
-        scale_note = f"情景份数 = 历史预测 × 指定人次 {diner_count} / 最近采集人次 {historical_diners}；等比例调整是假设，不是新增实测。"
+        if historical_diners:
+            scale = Decimal(diner_count) / Decimal(historical_diners)
+            servings_by_dish = {
+                dish_id: (quantity * scale).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                if dish_id in prediction.servings
+                else quantity
+                for dish_id, quantity in servings_by_dish.items()
+            }
+            scale_note = (
+                f"情景份数 = 历史预测 × 指定人次 {diner_count} / 系统预计人次 "
+                f"{historical_diners}；等比例调整是假设，不是新增实测。"
+            )
+        else:
+            scale_note = "历史人数不足，无法按指定人次等比例换算份数；当前保留历史预测份数。"
 
     # 再推荐：拿预测份数当营养评估基准，只回答「做哪几道菜」
     try:
@@ -217,6 +231,16 @@ def build_menu_plan(
             "推荐用预测份数评估营养，因此页面上只有一套份数。",
             "同一天的另一餐已经排过的菜不会再选（主食可以重样）。",
         ]
+    if diner_count is None:
+        interval = (
+            f"，参考区间 {diner_prediction.lower}–{diner_prediction.upper} 人"
+            if diner_prediction.lower is not None and diner_prediction.upper is not None
+            else ""
+        )
+        notes.append(
+            f"就餐人次使用系统预计：{diners} 人（{diner_prediction.basis_label}{interval}）；"
+            "可在任务条件中修改后重新计算。"
+        )
     if fallback_names:
         notes.append(
             "这几道菜历史不足、预测不出份数，采购量按「每人一份」估算：" + "、".join(fallback_names)
