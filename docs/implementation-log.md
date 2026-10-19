@@ -11,6 +11,23 @@
 
 ---
 
+## 模块 41 · 协作者交付：计算基线、S01–S06 样例与接口变更清单
+
+按协作者任务书补齐三份可交付材料：
+
+- `docs/upgrades/calculation-baseline.md`：每份/整餐、市品/可食部、人数/份数、
+  采购金额与舍入口径，并用白粥、番茄炒蛋、土豆炖牛肉三份样例逐项复算。
+- `apps/api/tests/contracts/samples.py`：S01 正常生成、S02 无历史、S03 缺价格、
+  S04 参数/权限错误、S05 发布冲突、S06 撤回冲突。
+- `apps/api/tests/contracts/test_contract_samples.py`：用当前 Pydantic 模型校验六类样例。
+- `docs/upgrades/api-change-log.md`：记录 `generate-day`、`diner-count`、
+  `diner_count` 语义变更、体检新增人数字段和 Agent 代理/撤回契约。
+
+验证：后端全量 326 passed；合约样例 6 passed；lint 通过。
+`CALCULATION_VERSION` 未擅自升级，已在变更清单中列为联合验收决策，避免演示库中旧待确认方案突然不可发布。
+
+---
+
 ## 模块 40 · 删掉一天三餐的采购口径与同步校验小字
 
 「明日菜单与采购」还有两处说明性文字留在主流程上：

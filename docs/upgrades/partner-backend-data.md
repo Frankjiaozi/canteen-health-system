@@ -8,6 +8,12 @@
 
 协作者只负责业务后端，分为“计算可靠性”和“数据与接口工程”两个大任务。Ethan 负责完整前端与 Agent 后端。使用 DeepSeek 辅助开发时，按本文的字段、请求、计算过程和测试验收即可，不需要判断界面视觉。共同接口见 [共同契约](shared-contract.md)，另一条线见 [前端与 Agent 开发文档](ethan-frontend-agent.md)。
 
+本批交付材料：
+
+- [计算口径与三餐手算样例](calculation-baseline.md)
+- [S01–S06 联调样例](../../apps/api/tests/contracts/samples.py)
+- [接口变更清单](api-change-log.md)
+
 ## 1. 目标与当前事实
 
 业务 API 应当独立完成数据体检、人数与菜品份数预测、菜单生成、营养与采购计算、正式发布和撤回。没有模型、没有 Agent、没有浏览器时，也可以通过 API 与自动化测试验证全部核心计算。
