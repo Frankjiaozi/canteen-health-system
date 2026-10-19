@@ -32,6 +32,31 @@ const STARTERS: { label: string; prompt: string; hint: string; needsPlan?: boole
     prompt: '核查最近7天供应记录',
     hint: '找出需要人工核对的记录',
   },
+  {
+    label: '看最近 7 天数据',
+    prompt: '看一下最近7天的食堂数据',
+    hint: '油盐糖、人均摄入、达标与剩餐',
+  },
+  {
+    label: '查今日供应与营养',
+    prompt: '查一下今天午餐供应了哪些菜，每道菜的单份营养是多少',
+    hint: '当日菜单、份数与五项营养',
+  },
+  {
+    label: '查菜品配方',
+    prompt: '查一下番茄炒蛋的配方',
+    hint: '每份食材、调味料与单份营养',
+  },
+  {
+    label: '查食材营养',
+    prompt: '查一下大白菜的营养成分',
+    hint: '每100克可食部的五项指标',
+  },
+  {
+    label: '查节假日与调休',
+    prompt: '查一下2026年10月的节假日和调休',
+    hint: '按日期核对放假与上班',
+  },
 ];
 
 export function TraceList({ trace }: { trace: ToolTrace[] }) {
@@ -88,7 +113,10 @@ export function ConversationView({
 }: Props) {
   const scroll = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight;
+    // 空对话的开场卡本身就是内容，不该在挂载时被滚到底部、把标题和印章切掉。
+    if (scroll.current && (messages.length > 0 || busy)) {
+      scroll.current.scrollTop = scroll.current.scrollHeight;
+    }
   }, [messages.length, trace.length, busy]);
   return (
     <section className="zw-agent-conversation" aria-label="与知味对话">
@@ -108,7 +136,7 @@ export function ConversationView({
               <br />
               你提出条件，知味调用现有数据计算，最后由你确认。
             </p>
-            <div className="zw-agent-starters">
+            <div className={`zw-agent-starters${STARTERS.length > 3 ? ' is-extended' : ''}`}>
               {STARTERS.filter((starter) => canPlan || !starter.needsPlan).map((starter) => (
                 <button
                   type="button"

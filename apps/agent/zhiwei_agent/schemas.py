@@ -133,6 +133,49 @@ class DishArguments(BaseModel):
     keyword: str = Field(default="", max_length=64)
 
 
+class DashboardArguments(BaseModel):
+    """看板只读查询。一次取回同一时间窗内的汇总、趋势、达标与剩餐。"""
+
+    model_config = ConfigDict(extra="forbid")
+    days: int = Field(default=14, ge=1, le=90, description="统计最近多少天（含今天）")
+
+
+class MenuDayArguments(BaseModel):
+    """某天某一餐实际供应了什么，以及每道菜的单份营养。"""
+
+    model_config = ConfigDict(extra="forbid")
+    on_date: Date | None = Field(
+        default=None, description="业务日期，格式 YYYY-MM-DD；不填表示今天"
+    )
+    meal_type: Literal["BREAKFAST", "LUNCH", "DINNER", "早餐", "午餐", "晚餐"] = Field(
+        default="LUNCH", description="餐次；可传英文代码或早餐/午餐/晚餐"
+    )
+
+
+class DishRecipeArguments(BaseModel):
+    """按菜名查配方。菜名必须来自用户或菜品库，不能编造。"""
+
+    model_config = ConfigDict(extra="forbid")
+    keyword: str = Field(
+        min_length=1, max_length=64, description="完整菜名或名称片段；片段命中多道菜时会返回候选"
+    )
+
+
+class IngredientArguments(BaseModel):
+    """按名称查食材营养与来源。"""
+
+    model_config = ConfigDict(extra="forbid")
+    keyword: str = Field(min_length=1, max_length=64, description="食材名称或名称片段")
+
+
+class HolidayArguments(BaseModel):
+    """查法定节假日与调休。周末不在这张表里。"""
+
+    model_config = ConfigDict(extra="forbid")
+    year: int | None = Field(default=None, ge=2020, le=2100, description="年份；不填表示今年")
+    month: int | None = Field(default=None, ge=1, le=12, description="只查某个月时填写 1–12")
+
+
 class EmptyArguments(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
