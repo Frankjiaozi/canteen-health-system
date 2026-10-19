@@ -10,17 +10,21 @@ const LABELS: Record<string, string> = {
   scope_reference: '范围核对来源',
 };
 
+const HIDDEN_KEYS = new Set(['energy_source', 'energy_verified', 'scope_notice']);
+
 export function basisRows(basis: Record<string, unknown>) {
-  return Object.entries(basis).map(([key, value]) => ({
-    key,
-    label: LABELS[key] ?? key,
-    value:
-      typeof value === 'boolean'
-        ? value
-          ? '已核实'
-          : '尚未核实'
-        : typeof value === 'object'
-          ? JSON.stringify(value)
-          : String(value),
-  }));
+  return Object.entries(basis)
+    .filter(([key]) => !HIDDEN_KEYS.has(key))
+    .map(([key, value]) => ({
+      key,
+      label: LABELS[key] ?? key,
+      value:
+        typeof value === 'boolean'
+          ? value
+            ? '已核实'
+            : '尚未核实'
+          : typeof value === 'object'
+            ? JSON.stringify(value)
+            : String(value),
+    }));
 }

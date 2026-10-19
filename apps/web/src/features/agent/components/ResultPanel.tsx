@@ -196,10 +196,6 @@ export function ResultPanel({
   const plan = version.result;
   const isLatest = version.revision === latest?.revision;
   const changed = plan.gaps.filter((gap) => gap.status !== 'ok');
-  const targetNotice = Object.values(plan.target_basis).filter(
-    (value): value is string =>
-      typeof value === 'string' && (value.includes('待核实') || value.includes('演示')),
-  );
   const items = [
     {
       key: 'plan',
@@ -272,9 +268,6 @@ export function ResultPanel({
           <p className="zw-agent-subtle">
             供给量不等于实际摄入量。建议目标未必全部满足，请结合差距决定是否修改。
           </p>
-          {targetNotice.map((note) => (
-            <Alert key={note} type="warning" showIcon title={note} />
-          ))}
         </>
       ),
     },

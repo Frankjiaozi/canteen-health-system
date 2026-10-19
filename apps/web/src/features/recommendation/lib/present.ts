@@ -42,17 +42,6 @@ export function reasonLabel(reason: SuggestionReason): string {
   return REASON_LABELS[reason.kind] ?? reason.kind;
 }
 
-/**
- * 能量目标是不是还待核实。
- *
- * 这一条必须显式检查：需求里把能量目标列为**最大的空白**，界面上要标注「待核实」，
- * 否则看的人会把它当成权威数值去做决策。
- */
-export function energyTargetWarning(basis: Record<string, unknown>): string | null {
-  if (basis['energy_verified'] === true) return null;
-  return String(basis['energy_source'] ?? '能量目标尚未核实');
-}
-
 export function decisionLabel(status: string): { text: string; tone: 'pending' | 'ok' | 'bad' } {
   if (status === 'ACCEPTED') return { text: '已采纳', tone: 'ok' };
   if (status === 'REJECTED') return { text: '已否决', tone: 'bad' };

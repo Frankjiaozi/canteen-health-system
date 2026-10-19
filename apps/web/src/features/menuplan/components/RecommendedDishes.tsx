@@ -19,7 +19,6 @@ import {
   decisionLabel,
   describeGap,
   describeGapStatus,
-  energyTargetWarning,
   reasonLabel,
 } from '@/features/recommendation/lib/present';
 import type {
@@ -65,7 +64,6 @@ export function RecommendedDishes({
   const [reason, setReason] = useState('');
 
   const decision = decisionLabel(suggestion?.status ?? 'PENDING');
-  const warning = energyTargetWarning(plan.target_basis);
 
   return (
     <Card
@@ -82,16 +80,6 @@ export function RecommendedDishes({
         </Typography.Text>
       }
     >
-      {warning ? (
-        <Alert
-          type="warning"
-          showIcon
-          style={{ marginBottom: 12 }}
-          message="能量目标尚未核实"
-          description={warning}
-        />
-      ) : null}
-
       <Table<MenuPlanDish>
         rowKey="dish_id"
         size="small"

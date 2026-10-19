@@ -35,12 +35,6 @@ export function DailyPlanView({
         title={`① 明日三餐安排 · ${plan.date}`}
         extra={<Tag color={decision.color}>{decision.text}</Tag>}
       >
-        <Alert
-          type="info"
-          showIcon
-          message="早餐、午餐、晚餐一次生成，采购单已合并"
-          description={plan.notes.join('；')}
-        />
         <div
           style={{
             display: 'grid',

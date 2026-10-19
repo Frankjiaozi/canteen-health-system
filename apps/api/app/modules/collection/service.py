@@ -96,10 +96,8 @@ def build_sheet(session: Session, *, on_date: date, meal_type: MealType) -> Dail
     if not served:
         warning = "这一天还没有确认菜单。从下面勾出今天实际供应的菜品，勾选即写入当天菜单日。"
     elif log is None:
-        warning = (
-            "这份菜单是「明日菜单与采购」排好的计划：标了「计划」的菜已经勾上，"
-            "按实际供应核对——临时加了菜就顺手勾上，没做的取消勾选，保存即按实际覆盖。"
-        )
+        # 计划菜已经勾好，页面上的「计划」标签足以说明，不再加一条解释。
+        warning = None
     else:
         warning = None
 

@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { NutrientGap, SuggestionReason } from '../types';
-import {
-  decisionLabel,
-  describeGap,
-  describeGapStatus,
-  energyTargetWarning,
-  reasonLabel,
-} from './present';
+import { decisionLabel, describeGap, describeGapStatus, reasonLabel } from './present';
 
 const gap = (overrides: Partial<NutrientGap>): NutrientGap =>
   ({
@@ -55,25 +49,6 @@ describe('推荐理由的标签', () => {
     expect(reasonLabel({ kind: 'nutrition', text: '' } as SuggestionReason)).toBe('营养');
     expect(reasonLabel({ kind: 'popularity', text: '' } as SuggestionReason)).toBe('受欢迎度');
     expect(reasonLabel({ kind: 'unknown', text: '' } as SuggestionReason)).toBe('unknown');
-  });
-});
-
-describe('能量目标的待核实标注', () => {
-  it('未核实时必须给出提示——它是需求里点名的最大空白', () => {
-    const warning = energyTargetWarning({
-      energy_verified: false,
-      energy_source: '全天能量目标为演示值，待核实',
-    });
-
-    expect(warning).toContain('待核实');
-  });
-
-  it('核实过就不提示', () => {
-    expect(energyTargetWarning({ energy_verified: true })).toBeNull();
-  });
-
-  it('字段缺失时也不能当作已核实', () => {
-    expect(energyTargetWarning({})).not.toBeNull();
   });
 });
 

@@ -493,7 +493,8 @@ def test_sync_puts_the_plan_into_the_day_for_collection_and_board(
     assert all(row["planned_servings"] for row in planned)
     # 计划里的菜排在最前面，录入员一眼看到的就是「今天计划做的那几道」
     assert all(row["is_planned"] for row in sheet["dishes"][: len(planned)])
-    assert "计划" in sheet["warning"]
+    # 计划菜已经勾好，页面不再额外塞一段解释性提示
+    assert sheet["warning"] is None
 
     # 公开大屏：免登录就能看到这一天的菜单与营养
     board = as_recorder.get(BOARD, params={"on_date": target.isoformat()}).json()
