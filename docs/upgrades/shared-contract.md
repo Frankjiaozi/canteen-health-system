@@ -1,6 +1,11 @@
 # 双人开发共同契约
 
-更新：2026-10-19；核对基线：`1067c98`。本文件只约定双方接口和责任，详细任务分别见 [Ethan：前端与 Agent](ethan-frontend-agent.md) 和 [协作者：业务后端](partner-backend-data.md)。文中改进项是待开发要求；接口事实以当前路由与 Pydantic 模型为准。
+更新：2026-10-19；核对基线：当前主分支（含一天三餐、人数预测与 P0/P1 文案清理）。
+本文件只约定双方接口和责任，详细任务分别见 [Ethan：前端与 Agent](ethan-frontend-agent.md)
+和 [协作者：业务后端](partner-backend-data.md)。文中改进项是待开发要求；接口事实以当前路由与 Pydantic 模型为准。
+
+> 2026-10-19 真实代码核对说明：已按当前路由修正 Agent 撤回接口的请求体描述与人数默认口径。
+> 本次只改文档与路由说明，不改业务计算。
 
 ## 1. 单一职责与共享文件
 
@@ -40,7 +45,7 @@
 {"budget_per_person":"8.00","excluded_dish_ids":[]}
 ```
 
-餐次枚举 `BREAKFAST`、`LUNCH`、`DINNER`。人数不填时运行逻辑采用系统预测；预测不可用时提示用户填写。路由中仍有默认取最近实际人数的旧描述，由协作者修正，不能按旧描述实现消费者。
+餐次枚举 `BREAKFAST`、`LUNCH`、`DINNER`。人数不填时运行逻辑采用系统预测；预测不可用时提示用户填写。`/menu-plan/generate` 的路由说明已同步为系统预测口径。
 
 `MenuPlanResponse` 当前主要字段如下；完整必填性、类型与嵌套结构以生成类型为准：
 
@@ -89,7 +94,7 @@ basis, basis_label, samples[{date,diner_count}], calendar_note, note
 | GET `/sessions/{session_id}` | 当前账号的会话 |
 | POST `/sessions/{session_id}/messages` | NDJSON 任务执行 |
 | POST `/sessions/{session_id}/publish` | JSON `{ "revision": N }` |
-| POST `/sessions/{session_id}/undo` | JSON `{ "revision": N }` |
+| POST `/sessions/{session_id}/undo` | 无请求体；撤回当前会话最近一次发布 |
 | GET `/sessions/{session_id}/purchase.csv?revision=N` | 指定版本采购导出 |
 | GET `/sessions/{session_id}/review.md` | 核查报告 |
 | GET `/sessions/{session_id}/report.html?revision=N&download=false` | 指定版本完整报告 |

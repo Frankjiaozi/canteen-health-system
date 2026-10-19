@@ -4700,7 +4700,7 @@ export interface operations {
                 /** @description 要安排的日期 */
                 on_date: string;
                 meal_type?: components["schemas"]["MealType"];
-                /** @description 不填则用最近一次采集的人次 */
+                /** @description 不填时由系统按同星期历史与日历预测 */
                 diner_count?: number | null;
             };
             header?: never;

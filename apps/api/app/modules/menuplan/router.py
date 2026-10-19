@@ -57,7 +57,9 @@ def inspect_readiness(
 def generate(
     on_date: date = Query(description="要安排的日期"),
     meal_type: MealType = Query(default=MealType.LUNCH),
-    diner_count: int | None = Query(default=None, ge=1, description="不填则用最近一次采集的人次"),
+    diner_count: int | None = Query(
+        default=None, ge=1, description="不填时由系统按同星期历史与日历预测"
+    ),
     constraints: MenuPlanConstraints | None = Body(default=None),
     session: Session = Depends(get_session),
     _: AuthUser = Depends(require_roles(*WRITE_ROLES)),
