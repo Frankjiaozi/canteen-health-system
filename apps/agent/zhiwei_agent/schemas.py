@@ -30,6 +30,27 @@ class PublishRequest(BaseModel):
     revision: int = Field(ge=1)
 
 
+class DinerForecastSample(BaseModel):
+    date: Date
+    diner_count: int = Field(ge=0)
+
+
+class DinerForecast(BaseModel):
+    """业务人数预测的 HTTP 投影；只校验协议，不在 Agent 中计算。"""
+
+    on_date: Date
+    meal_type: Literal["BREAKFAST", "LUNCH", "DINNER"]
+    meal_type_label: str
+    predicted_diner_count: int | None = Field(default=None, ge=0)
+    lower: int | None = Field(default=None, ge=0)
+    upper: int | None = Field(default=None, ge=0)
+    basis: str
+    basis_label: str
+    samples: list[DinerForecastSample]
+    calendar_note: str | None = None
+    note: str
+
+
 class ToolTrace(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid4()))
     tool: str
@@ -66,6 +87,12 @@ class PlanVersion(BaseModel):
     readiness: dict[str, Any] | None = None
     data_notice: str = ""
 
+    @property
+    def publication_label(self) -> str:
+        if self.undone:
+            return "已撤回"
+        return "已确认发布" if self.publication else "待确认草案"
+
 
 class ReviewIssue(BaseModel):
     date: str
@@ -90,6 +117,7 @@ class ReviewReport(BaseModel):
     rows: list[dict[str, Any]]
     truncated: bool
     note: str
+    data_notice: str = ""
 
 
 class PendingQuestion(BaseModel):

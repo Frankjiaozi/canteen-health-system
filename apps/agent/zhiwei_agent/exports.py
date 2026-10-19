@@ -18,7 +18,7 @@ def purchase_csv(version: PlanVersion, notice: str) -> bytes:
         [
             "知味采购建议",
             f"第 {version.revision} 版",
-            "已确认发布" if version.publication else "待确认草案",
+            version.publication_label,
         ]
     )
     writer.writerow([safe_cell(notice)])
@@ -34,7 +34,16 @@ def purchase_csv(version: PlanVersion, notice: str) -> bytes:
                 for key in ("name", "unit", "quantity", "unit_price", "estimated_cost")
             ]
         )
-    writer.writerow(["合计", "", "", "", plan.get("total_cost") or "金额不完整"])
+    cost = plan.get("total_cost")
+    writer.writerow(
+        [
+            "已知价格部分合计" if plan.get("missing_price_warning") else "合计",
+            "",
+            "",
+            "",
+            cost if cost is not None else "金额不完整",
+        ]
+    )
     writer.writerow(["预算（元）", plan["budget"]])
     writer.writerow([safe_cell(plan["servings_note"])])
     for note in [*plan.get("notes", []), plan.get("missing_price_warning")]:
@@ -45,6 +54,8 @@ def purchase_csv(version: PlanVersion, notice: str) -> bytes:
 
 def review_markdown(conversation: Conversation, notice: str) -> str:
     review = conversation.review.model_dump(mode="json") if conversation.review else None
+    if review:
+        notice = review.get("data_notice") or notice
     lines = ["# 知味供应记录核查", "", notice, ""]
     if not review:
         return "尚无核查结果"

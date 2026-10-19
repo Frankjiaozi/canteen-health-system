@@ -736,9 +736,8 @@ def test_model_calls_are_whitelisted_and_persisted(tmp_path, monkeypatch):
                 },
             )
         )[-1]["conversation"]
-        assert (
-            result["plans"] and result["messages"][-1]["content"] == "工具计算已完成，请人工核对。"
-        )
+        assert result["plans"] and "整餐人均营养供给" in result["messages"][-1]["content"]
+        assert result["plans"][0]["result"]["total_cost"] in result["messages"][-1]["content"]
         assert "never-return-this" not in client.get("/agent-api/v1/status").text
         assert not any(call.url.path.endswith("/publish") for call in business.calls)
         generated = next(call for call in business.calls if call.url.path.endswith("/generate"))
