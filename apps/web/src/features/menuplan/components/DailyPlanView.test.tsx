@@ -55,6 +55,8 @@ it('三餐一次展示，并在结果区直接提供同步按钮', () => {
   expect(screen.getByText(/午餐 · 900 人次/)).toBeInTheDocument();
   expect(screen.getByText(/晚餐 · 900 人次/)).toBeInTheDocument();
   expect(screen.getByText(/全天食材采购建议/)).toBeInTheDocument();
+  expect(screen.queryByText('三餐合并采购')).not.toBeInTheDocument();
+  expect(screen.queryByText(/按餐次分别校验/)).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: '同步三餐至当日数据' }));
   expect(onSync).toHaveBeenCalledOnce();
 });

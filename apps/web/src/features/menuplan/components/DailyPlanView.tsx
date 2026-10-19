@@ -3,7 +3,6 @@ import { formatAmount } from '@/features/forecast/lib/format';
 import { describeGap } from '@/features/recommendation/lib/present';
 import type { DailyMenuPlanResponse } from '../types';
 import type { DailySyncOutcome } from '../hooks/useMenuPlan';
-import { summarizePurchase } from '../lib/present';
 import { PurchaseTable } from './PurchaseList';
 
 export function DailyPlanView({
@@ -19,7 +18,6 @@ export function DailyPlanView({
   outcomes: DailySyncOutcome[] | null;
   onSync: () => void;
 }) {
-  const summary = summarizePurchase(plan.requirements, plan.total_cost, plan.budget);
   const fallbackDishes = plan.fallback_dishes ?? [];
   const syncedCount = outcomes?.filter((outcome) => outcome.ok).length ?? 0;
   const decision =
@@ -84,9 +82,6 @@ export function DailyPlanView({
             <Button type="primary" loading={syncing} onClick={onSync}>
               {syncedCount === plan.meals.length ? '重新同步三餐' : '同步三餐至当日数据'}
             </Button>
-            <Typography.Text type="secondary">
-              按餐次分别校验；某餐已经录过采集时会跳过该餐，其余餐次继续写入。
-            </Typography.Text>
           </Space>
         ) : null}
 
@@ -114,13 +109,6 @@ export function DailyPlanView({
           </Typography.Text>
         }
       >
-        <Alert
-          type={summary.tone === 'over' ? 'warning' : 'info'}
-          showIcon
-          style={{ marginBottom: 12 }}
-          message={plan.servings_note}
-          description={summary.note || '相同食材与调味料已合并，按金额从大到小排。'}
-        />
         {fallbackDishes.length > 0 ? (
           <Alert
             type="warning"
