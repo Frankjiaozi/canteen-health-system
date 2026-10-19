@@ -22,6 +22,18 @@ const initialParameters = (): PlanParameters => ({
 });
 const errorText = (error: unknown) => (error instanceof Error ? error.message : '操作失败，请重试');
 
+/** 把模型标识显示成人能读的名字；未知模型保留原值，不替它编品牌。 */
+function modelDisplayName(name: string): string {
+  if (name.toLowerCase().startsWith('deepseek-')) {
+    const parts = name
+      .slice('deepseek-'.length)
+      .split('-')
+      .map((part) => (part.toLowerCase() === 'pro' ? 'Pro' : part.toUpperCase()));
+    return `DeepSeek ${parts.join(' ')}`;
+  }
+  return name;
+}
+
 export function AgentPage() {
   const { modal, message } = App.useApp();
   const client = useQueryClient();
@@ -237,6 +249,15 @@ export function AgentPage() {
       run.mutate(text);
     }
   };
+  const modelStatus = status.isPending
+    ? '连接中'
+    : status.isError
+      ? '未连接'
+      : status.data?.mode === 'model'
+        ? status.data.model_name
+          ? `已接入 ${modelDisplayName(status.data.model_name)}`
+          : '已接入模型'
+        : '规则模式';
 
   return (
     <main className="zw-agent">
@@ -245,12 +266,12 @@ export function AgentPage() {
           <div className="zw-agent-title-line">
             <span className="zw-agent-brand-dot" aria-hidden="true" />
             <h1>知味膳食助手</h1>
-            <Tag color={status.data?.mode === 'model' ? 'green' : 'default'}>
-              {status.data?.mode === 'model'
-                ? '模型模式'
-                : status.isPending
-                  ? '连接中'
-                  : '规则模式'}
+            <Tag
+              className="zw-agent-model-status"
+              color={status.isError ? 'red' : status.data?.mode === 'model' ? 'green' : 'default'}
+              bordered={false}
+            >
+              {modelStatus}
             </Tag>
           </div>
           <p>把一句安排，变成可核对的菜单与采购。</p>
@@ -267,16 +288,6 @@ export function AgentPage() {
           刷新结果
         </Button>
       </header>
-      {status.data && (
-        <div className="zw-agent-mode-note">
-          {status.data.mode === 'rules'
-            ? '当前未连接大模型，使用规则识别任务；预测、配餐与采购仍由业务服务真实计算。'
-            : `当前由 ${status.data.model_name} 理解任务，所有业务计算通过工具执行。`}
-        </div>
-      )}
-      <div className="zw-agent-data-note">
-        {status.data?.data_notice ?? '数据来源尚未核实，请勿将演示结果当作真实食堂经营结论。'}
-      </div>
       {status.isError && (
         <Alert
           type="error"

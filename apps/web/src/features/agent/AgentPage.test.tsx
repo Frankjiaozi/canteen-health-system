@@ -113,3 +113,26 @@ it('新建任务不会因路由过渡重新带入旧会话的餐次、人数、�
   });
   client.clear();
 });
+
+it('模型接入状态收进标题栏，数据来源提示不再占据工作区上方', async () => {
+  vi.mocked(agentApi.status).mockResolvedValue({
+    mode: 'model',
+    model_name: 'deepseek-v4-pro',
+    data_notice: '数据来源尚未核实，仅用于功能演示。',
+    can_plan: true,
+    capabilities: [],
+  });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <App>
+        <MemoryRouter initialEntries={['/admin/agent']}>
+          <AgentPage />
+        </MemoryRouter>
+      </App>
+    </QueryClientProvider>,
+  );
+  expect(await screen.findByText('已接入 DeepSeek V4 Pro')).toBeInTheDocument();
+  expect(screen.queryByText('数据来源尚未核实，仅用于功能演示。')).not.toBeInTheDocument();
+  client.clear();
+});
