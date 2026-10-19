@@ -548,6 +548,27 @@
   padding: 24px;
   min-width: 0;
   background: #fff;
+  height: min(850px, calc(100dvh - 260px));
+  min-height: 470px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #aebfb3 #f1f5f1;
+}
+.zw-agent-results::-webkit-scrollbar {
+  width: 9px;
+}
+.zw-agent-results::-webkit-scrollbar-track {
+  background: #f1f5f1;
+}
+.zw-agent-results::-webkit-scrollbar-thumb {
+  background: #aebfb3;
+  border: 2px solid #f1f5f1;
+  border-radius: 999px;
+}
+.zw-agent-results::-webkit-scrollbar-thumb:hover {
+  background: #819b8b;
 }
 .zw-agent-result-top {
   display: flex;
@@ -918,6 +939,7 @@
   .zw-agent-results {
     grid-column: 1 / -1;
     border-top: 1px solid var(--zw-line);
+    height: 650px;
   }
   .zw-agent-awaiting {
     padding-block: 45px;
@@ -1052,6 +1074,8 @@
   .zw-agent-results {
     width: 100%;
     padding: 19px 15px;
+    min-height: 250px;
+    height: calc(100dvh - 380px);
   }
   .zw-agent-result-top h2 {
     font-size: 16px;
