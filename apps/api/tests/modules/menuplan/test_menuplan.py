@@ -284,6 +284,72 @@ def test_explicit_diner_count_equal_to_prediction_keeps_the_same_servings(
     assert not any("历史人数不足" in note for note in explicit["notes"])
 
 
+def test_diner_count_matrix_scales_servings_budget_and_cost_proportionally(
+    as_recorder: TestClient,
+) -> None:
+    """固定历史下，800/1000/1200 人必须得到同一批菜和按比例变化的份数。"""
+    target = _fresh_date() + timedelta(days=2)
+    plans: dict[int, dict] = {}
+    for count in (800, 1000, 1200):
+        response = as_recorder.post(
+            f"{BASE}/generate",
+            params={
+                "on_date": target.isoformat(),
+                "meal_type": "LUNCH",
+                "diner_count": count,
+            },
+            json={"budget_per_person": "8"},
+        )
+        assert response.status_code == 200, response.text
+        plans[count] = response.json()
+
+    base = plans[800]
+    base_ids = [row["dish_id"] for row in base["dishes"]]
+    base_servings = {row["dish_id"]: Decimal(row["predicted_servings"]) for row in base["dishes"]}
+    for count in (1000, 1200):
+        current = plans[count]
+        factor = Decimal(count) / Decimal(800)
+        assert current["budget"] == f"{count * 8}.00"
+        assert [row["dish_id"] for row in current["dishes"]] == base_ids
+        for row in current["dishes"]:
+            expected = base_servings[row["dish_id"]] * factor
+            assert abs(Decimal(row["predicted_servings"]) - expected) <= Decimal("0.02")
+        assert abs(Decimal(current["total_cost"]) - Decimal(base["total_cost"]) * factor) < 1
+
+
+def test_low_budget_plan_reports_energy_under_instead_of_claiming_all_ok(
+    as_recorder: TestClient,
+) -> None:
+    """历史低能量场景：预算压到 1 元时，能量缺口必须明确报 under。"""
+    target = _fresh_date() + timedelta(days=3)
+    response = as_recorder.post(
+        f"{BASE}/generate",
+        params={"on_date": target.isoformat(), "meal_type": "LUNCH"},
+        json={"budget_per_person": "1.00"},
+    )
+    assert response.status_code == 200, response.text
+    plan = response.json()
+    energy = next(row for row in plan["gaps"] if row["code"] == "energy_kcal")
+    assert energy["status"] == "under"
+    assert Decimal(energy["gap"]) > 100
+    assert any(row["status"] != "ok" for row in plan["gaps"])
+
+
+def test_seasoning_display_keeps_daily_cap_and_meal_share_distinct(
+    as_recorder: TestClient,
+) -> None:
+    """求解用每日上限，页面差距按餐次份额展示；两者必须同时写明。"""
+    target = _fresh_date() + timedelta(days=4)
+    plan = as_recorder.post(
+        f"{BASE}/generate", params={"on_date": target.isoformat(), "meal_type": "LUNCH"}
+    ).json()
+
+    salt = next(row for row in plan["gaps"] if row["code"] == "SALT")
+    assert salt["target_text"].startswith("≤")
+    assert salt["note"] and "每日基准 5.000g" in salt["note"]
+    assert "占 40%" in salt["note"]
+
+
 def test_generate_day_returns_three_meals_and_one_merged_purchase_list(
     as_recorder: TestClient,
 ) -> None:

@@ -7,7 +7,7 @@ from zhiwei_agent.schemas import PlanParameters, PlanVersion
 
 def version():
     plan = deepcopy(PLAN)
-    plan["calculation_version"] = "menu-plan-20261017.3"
+    plan["calculation_version"] = "menu-plan-20261019.1"
     return PlanVersion(
         revision=1,
         created_at="2026-10-19T00:00:00+08:00",

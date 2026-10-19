@@ -12,7 +12,7 @@
 | API-03 | `/api/v1/menu-plan/generate` 的 `diner_count` 语义 | 语义变更 | 参数形状不变，结果口径变化 |
 | API-04 | `PlanReadiness` 人数预测字段 | 新增可选字段 | 向后兼容 |
 | API-05 | `GET /agent-api/v1/diner-forecast` | Agent 只读代理 | 新增 |
-| API-06 | Agent 撤回接口请求体 | 文档修正 | 无请求体 |
+| API-06 | Agent 撤回接口请求体 | 兼容扩展 | 可选 `{"revision": N}`；不传兼容旧调用 |
 
 ## API-01：一天三餐生成
 
@@ -138,10 +138,14 @@ GET /agent-api/v1/diner-forecast?on_date=...&meal_type=...
 POST /agent-api/v1/sessions/{session_id}/undo
 ```
 
-**无请求体**。语义是撤回当前会话最近一次发布；与业务
-`POST /api/v1/menu-plan/{suggestion_id}/undo` 对称。
+请求体可选：
 
-历史共享契约曾误写为 `{"revision": N}`，已按真实代码修正。
+```json
+{"revision": 1}
+```
+
+传入时必须等于待撤回的已发布版本；不传则兼容旧行为，撤回最近一次有效发布。
+业务侧 `POST /api/v1/menu-plan/{suggestion_id}/undo` 仍不接收请求体。
 
 ## 生成类型与消费位置
 
@@ -156,14 +160,11 @@ POST /agent-api/v1/sessions/{session_id}/undo
 - 相关回归：`tests/modules/menuplan/`、`tests/modules/forecast/`、
   `tests/modules/recommendation/`、`tests/modules/nutrition/`。
 
-## 遗留决策：计算版本
+## 计算版本
 
-默认人数与情景缩放的分母发生变化，属于计算语义变化。当前
-`CALCULATION_VERSION` 仍是 `menu-plan-20261017.3`，本次未擅自升级，
-以免让演示库中已经生成的待确认方案全部因版本不一致而无法发布。
+默认人数与情景缩放分母发生变化，属于计算语义变化。当前
+`CALCULATION_VERSION` 已升级为 `menu-plan-20261019.1`。
 
-建议在下一轮联合验收时明确：
-
-- 是否 bump 计算版本；
-- 旧待确认方案是要求重算，还是保留旧语义；
-- bump 后同步更新样例、报告和 E2E 的版本断言。
+- 旧待确认方案保留用于查看，但不能再直接发布；必须重新生成。
+- 已发布旧版本保留历史回执，不因版本升级删除。
+- S01 样例、接口变更清单和报告已同步新版本字符串。

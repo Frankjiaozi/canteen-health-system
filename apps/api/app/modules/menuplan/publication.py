@@ -31,7 +31,7 @@ from app.shared.enums import AuditAction, MealType, SuggestionStatus
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-CALCULATION_VERSION = "menu-plan-20261017.3"
+CALCULATION_VERSION = "menu-plan-20261019.1"
 
 
 def digest(value: object) -> str:

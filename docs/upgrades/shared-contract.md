@@ -94,7 +94,7 @@ basis, basis_label, samples[{date,diner_count}], calendar_note, note
 | GET `/sessions/{session_id}` | 当前账号的会话 |
 | POST `/sessions/{session_id}/messages` | NDJSON 任务执行 |
 | POST `/sessions/{session_id}/publish` | JSON `{ "revision": N }` |
-| POST `/sessions/{session_id}/undo` | 无请求体；撤回当前会话最近一次发布 |
+| POST `/sessions/{session_id}/undo` | 可选 JSON `{ "revision": N }`；不传兼容旧调用，撤回最近一次有效发布 |
 | GET `/sessions/{session_id}/purchase.csv?revision=N` | 指定版本采购导出 |
 | GET `/sessions/{session_id}/review.md` | 核查报告 |
 | GET `/sessions/{session_id}/report.html?revision=N&download=false` | 指定版本完整报告 |
@@ -120,7 +120,7 @@ Agent 方案版本包含 `revision`、`created_at`、`parameters`、`result`、`
 
 业务发布在同日期餐次锁内核验目录和正式菜单版本，拒绝覆盖实际采集。撤回必须拒绝覆盖后续编辑或实际记录。重复发布应幂等；当前不额外承诺撤回重复成功，也不虚构 `already_undone` 字段。
 
-当前计算版本字符串为 `menu-plan-20261017.3`。任何计算语义变化均由协作者评估版本和旧快照兼容，不能只以日期或字符串没变认定结果兼容。
+当前计算版本字符串为 `menu-plan-20261019.1`。默认人数与情景缩放分母变化后，旧待确认方案需重新生成才能发布；已发布旧版本的历史回执保留。
 
 ## 7. 共同样例与变更流程
 

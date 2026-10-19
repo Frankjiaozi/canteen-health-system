@@ -138,7 +138,7 @@ S01_NORMAL = {
     "expected_menu_token": TOKEN_B,
     "budget_per_person": "8.00",
     "requested_excluded_dish_ids": [],
-    "calculation_version": "menu-plan-20261017.3",
+    "calculation_version": "menu-plan-20261019.1",
 }
 
 
