@@ -29,8 +29,8 @@ test('生成明日菜单后，菜品、采购单与份数口径都在', async ({
   await page.getByText(/与营养目标的差距/).click();
   await expect(page.getByText(/实际 [\d.]+/).first()).toBeVisible();
   await expect(page.getByText('推荐理由')).toBeVisible();
-  // 能量目标还没核实，界面上必须标出来
-  await expect(page.getByText('能量目标尚未核实')).toBeVisible();
+  // P0 说明性文案已移除；计算结果和差距仍然保留
+  await expect(page.getByText('能量目标尚未核实')).toHaveCount(0);
 
   // ② 采购建议：公斤计、按金额从大到小
   await expect(page.getByText(/② 明日食材采购建议（共 \d+ 项）/)).toBeVisible();
@@ -125,4 +125,6 @@ test('一天三餐默认入口生成三餐与合并采购单', async ({ page }) 
   await expect(page.getByText(/晚餐 · \d+ 人次/)).toBeVisible();
   await expect(page.getByText(/② 全天食材采购建议/)).toBeVisible();
   await expect(page.getByRole('button', { name: '同步三餐至当日数据' })).toBeVisible();
+  await expect(page.getByText(/采购量 = 三餐各自推荐菜/)).toHaveCount(0);
+  await expect(page.getByText(/按餐次分别校验/)).toHaveCount(0);
 });

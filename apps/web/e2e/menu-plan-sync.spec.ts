@@ -40,7 +40,8 @@ test('同步之后：采集页按计划勾好，公开大屏不用登录就看�
 
   // 每日采集：计划里的菜已经勾好、带「计划」标记，整份菜品库都列着（临时换菜有地方勾）
   await page.goto(`/admin/collection?date=${TARGET}&meal=LUNCH`);
-  await expect(page.getByText(/这份菜单是「明日菜单与采购」排好的计划/)).toBeVisible();
+  // P0 说明性文案已移除；「计划」标签与勾选状态仍要保留
+  await expect(page.getByText(/这份菜单是「明日菜单与采购」排好的计划/)).toHaveCount(0);
   await expect(page.getByText('计划', { exact: true }).first()).toBeVisible();
   const checked = page.locator('input[aria-label^="供应-"]:checked');
   expect(await checked.count()).toBe(planned.length);
