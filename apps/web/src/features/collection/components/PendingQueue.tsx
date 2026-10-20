@@ -2,6 +2,8 @@ import { DeleteOutlined } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { Alert, App, Button, Card, Popconfirm, Space, Table, Tag, Typography } from 'antd';
 import { useState } from 'react';
+import { useCurrentUser } from '@/features/auth/hooks/useAuth';
+import { canWriteBusinessData } from '@/features/auth/lib/permissions';
 import { useEnumOptions } from '@/shared/hooks/useEnumOptions';
 import { useOnlineStatus } from '@/shared/hooks/useOnlineStatus';
 import { flushOfflineQueue, useOfflineQueueStore } from '../hooks/useOfflineQueue';
@@ -15,7 +17,10 @@ import { describeEntry, type QueuedEntry } from '../lib/offlineQueue';
  * 并提供手动重试与放弃。
  */
 export function PendingQueue() {
-  const entries = useOfflineQueueStore((state) => state.entries);
+  const { data: user } = useCurrentUser();
+  const allEntries = useOfflineQueueStore((state) => state.entries);
+  const entries = allEntries.filter((entry) => !!user && entry.ownerId === user.id);
+  const hasLegacyEntries = allEntries.some((entry) => !entry.ownerId);
   const drop = useOfflineQueueStore((state) => state.drop);
   const isOnline = useOnlineStatus();
   const queryClient = useQueryClient();
@@ -23,7 +28,16 @@ export function PendingQueue() {
   const { data: enumOptions } = useEnumOptions();
   const [retrying, setRetrying] = useState(false);
 
-  if (entries.length === 0) return null;
+  if (!canWriteBusinessData(user)) return null;
+  if (entries.length === 0)
+    return hasLegacyEntries ? (
+      <Alert
+        type="warning"
+        showIcon
+        title="此浏览器有旧版待同步记录"
+        description="旧记录未标明所属账号，已保留在本地并暂停自动补交。请核对原始记录后，由所属账号重新录入。"
+      />
+    ) : null;
 
   const mealLabel = (value: string) =>
     enumOptions?.meal_type.find((option) => option.value === value)?.label ?? value;
@@ -32,7 +46,9 @@ export function PendingQueue() {
     setRetrying(true);
     const result = await flushOfflineQueue(queryClient);
     setRetrying(false);
-    if (result.failed) {
+    if (result.paused) {
+      void message.warning('账号或权限已变化，补交已暂停');
+    } else if (result.failed) {
       void message.error(`补交失败：${result.failed.lastError ?? '未知原因'}`);
     } else {
       void message.success(`已补交 ${result.synced} 条采集记录`);
@@ -51,7 +67,7 @@ export function PendingQueue() {
       extra={
         <Space>
           <Typography.Text type="secondary">
-            {isOnline ? '联网后会自动补交' : '恢复联网后自动补交'}
+            {isOnline ? '失败记录请核对后手动补交' : '恢复联网后自动补交'}
           </Typography.Text>
           {isOnline ? (
             <Button size="small" loading={retrying} onClick={() => void retryNow()}>

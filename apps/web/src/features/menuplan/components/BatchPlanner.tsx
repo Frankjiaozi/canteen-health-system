@@ -1,4 +1,15 @@
-import { Alert, Button, Card, DatePicker, Space, Table, Tag, Tooltip, Typography } from 'antd';
+import {
+  Alert,
+  Button,
+  Card,
+  DatePicker,
+  Popconfirm,
+  Space,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+} from 'antd';
 import dayjs, { type Dayjs } from 'dayjs';
 import { useState } from 'react';
 import { useCurrentUser } from '@/features/auth/hooks/useAuth';
@@ -40,7 +51,16 @@ export function BatchPlanner({ mealType }: { mealType: MealType }) {
 
   const handleImport = () => {
     importBatch.mutate(
-      { startDate: start, endDate: end, mealType },
+      {
+        startDate: start,
+        endDate: end,
+        mealType,
+        suggestionIds: Object.fromEntries(
+          days
+            .filter((row) => row.suggestion_id && ['GENERATED', 'IMPORTED'].includes(row.status))
+            .map((row) => [row.date, row.suggestion_id!]),
+        ),
+      },
       { onSuccess: (result) => setDays((current) => mergeBatchStatuses(current, result.rows)) },
     );
   };
@@ -56,7 +76,7 @@ export function BatchPlanner({ mealType }: { mealType: MealType }) {
         type="info"
         showIcon
         message="批量排菜单由食堂录入员或管理员操作"
-        description="学校管理方是只读的观察者，可以在这里看到每一天排了什么菜。"
+        description="已发布菜品请到首页菜单和供餐记录查看，此页不提供跨账号的批量方案历史。"
       />
     );
   }
@@ -69,6 +89,7 @@ export function BatchPlanner({ mealType }: { mealType: MealType }) {
         extra={
           <Space wrap>
             <DatePicker.RangePicker
+              disabled={generate.isPending || importBatch.isPending}
               value={range}
               allowClear={false}
               onChange={(value) => {
@@ -78,7 +99,12 @@ export function BatchPlanner({ mealType }: { mealType: MealType }) {
                 }
               }}
             />
-            <Button type="primary" loading={generate.isPending} onClick={handleGenerate}>
+            <Button
+              type="primary"
+              loading={generate.isPending}
+              disabled={importBatch.isPending}
+              onClick={handleGenerate}
+            >
               批量生成
             </Button>
           </Space>
@@ -183,16 +209,24 @@ export function BatchPlanner({ mealType }: { mealType: MealType }) {
             />
 
             <Space style={{ marginTop: 16 }} wrap>
-              <Button
-                type="primary"
-                disabled={generated + imported === 0}
-                loading={importBatch.isPending}
-                onClick={handleImport}
+              <Popconfirm
+                title={`确认导入 ${start} 至 ${end} 的菜单？`}
+                description="只导入当前列表中已核对的方案；若数据已变化，会拒绝并提示原因。"
+                okText="确认导入"
+                cancelText="继续核对"
+                onConfirm={handleImport}
+                disabled={generated + imported === 0 || generate.isPending || importBatch.isPending}
               >
-                一键导入当日菜单
-              </Button>
+                <Button
+                  type="primary"
+                  disabled={generated + imported === 0 || generate.isPending}
+                  loading={importBatch.isPending}
+                >
+                  一键导入当日菜单
+                </Button>
+              </Popconfirm>
               <Typography.Text type="secondary">
-                导入会把这段区间里最近生成的那一版菜单写进各天的当日数据；
+                导入会把当前列表中已核对的方案写进各天的当日数据；
                 已经录过采集的日子会跳过并说明原因。
               </Typography.Text>
             </Space>

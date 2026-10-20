@@ -57,6 +57,47 @@ def plan(client, offset):
     return target, response.json()
 
 
+def test_batch_import_keeps_reviewed_id_when_a_newer_plan_exists(as_recorder, db_session):
+    target, reviewed = plan(as_recorder, 120)
+    _, newer = plan(as_recorder, 120)
+    assert reviewed["suggestion_id"] != newer["suggestion_id"]
+    response = as_recorder.post(
+        "/api/v1/menu-plan/batch/sync",
+        params={"start_date": str(target), "end_date": str(target)},
+        json={"suggestion_ids": {str(target): reviewed["suggestion_id"]}},
+    )
+    assert response.status_code == 200, response.text
+    row = response.json()["rows"][0]
+    assert row["status"] == "IMPORTED"
+    assert row["suggestion_id"] == reviewed["suggestion_id"]
+    db_session.expire_all()
+    stored = db_session.get(MenuSuggestion, UUID(newer["suggestion_id"]))
+    assert not (stored.nutrition_gap or {}).get("publication")
+    assert (
+        as_recorder.post(
+            "/api/v1/menu-plan/batch/sync",
+            params={"start_date": str(target), "end_date": str(target)},
+        ).status_code
+        == 422
+    )
+
+
+def test_school_can_read_saved_procurement_snapshot(as_recorder):
+    target, saved = plan(as_recorder, 121)
+    from tests.conftest import login_as
+
+    login_as(as_recorder, "school")
+    response = as_recorder.get("/api/v1/menu-plan/history", params={"on_date": str(target)})
+    assert response.status_code == 200, response.text
+    stored = next(
+        item["plan"]
+        for item in response.json()
+        if item["plan"]["suggestion_id"] == saved["suggestion_id"]
+    )
+    assert stored["requirements"] == saved["requirements"]
+    assert stored["total_cost"] == saved["total_cost"]
+
+
 def actor(session):
     return to_auth_user(get_by_username(session, "recorder"))
 
@@ -90,6 +131,7 @@ def test_all_sync_entries_reject_a_price_change(as_recorder, db_session, entry):
         if entry == "batch":
             response = as_recorder.post(
                 "/api/v1/menu-plan/batch/sync",
+                json={"suggestion_ids": {str(target): result["suggestion_id"]}},
                 params={"start_date": str(target), "end_date": str(target)},
             )
             assert response.status_code == 200, response.text
@@ -151,7 +193,9 @@ def test_undo_restores_full_original_and_invalidates_receipt(as_recorder, db_ses
     again = publish(as_recorder, result)
     assert again.status_code == 409 and "撤回" in again.json()["message"]
     batch = as_recorder.post(
-        "/api/v1/menu-plan/batch/sync", params={"start_date": str(target), "end_date": str(target)}
+        "/api/v1/menu-plan/batch/sync",
+        params={"start_date": str(target), "end_date": str(target)},
+        json={"suggestion_ids": {str(target): result["suggestion_id"]}},
     )
     assert batch.status_code == 200 and batch.json()["failed"] == 1
     assert "撤回" in batch.json()["rows"][0]["reason"]

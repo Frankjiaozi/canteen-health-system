@@ -153,6 +153,7 @@ class DishRead(DishBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    image_url: str | None = Field(default=None, description="用户上传的菜品图片；未上传时为空")
     recipe_version: int
     is_active: bool
     category_label: str

@@ -43,6 +43,7 @@ test('批量排一段菜单并一键导入当日菜单', async ({ page }) => {
   // 导入之前，界面上这几行是「已生成」——生成只算出来，还没写进当日数据
 
   await page.getByRole('button', { name: '一键导入当日菜单' }).click();
+  await page.getByRole('button', { name: '确认导入' }).click();
   await expect(
     page.locator('.ant-alert-title').filter({ hasText: `${DAYS} 天里已导入 ${DAYS} 天` }),
   ).toBeVisible();

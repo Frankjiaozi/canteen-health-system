@@ -1,3 +1,6 @@
+import { authKeys, useCurrentUser } from '@/features/auth/hooks/useAuth';
+import type { AuthUser } from '@/features/auth/types';
+import { canWriteBusinessData } from '@/features/auth/lib/permissions';
 import { useEffect } from 'react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { create } from 'zustand';
@@ -22,7 +25,12 @@ import type { DailyLogWrite, MealType } from '../types';
  */
 interface OfflineQueueState {
   entries: QueuedEntry[];
-  push: (input: { onDate: string; mealType: MealType; payload: DailyLogWrite }) => EnqueueResult;
+  push: (input: {
+    ownerId: string;
+    onDate: string;
+    mealType: MealType;
+    payload: DailyLogWrite;
+  }) => EnqueueResult;
   fail: (id: string, error: string) => void;
   drop: (id: string) => void;
 }
@@ -50,6 +58,26 @@ export interface FlushResult {
   synced: number;
   /** 卡住的那一条；为空表示队列已清空 */
   failed: QueuedEntry | null;
+  paused?: boolean;
+}
+
+let activeFlush: Promise<FlushResult> | null = null;
+
+/** 自动同步与手动补交共用一个执行锁，避免把同一条记录同时提交两遍。 */
+export function flushOfflineQueue(
+  queryClient: QueryClient,
+  options: { automatic?: boolean } = {},
+): Promise<FlushResult> {
+  if (activeFlush) return activeFlush;
+  activeFlush = performFlush(queryClient, options).finally(() => {
+    activeFlush = null;
+  });
+  return activeFlush;
+}
+
+/** 在线保存等已有补交结束，避免旧的离线内容覆盖用户刚保存的新内容。 */
+export async function waitForOfflineSync(): Promise<void> {
+  await activeFlush;
 }
 
 /**
@@ -60,42 +88,74 @@ export interface FlushResult {
  *
  * 一条失败就停：多半是网络又断了或服务端有问题，继续打只会把每条都标红。
  */
-export async function flushOfflineQueue(queryClient: QueryClient): Promise<FlushResult> {
+async function performFlush(
+  queryClient: QueryClient,
+  options: { automatic?: boolean },
+): Promise<FlushResult> {
+  const user = queryClient.getQueryData<AuthUser | null>(authKeys.me);
+  if (!user || !canWriteBusinessData(user)) return { synced: 0, failed: null, paused: true };
   let synced = 0;
-  for (const entry of useOfflineQueueStore.getState().entries) {
+  let failed: QueuedEntry | null = null;
+  let paused = false;
+  const pending = useOfflineQueueStore
+    .getState()
+    .entries.filter(
+      (entry) => entry.ownerId === user.id && (!options.automatic || entry.lastError === null),
+    );
+  for (const entry of pending) {
+    const currentUser = queryClient.getQueryData<AuthUser | null>(authKeys.me);
+    if (!currentUser || currentUser.id !== user.id || !canWriteBusinessData(currentUser)) {
+      paused = true;
+      break;
+    }
+    // 等待上一条期间用户可能已经修改或放弃本条。
+    if (useOfflineQueueStore.getState().entries.find((row) => row.id === entry.id) !== entry)
+      continue;
     try {
       await saveSheet(entry.onDate, entry.payload);
     } catch (error) {
       const message = error instanceof ApiError ? error.message : '同步失败，请稍后重试';
-      useOfflineQueueStore.getState().fail(entry.id, message);
-      return { synced, failed: { ...entry, lastError: message } };
+      if (useOfflineQueueStore.getState().entries.find((row) => row.id === entry.id) === entry) {
+        useOfflineQueueStore.getState().fail(entry.id, message);
+      }
+      failed = { ...entry, lastError: message };
+      break;
     }
-    useOfflineQueueStore.getState().drop(entry.id);
+    // 请求期间同一餐重新入队时，不删除较新的草稿。
+    if (useOfflineQueueStore.getState().entries.find((row) => row.id === entry.id) === entry) {
+      useOfflineQueueStore.getState().drop(entry.id);
+    }
     synced += 1;
   }
   if (synced > 0) {
     await queryClient.invalidateQueries({ queryKey: ['collection'] });
     await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     await queryClient.invalidateQueries({ queryKey: ['calibration'] });
+    await queryClient.invalidateQueries({ queryKey: ['public'] });
   }
-  return { synced, failed: null };
+  return { synced, failed, paused };
 }
 
 /**
  * 自动补交。挂在 AdminLayout 上，所以录入员停在任何管理页都会补交，不必回到采集页等。
  */
 export function useSyncOfflineQueue(): void {
+  const { data: user } = useCurrentUser();
+  const canWrite = canWriteBusinessData(user);
   const isOnline = useOnlineStatus();
   const entries = useOfflineQueueStore((state) => state.entries);
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!isOnline || entries.length === 0) return;
-    void flushOfflineQueue(queryClient);
-  }, [isOnline, entries, queryClient]);
+    if (!canWrite || !isOnline || entries.length === 0) return;
+    void flushOfflineQueue(queryClient, { automatic: true });
+  }, [canWrite, user?.id, isOnline, entries, queryClient]);
 }
 
 /** 待同步条数，供界面提示用。 */
 export function usePendingCount(): number {
-  return useOfflineQueueStore((state) => state.entries.length);
+  const { data: user } = useCurrentUser();
+  return useOfflineQueueStore(
+    (state) => state.entries.filter((entry) => entry.ownerId === user?.id && !!user).length,
+  );
 }

@@ -1,4 +1,6 @@
 import { Card, Empty, Skeleton } from 'antd';
+import { DishImage } from '@/features/dish/components/DishImage';
+import '@/features/dish/dish.css';
 import { useMenuOverview } from '../hooks/useDashboard';
 import { trimDecimal } from '../lib/format';
 import type { MenuOverviewMeal } from '../types';
@@ -29,6 +31,7 @@ function MealColumn({ meal }: { meal: MenuOverviewMeal }) {
         <ul className="zw-menu-dishes">
           {meal.dishes.map((dish) => (
             <li className="zw-menu-dish" key={dish.dish_id}>
+              <DishImage url={dish.image_url} name={dish.name} compact />
               <span className="zw-menu-dish-name">{dish.name}</span>
               <span className="zw-menu-dish-meta">
                 <span>

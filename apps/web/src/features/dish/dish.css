@@ -1,0 +1,222 @@
+.zw-dish-gallery-wrap {
+  padding: 22px;
+}
+.zw-dish-gallery {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  margin-bottom: 24px;
+}
+.zw-dish-card.spotlight-card {
+  padding: 0;
+  border: 1px solid #e8e6dc;
+  border-radius: 18px;
+  background: #fffdf8;
+  box-shadow: none;
+}
+.zw-dish-card-visual {
+  padding: 12px 12px 0;
+  position: relative;
+}
+.zw-dish-image {
+  aspect-ratio: 1.7;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(ellipse at 25% 15%, #edf0e4, #e5e9dc);
+  color: #9aa88e;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.zw-dish-image > span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.zw-dish-image .anticon {
+  font-size: 28px;
+}
+.zw-dish-image small {
+  font-size: 12px;
+  color: #7e8974;
+}
+.zw-dish-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.zw-dish-card-visual > .ant-btn {
+  position: absolute;
+  bottom: 8px;
+  right: 20px;
+  background: #fffcf6d9;
+  border-radius: 8px;
+  color: #5e7456;
+  font-size: 11px;
+}
+.zw-dish-card-copy {
+  padding: 18px 20px 8px;
+}
+.zw-dish-card-heading {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.zw-dish-card-heading h2 {
+  margin: 0;
+  color: var(--zw-ink);
+  font-family: var(--zw-serif);
+  font-size: 21px;
+  font-weight: 600;
+}
+.zw-dish-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  margin: 20px 0 16px;
+  gap: 10px;
+}
+.zw-dish-facts dt {
+  color: var(--zw-muted);
+  font-size: 11px;
+}
+.zw-dish-facts dd {
+  margin: 6px 0 0;
+  color: var(--zw-ink);
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+.zw-dish-facts small {
+  font-size: 10px;
+  color: var(--zw-muted);
+}
+.zw-dish-card-copy footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--zw-line-soft);
+  padding-top: 8px;
+  min-height: 42px;
+}
+.zw-dish-card-copy footer > span {
+  font-size: 11px;
+  color: var(--zw-muted);
+}
+.zw-dish-gallery-wrap > .ant-pagination {
+  justify-content: flex-end;
+}
+.zw-dish-upload {
+  padding: 10px 0 20px;
+}
+.zw-dish-form-row > .ant-space-item {
+  flex: 1;
+  min-width: 0;
+}
+.zw-dish-upload .ant-upload-drag {
+  background: #f8f9f1;
+  border-color: #a6b49a;
+  border-radius: 18px;
+}
+.zw-dish-upload .ant-upload-drag .ant-upload-btn {
+  padding: 35px 18px;
+}
+.zw-upload-icon {
+  font-size: 44px;
+  color: #819477;
+}
+.zw-dish-upload h3 {
+  color: var(--zw-ink);
+  font-family: var(--zw-serif);
+  font-size: 20px;
+  margin: 16px 0 8px;
+}
+.zw-dish-upload p {
+  font-size: 13px;
+  color: var(--zw-muted);
+}
+.zw-dish-upload small {
+  color: #8b9081;
+  font-size: 12px;
+}
+.zw-upload-action {
+  display: block;
+  margin: 23px auto 0;
+  background: #708668;
+  border-radius: 10px;
+  padding: 9px 20px;
+  width: fit-content;
+  color: white;
+  font-size: 13px;
+}
+.zw-upload-preview-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 22px 0 14px;
+}
+.zw-upload-preview-title h3 {
+  margin: 0;
+  font-size: 18px;
+}
+.zw-upload-empty {
+  height: 190px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  border-radius: 16px;
+  background: #f3f1e9;
+  color: #939789;
+  font-size: 13px;
+}
+.zw-upload-empty .anticon {
+  font-size: 32px;
+}
+.zw-dish-upload .ant-image {
+  width: 100%;
+}
+.zw-dish-upload .zw-upload-preview {
+  max-height: 300px;
+  width: 100%;
+  object-fit: contain;
+  border-radius: 14px;
+  background: #f0eee6;
+}
+.zw-upload-hint {
+  margin: 16px 0 0;
+  line-height: 1.8;
+}
+.zw-dish-image.is-compact {
+  width: 44px;
+  height: 44px;
+  aspect-ratio: 1;
+  border-radius: 9px;
+  flex: none;
+}
+.zw-dish-image.is-compact .anticon {
+  font-size: 19px;
+}
+.zw-dish-image.is-compact small {
+  display: none;
+}
+@media (max-width: 1200px) {
+  .zw-dish-gallery {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 650px) {
+  .zw-dish-gallery {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .zw-dish-gallery-wrap {
+    padding: 14px;
+  }
+  .zw-dish-card-visual .zw-dish-image {
+    aspect-ratio: 2;
+  }
+  .zw-dish-gallery-wrap > .ant-pagination {
+    justify-content: center;
+  }
+}

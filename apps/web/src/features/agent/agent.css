@@ -1,9 +1,9 @@
 .zw-agent {
-  --zw-ink: #20332d;
-  --zw-green: #315c4c;
-  --zw-subtle: #677a70;
-  --zw-line: #dce5de;
-  --zw-tint: #edf3ee;
+  --zw-ink: #273a31;
+  --zw-green: #607c5c;
+  --zw-subtle: #737a6b;
+  --zw-line: #e6e2d6;
+  --zw-tint: #f0f2e9;
   color: var(--zw-ink);
   max-width: 1800px;
   margin-inline: auto;

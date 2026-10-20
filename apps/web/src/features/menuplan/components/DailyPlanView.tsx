@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Collapse, Space, Tag, Typography } from 'antd';
+import { Alert, Button, Card, Collapse, Popconfirm, Space, Tag, Typography } from 'antd';
 import { formatAmount } from '@/features/forecast/lib/format';
 import { describeGap } from '@/features/recommendation/lib/present';
 import type { DailyMenuPlanResponse } from '../types';
@@ -30,7 +30,7 @@ export function DailyPlanView({
     <Space orientation="vertical" size={16} style={{ width: '100%' }}>
       <Card
         size="small"
-        title={`① 明日三餐安排 · ${plan.date}`}
+        title={`① 三餐安排 · ${plan.date}`}
         extra={<Tag color={decision.color}>{decision.text}</Tag>}
       >
         <div
@@ -79,9 +79,18 @@ export function DailyPlanView({
               borderTop: '1px solid #f0f0f0',
             }}
           >
-            <Button type="primary" loading={syncing} onClick={onSync}>
-              {syncedCount === plan.meals.length ? '重新同步三餐' : '同步三餐至当日数据'}
-            </Button>
+            <Popconfirm
+              title={`确认同步 ${plan.date} 的三餐菜单？`}
+              description="会写入正式供餐菜单。三餐分别校验，未成功的餐次将单独提示。"
+              okText="确认同步"
+              cancelText="继续核对"
+              onConfirm={onSync}
+              disabled={syncing}
+            >
+              <Button type="primary" loading={syncing}>
+                {syncedCount === plan.meals.length ? '重新同步三餐' : '同步三餐至当日数据'}
+              </Button>
+            </Popconfirm>
           </Space>
         ) : null}
 

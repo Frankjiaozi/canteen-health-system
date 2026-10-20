@@ -17,6 +17,8 @@ export default defineConfig({
   workers: 1,
   reporter: [['list']],
   use: {
+    // 本机可复用已安装的 Chrome；CI 默认仍使用 Playwright Chromium。
+    ...(process.env.E2E_BROWSER_CHANNEL ? { channel: process.env.E2E_BROWSER_CHANNEL } : {}),
     baseURL: WEB_ORIGIN,
     locale: 'zh-CN',
     trace: 'retain-on-failure',

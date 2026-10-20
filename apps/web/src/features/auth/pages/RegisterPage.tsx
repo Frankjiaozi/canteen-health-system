@@ -1,10 +1,10 @@
 import { IdcardOutlined, LockOutlined, UserOutlined } from '@ant-design/icons';
-import { Alert, Button, Form, Input } from 'antd';
+import { Alert, Button, Form, Input, Skeleton } from 'antd';
 import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { ApiError } from '@/shared/api/errors';
 import { AuthShell } from '../components/AuthShell';
-import { useCurrentUser, useRegister } from '../hooks/useAuth';
+import { useAuthOptions, useCurrentUser, useRegister } from '../hooks/useAuth';
 import type { RegisterPayload } from '../types';
 
 type RegisterForm = RegisterPayload & { confirm_password: string };
@@ -14,11 +14,34 @@ export function RegisterPage() {
   const location = useLocation();
   const { data: currentUser } = useCurrentUser();
   const registerMutation = useRegister();
+  const options = useAuthOptions();
   const [errorText, setErrorText] = useState<string | null>(null);
   const from =
     (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? '/admin';
 
   if (currentUser) return <Navigate to={from} replace />;
+  if (options.isPending)
+    return (
+      <AuthShell>
+        <Skeleton active />
+      </AuthShell>
+    );
+  if (!options.data?.registration_enabled)
+    return (
+      <AuthShell>
+        <h2>账号开通</h2>
+        <Alert
+          type={options.isError ? 'error' : 'info'}
+          showIcon
+          title={options.isError ? '暂时无法读取注册状态' : '自助注册已关闭'}
+          description="请联系管理员开通账号，已有账号可直接登录。"
+        />
+        {options.isError && <Button onClick={() => void options.refetch()}>重试</Button>}
+        <p className="zw-login-register">
+          <Link to="/login">返回登录</Link>
+        </p>
+      </AuthShell>
+    );
 
   const handleFinish = async (values: RegisterForm) => {
     setErrorText(null);

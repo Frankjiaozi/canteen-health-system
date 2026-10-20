@@ -21,3 +21,7 @@ export async function logout(): Promise<void> {
 export async function fetchCurrentUser(): Promise<AuthUser> {
   return unwrap(await api.GET('/api/v1/auth/me'));
 }
+
+export async function fetchAuthOptions() {
+  return unwrap(await api.GET('/api/v1/auth/options'));
+}

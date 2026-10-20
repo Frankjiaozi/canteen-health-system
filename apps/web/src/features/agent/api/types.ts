@@ -56,4 +56,7 @@ export type AgentEvent =
   | { type: 'error'; message: string; code: string }
   | { type: 'done'; conversation: Conversation };
 
-export type AgentDish = Pick<Business['schemas']['DishRead'], 'id' | 'name' | 'category_label'>;
+export type AgentDish = Pick<
+  Business['schemas']['DishRead'],
+  'id' | 'name' | 'category_label' | 'image_url'
+>;

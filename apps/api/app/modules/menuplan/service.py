@@ -38,6 +38,7 @@ from app.modules.menuplan.schemas import (
     MenuPlanBatchDay,
     MenuPlanBatchResult,
     MenuPlanDish,
+    MenuPlanHistoryItem,
     MenuPlanResponse,
     MenuPlanSyncResult,
     PublishPlanRequest,
@@ -48,6 +49,32 @@ from app.shared.enums import MealType, SuggestionStatus
 from sqlalchemy.orm import Session
 
 logger = get_logger(__name__)
+
+
+def read_history(session: Session, *, on_date: date) -> list[MenuPlanHistoryItem]:
+    """读取已保存的完整计算快照，不重新生成或写入菜单。"""
+    rows = recommendation_repository.list_suggestions(session, on_date=on_date, limit=100)
+    history: list[MenuPlanHistoryItem] = []
+    for row in rows:
+        stored = row.nutrition_gap or {}
+        snapshot = stored.get("menu_plan_snapshot")
+        if not snapshot:
+            continue
+        history.append(
+            MenuPlanHistoryItem(
+                created_at=row.created_at,
+                status_label=(
+                    "已撤回"
+                    if stored.get("publication_revoked")
+                    else "已发布"
+                    if stored.get("publication")
+                    else row.status.label
+                ),
+                plan=MenuPlanResponse.model_validate(snapshot["plan"]),
+            )
+        )
+    return history
+
 
 #: 预测不出来时的基准份数怎么取：按每人一份估。
 #: 这不是「建议做这么多」，只是在拿不到预测时保证采购量还能算出来，并在页面上标出来。
@@ -609,28 +636,25 @@ def sync_batch(
     *,
     start_date: date,
     end_date: date,
+    suggestion_ids: dict[date, UUID],
     meal_type: MealType = MealType.LUNCH,
     actor_id: UUID | None = None,
 ) -> MenuPlanBatchResult:
-    """把区间内每一天**最近生成的那一版菜单**写进当日数据。
-
-    按区间而不是按一串 id：调用方只要说「这几天」，刷新页面、换个人来点，
-    结果都一样。哪一天没有生成过、哪一天已经录过采集，都会在那一天上说明。
-    """
+    """只导入用户核对过的逐日方案；沿用单方案的日期、餐次、快照及并发校验。"""
     dates = _date_range(start_date, end_date)
+    if any(day not in dates for day in suggestion_ids):
+        raise BusinessRuleError("所选方案日期不在导入区间内")
     rows: list[MenuPlanBatchDay] = []
 
     for day in dates:
-        suggestion_id = recommendation_service.latest_suggestion_id(
-            session, on_date=day, meal_type=meal_type
-        )
+        suggestion_id = suggestion_ids.get(day)
         if suggestion_id is None:
             rows.append(
                 MenuPlanBatchDay(
                     date=day,
                     status="SKIPPED",
                     status_label="已跳过",
-                    reason="这一天还没有生成过菜单",
+                    reason="这一天没有选定已核对的菜单方案",
                 )
             )
             continue

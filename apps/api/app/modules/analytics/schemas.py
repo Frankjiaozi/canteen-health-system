@@ -32,9 +32,9 @@ class TrendPoint(BaseModel):
     oil_total_g: str
     salt_total_g: str
     sugar_total_g: str
-    oil_per_capita_g: str
-    salt_per_capita_g: str
-    sugar_per_capita_g: str
+    oil_per_capita_g: str | None
+    salt_per_capita_g: str | None
+    sugar_per_capita_g: str | None
 
 
 class TrendsResponse(BaseModel):
@@ -69,7 +69,7 @@ class CompliancePoint(BaseModel):
     date: date
     compliant: int
     total: int
-    rate: str
+    rate: str | None
     items: list[StandardComparison]
 
 
@@ -84,8 +84,8 @@ class ComplianceResponse(BaseModel):
 class WastePoint(BaseModel):
     date: date
     produced_weight_g: str
-    leftover_weight_g: str
-    waste_ratio: str
+    leftover_weight_g: str | None
+    waste_ratio: str | None
 
 
 class WasteResponse(BaseModel):
@@ -112,6 +112,7 @@ class DashboardSummary(BaseModel):
 
 class MenuOverviewDish(BaseModel):
     dish_id: str
+    image_url: str | None = None
     name: str
     category_label: str
     cooking_method_label: str

@@ -14,6 +14,9 @@ dayjs.locale('zh-cn');
  * 新增全局能力（如权限上下文、离线状态）时在此处插入，不要在页面里各自包一层。
  */
 export function AppProviders({ children }: { children: ReactNode }) {
+  const [reduceMotion] = useState(
+    () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
+  );
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -36,25 +39,26 @@ export function AppProviders({ children }: { children: ReactNode }) {
         button={{ autoInsertSpace: false }}
         theme={{
           token: {
-            colorPrimary: '#2f5a48',
-            colorLink: '#2f5a48',
+            motion: !reduceMotion,
+            colorPrimary: '#607c5c',
+            colorLink: '#506c4e',
             colorSuccess: '#3d7a58',
             colorWarning: '#b07b32',
             colorError: '#ad4f3e',
-            colorText: '#22312a',
+            colorText: '#273a31',
             colorTextSecondary: '#5f7166',
             colorTextTertiary: '#647268',
             colorBorder: '#ddd9cc',
             colorBorderSecondary: '#ece8dc',
-            colorBgLayout: '#f6f4ed',
-            colorBgContainer: '#fffdf8',
-            colorBgElevated: '#fffdf8',
+            colorBgLayout: '#f5eedf',
+            colorBgContainer: '#fffcf6',
+            colorBgElevated: '#fffcf8',
             fontFamily:
               '"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif',
             fontSize: 14,
-            borderRadius: 9,
-            borderRadiusLG: 16,
-            controlHeight: 34,
+            borderRadius: 12,
+            borderRadiusLG: 20,
+            controlHeight: 38,
             boxShadow: '0 1px 2px rgba(34, 49, 42, 0.04)',
             boxShadowSecondary: '0 18px 48px rgba(34, 49, 42, 0.12)',
           },
@@ -69,10 +73,10 @@ export function AppProviders({ children }: { children: ReactNode }) {
               subMenuItemBg: 'transparent',
               itemColor: '#485d51',
               itemHoverBg: 'rgba(47, 90, 72, 0.07)',
-              itemSelectedBg: '#2f5a48',
-              itemSelectedColor: '#fbf9f1',
+              itemSelectedBg: '#dde4d1',
+              itemSelectedColor: '#354c38',
               itemHeight: 40,
-              itemBorderRadius: 9,
+              itemBorderRadius: 12,
               itemMarginInline: 12,
               itemMarginBlock: 2,
               groupTitleColor: '#8b9183',
@@ -104,11 +108,11 @@ export function AppProviders({ children }: { children: ReactNode }) {
               cellPaddingInlineSM: 16,
             },
             Segmented: {
-              trackBg: '#efebe1',
+              trackBg: '#f0eee5',
               itemColor: '#6d7a70',
               itemHoverColor: '#2f5a48',
-              itemSelectedBg: '#fffdf8',
-              itemSelectedColor: '#22312a',
+              itemSelectedBg: '#dde4d1',
+              itemSelectedColor: '#354c38',
               trackPadding: 3,
             },
             Tabs: {

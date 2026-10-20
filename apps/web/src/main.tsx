@@ -5,6 +5,7 @@ import { AppRouter } from '@/app/router';
 import { StartupGate } from '@/features/intro/StartupGate';
 import { UpdatePrompt } from '@/shared/components/UpdatePrompt';
 import '@/styles/global.css';
+import '@/styles/ink-theme.css';
 
 const container = document.getElementById('root');
 

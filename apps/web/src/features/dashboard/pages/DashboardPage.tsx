@@ -1,17 +1,37 @@
-import { Card, Col, Row, Segmented, Skeleton, Space, Table, Tabs, Tag, Typography } from 'antd';
-import type { TableProps } from 'antd';
+import { calendarRows } from '../lib/calendar';
+import {
+  Alert,
+  Card,
+  Col,
+  Row,
+  Segmented,
+  Skeleton,
+  Space,
+  Tabs,
+  Tag,
+  Typography,
+  Progress,
+  Popover,
+} from 'antd';
 import { useState, type ReactNode } from 'react';
-import { EChart, type EChartOption } from '@/shared/components/EChart';
+import { EChart } from '@/shared/components/EChart';
 import { MenuOverview } from '../components/MenuOverview';
+import { DashboardMenuPreview } from '../components/DashboardMenuPreview';
+import CountUp from '@/shared/components/react-bits/CountUp';
+import {
+  FireOutlined,
+  AppstoreOutlined,
+  TeamOutlined,
+  ExperimentOutlined,
+  DeleteOutlined,
+  InfoCircleOutlined,
+} from '@ant-design/icons';
 import { useDashboard } from '../hooks/useDashboard';
 import { RANGE_OPTIONS, formatPercent, toNumber, trimDecimal } from '../lib/format';
-import type {
-  ComplianceResponse,
-  StandardComparison,
-  TrendsResponse,
-  WasteResponse,
-} from '../types';
+import type { StandardComparison } from '../types';
+import { buildTrendOption, buildComplianceOption, buildWasteOption } from '../lib/charts';
 import './dashboard.css';
+import './reference-dashboard.css';
 
 const STATUS_COLOR: Record<string, string> = {
   ok: 'success',
@@ -27,15 +47,6 @@ const STATUS_TEXT: Record<string, string> = {
   unknown: '暂无数据',
 };
 
-const CHART_INK = '#22312a';
-const CHART_MUTED = '#647268';
-const CHART_LINE = '#e9e4d7';
-const CHART_GREEN = '#3f6f57';
-const CHART_AMBER = '#b07b32';
-const CHART_SAGE = '#6f8274';
-
-const axisLabel = { color: CHART_MUTED, fontSize: 11 };
-
 interface MetricProps {
   label: string;
   value: ReactNode;
@@ -46,6 +57,8 @@ interface MetricProps {
 }
 
 function Metric({ label, value, unit, hint, loading, lead }: MetricProps) {
+  const text = typeof value === 'number' || typeof value === 'string' ? String(value) : '';
+  const numeric = /^\d[\d,.]*%?$/.test(text);
   return (
     <div className={`zw-metric${lead ? ' is-lead' : ''}`}>
       <span className="zw-metric-label">{label}</span>
@@ -53,7 +66,19 @@ function Metric({ label, value, unit, hint, loading, lead }: MetricProps) {
         <Skeleton.Button active size="small" className="zw-metric-skeleton" />
       ) : (
         <span className="zw-metric-value">
-          {value}
+          {numeric ? (
+            <CountUp
+              key={text}
+              to={Number(text.replaceAll(',', '').replace('%', ''))}
+              decimals={(text.replace('%', '').split('.')[1] ?? '').length}
+              separator=","
+              suffix={text.endsWith('%') ? '%' : ''}
+              trigger="load"
+              duration={0.65}
+            />
+          ) : (
+            value
+          )}
           {unit ? <small>{unit}</small> : null}
         </span>
       )}
@@ -71,11 +96,16 @@ export function DashboardPage() {
   return (
     <Space className="zw-dashboard" orientation="vertical" size={18} style={{ display: 'flex' }}>
       <Tabs
-        defaultActiveKey="metrics"
+        defaultActiveKey="home"
         items={[
           {
+            key: 'home',
+            label: '膳食总览',
+            children: <ReferenceOverview days={days} setDays={setDays} />,
+          },
+          {
             key: 'metrics',
-            label: '经营指标',
+            label: '营养分析',
             children: (
               <Space orientation="vertical" size={18} style={{ display: 'flex' }}>
                 <Card className="zw-summary-card" styles={{ body: { padding: 0 } }}>
@@ -94,65 +124,87 @@ export function DashboardPage() {
                     />
                   </div>
 
-                  <div className="zw-metric-grid">
-                    <Metric
-                      label="平均每餐人次"
-                      value={summary.data?.avg_diner_count.toLocaleString('zh-CN') ?? '—'}
-                      unit="人次"
-                      hint="按每个餐次统计"
-                      loading={summary.isPending}
-                      lead
-                    />
-                    <Metric
-                      label="人均食盐"
-                      value={trimDecimal(summary.data?.avg_salt_per_capita_g)}
-                      unit="克/日"
-                      hint="每日不超过 5 克"
-                      loading={summary.isPending}
-                      lead
-                    />
-                    <Metric
-                      label="人均烹调油"
-                      value={trimDecimal(summary.data?.avg_oil_per_capita_g)}
-                      unit="克/日"
-                      hint="每日 25 ~ 30 克"
-                      loading={summary.isPending}
-                      lead
-                    />
-                    <Metric
-                      label="最近一日达标率"
-                      value={formatPercent(summary.data?.latest_compliance_rate)}
-                      hint="最近一条核算记录"
-                      loading={summary.isPending}
-                      lead
-                    />
-                    <Metric
-                      label="人均添加糖"
-                      value={trimDecimal(summary.data?.avg_added_sugar_per_capita_g)}
-                      unit="克/日"
-                      hint="每日不超过 50 克"
-                      loading={summary.isPending}
-                    />
-                    <Metric
-                      label="平均浪费率"
-                      value={formatPercent(summary.data?.avg_waste_ratio)}
-                      hint="剩餐量占供餐量"
-                      loading={summary.isPending}
-                    />
-                    <Metric
-                      label="每日食物种类"
-                      value={trimDecimal(summary.data?.avg_dish_variety)}
-                      unit="种"
-                      hint="每日不少于 12 种"
-                      loading={summary.isPending}
-                    />
-                    <Metric
-                      label="有记录天数"
-                      value={summary.data?.days_with_records ?? 0}
-                      unit="天"
-                      hint={rangeLabel}
-                      loading={summary.isPending}
-                    />
+                  <div className="zw-summary-body">
+                    <div className="zw-metric-grid">
+                      <Metric
+                        label="平均每日供餐人次"
+                        value={summary.data?.avg_diner_count?.toLocaleString('zh-CN') ?? '—'}
+                        unit="人次"
+                        hint="已记录日期的每日合计均值"
+                        loading={summary.isPending}
+                        lead
+                      />
+                      <Metric
+                        label="人均食盐"
+                        value={trimDecimal(summary.data?.avg_salt_per_capita_g)}
+                        unit="克/日"
+                        hint="每日不超过 5 克"
+                        loading={summary.isPending}
+                        lead
+                      />
+                      <Metric
+                        label="人均烹调油"
+                        value={trimDecimal(summary.data?.avg_oil_per_capita_g)}
+                        unit="克/日"
+                        hint="每日 25 ~ 30 克"
+                        loading={summary.isPending}
+                        lead
+                      />
+                      <Metric
+                        label="平均浪费率"
+                        value={formatPercent(summary.data?.avg_waste_ratio)}
+                        hint="剩餐量占供餐量"
+                        loading={summary.isPending}
+                        lead
+                      />
+                      <Metric
+                        label="人均添加糖"
+                        value={trimDecimal(summary.data?.avg_added_sugar_per_capita_g)}
+                        unit="克/日"
+                        hint="每日不超过 50 克"
+                        loading={summary.isPending}
+                      />
+                      <Metric
+                        label="最近核算日期"
+                        value={perCapita.data?.latest_date?.slice(5) ?? '—'}
+                        hint="来自实际核算记录"
+                        loading={summary.isPending}
+                      />
+                      <Metric
+                        label="每日食物种类"
+                        value={trimDecimal(summary.data?.avg_dish_variety)}
+                        unit="种"
+                        hint="每日不少于 12 种"
+                        loading={summary.isPending}
+                      />
+                      <Metric
+                        label="有记录天数"
+                        value={summary.data?.days_with_records ?? 0}
+                        unit="天"
+                        hint={rangeLabel}
+                        loading={summary.isPending}
+                      />
+                    </div>
+                    <div className="zw-summary-ring">
+                      <Progress
+                        type="dashboard"
+                        percent={Math.max(
+                          0,
+                          Math.min(100, Number(summary.data?.latest_compliance_rate ?? 0) * 100),
+                        )}
+                        strokeColor="#809574"
+                        railColor="#ebe7da"
+                        size={128}
+                        strokeWidth={7}
+                        format={() => (
+                          <div className="zw-ring-label">
+                            <strong>{formatPercent(summary.data?.latest_compliance_rate)}</strong>
+                            <span>最近一日达标率</span>
+                          </div>
+                        )}
+                      />
+                      <span>依据最近一条核算记录</span>
+                    </div>
                   </div>
                 </Card>
 
@@ -161,7 +213,7 @@ export function DashboardPage() {
                     <Card
                       className="zw-chart-card"
                       title="油盐糖用量趋势"
-                      extra={<span className="zw-chart-hint">餐次总量 · 克</span>}
+                      extra={<span className="zw-chart-hint">每日总量 · 克</span>}
                     >
                       {trends.isPending ? (
                         <Skeleton active />
@@ -172,8 +224,20 @@ export function DashboardPage() {
                             ariaLabel="油盐糖每日用量趋势图"
                             option={buildTrendOption(trends.data)}
                           />
-                          <Typography.Paragraph className="zw-chart-note">
-                            注：这里统计的是当餐全部就餐人次的总量，与「每人每日」的基准不是同一量纲，
+                          <Popover
+                            title="数据口径"
+                            content={
+                              <p style={{ maxWidth: 320 }}>
+                                趋势图为每日总量，人均推荐值按每人每日展示，两者不能直接比较。
+                              </p>
+                            }
+                          >
+                            <span className="zw-chart-caliber">
+                              <InfoCircleOutlined /> 每日总量，与每人每日基准不同
+                            </span>
+                          </Popover>
+                          <Typography.Paragraph className="zw-chart-note" hidden>
+                            注：这里统计的是当日已记录餐次的调料总量，与「每人每日」的基准不是同一量纲，
                             因此不在此图直接画目标线；达标判断以右侧「人均摄入与推荐值」为准。
                           </Typography.Paragraph>
                         </>
@@ -190,22 +254,22 @@ export function DashboardPage() {
                         <Skeleton active />
                       ) : (
                         <div className="zw-compare">
-                          <Typography.Paragraph className="zw-compare-note">
-                            {perCapita.data?.basis_note}
-                          </Typography.Paragraph>
-                          <Table<StandardComparison>
-                            rowKey="code"
-                            size="small"
-                            pagination={false}
-                            dataSource={perCapita.data?.comparisons ?? []}
-                            columns={comparisonColumns}
-                          />
+                          <Popover
+                            title="数值口径"
+                            content={<p style={{ maxWidth: 360 }}>{perCapita.data?.basis_note}</p>}
+                          >
+                            <span className="zw-chart-caliber">
+                              <InfoCircleOutlined /> 查看来源与核算口径
+                            </span>
+                          </Popover>
+                          <ComparisonRows items={perCapita.data?.comparisons ?? []} />
                         </div>
                       )}
                     </Card>
                   </Col>
                 </Row>
 
+                <DashboardMenuPreview />
                 <Row gutter={[18, 18]}>
                   <Col xs={24} xl={12}>
                     <Card
@@ -256,213 +320,267 @@ export function DashboardPage() {
   );
 }
 
-const comparisonColumns: TableProps<StandardComparison>['columns'] = [
-  { title: '指标', dataIndex: 'label', width: 100 },
-  {
-    title: '实际',
-    dataIndex: 'actual',
-    width: 98,
-    align: 'right',
-    render: (value: string | null, record) =>
-      value === null ? '—' : `${trimDecimal(value)} ${record.unit}`,
-  },
-  {
-    title: '推荐',
-    key: 'target',
-    render: (_, record) => {
-      const min = trimDecimal(record.target_min);
-      const max = trimDecimal(record.target_max);
-      if (record.target_min && record.target_max) return `${min} ~ ${max} ${record.unit}`;
-      if (record.target_max) return `≤ ${max} ${record.unit}`;
-      if (record.target_min) return `≥ ${min} ${record.unit}`;
-      return '—';
+function ReferenceOverview({ days, setDays }: { days: number; setDays: (value: number) => void }) {
+  const { summary, trends, perCapita, waste } = useDashboard(days);
+  const comparisons = perCapita.data?.comparisons ?? [];
+  const known = comparisons.filter((item) => item.status !== 'unknown');
+  const passed = known.filter((item) => item.status === 'ok').length;
+  const metrics = [
+    {
+      label: '平均每日供餐人次',
+      value: summary.data?.avg_diner_count?.toLocaleString('zh-CN') ?? '—',
+      unit: '人次',
+      icon: <TeamOutlined />,
+      hint: '每日人次合计的均值',
+      points: calendarRows(trends.data).map(({ point }) => point?.diner_count ?? null),
+      sparkLabel: '每日供餐人次',
+      color: '#789775',
     },
-  },
-  {
-    title: '结论',
-    dataIndex: 'status',
-    width: 96,
-    align: 'center',
-    render: (status: string) => (
-      <Tag variant="filled" color={STATUS_COLOR[status] ?? 'default'}>
-        {STATUS_TEXT[status] ?? status}
-      </Tag>
-    ),
-  },
-];
-
-const tooltipBase = {
-  backgroundColor: CHART_INK,
-  borderWidth: 0,
-  padding: [9, 12],
-  textStyle: { color: '#f6f1e4', fontSize: 12 },
-  axisPointer: {
-    type: 'line' as const,
-    lineStyle: { color: '#b8c4b9', type: 'dashed' as const, width: 1 },
-  },
-};
-
-const legendBase = {
-  top: 0,
-  right: 0,
-  icon: 'circle',
-  itemWidth: 8,
-  itemHeight: 8,
-  itemGap: 18,
-  textStyle: { color: '#5f7166', fontSize: 12 },
-};
-
-const xAxisBase = {
-  type: 'category' as const,
-  axisLine: { lineStyle: { color: CHART_LINE } },
-  axisTick: { show: false },
-  axisLabel,
-};
-
-const yAxisBase = {
-  type: 'value' as const,
-  axisLabel,
-  splitLine: { lineStyle: { color: '#f0ece2', type: 'dashed' as const } },
-};
-
-const chartTextStyle = {
-  fontFamily: '"PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif',
-};
-
-function buildTrendOption(data?: TrendsResponse): EChartOption {
-  const points = data?.points ?? [];
-  const dates = points.map((point) => point.date.slice(5));
-
-  return {
-    textStyle: chartTextStyle,
-    color: [CHART_GREEN, CHART_AMBER, CHART_SAGE],
-    tooltip: { ...tooltipBase, trigger: 'axis' },
-    // 图例放顶部：默认的底部居中被横轴日期标签压住，读起来很挤
-    legend: { ...legendBase, data: ['食用油', '食盐', '添加糖'] },
-    grid: { left: 56, right: 18, top: 44, bottom: 30 },
-    xAxis: { ...xAxisBase, data: dates, boundaryGap: false },
-    yAxis: { ...yAxisBase, name: '克', nameTextStyle: { color: CHART_MUTED, fontSize: 11 } },
-    series: [
-      {
-        name: '食用油',
-        type: 'line',
-        smooth: 0.35,
-        showSymbol: false,
-        symbol: 'circle',
-        symbolSize: 6,
-        lineStyle: { width: 2.4 },
-        areaStyle: { opacity: 0.08 },
-        data: points.map((point) => toNumber(point.oil_total_g)),
-      },
-      {
-        name: '食盐',
-        type: 'line',
-        smooth: 0.35,
-        showSymbol: false,
-        symbol: 'circle',
-        symbolSize: 6,
-        lineStyle: { width: 2.4 },
-        areaStyle: { opacity: 0.06 },
-        data: points.map((point) => toNumber(point.salt_total_g)),
-      },
-      {
-        name: '添加糖',
-        type: 'line',
-        smooth: 0.35,
-        showSymbol: false,
-        symbol: 'circle',
-        symbolSize: 6,
-        lineStyle: { width: 2 },
-        data: points.map((point) => toNumber(point.sugar_total_g)),
-      },
-    ],
-  };
+    {
+      label: '人均食盐用量',
+      value: trimDecimal(summary.data?.avg_salt_per_capita_g),
+      unit: '克/日',
+      icon: <ExperimentOutlined />,
+      hint: '每日参考上限 5 克',
+      points: calendarRows(trends.data).map(({ point }) => toNumber(point?.salt_per_capita_g)),
+      sparkLabel: '每日人均食盐',
+      color: '#b7a27b',
+    },
+    {
+      label: '平均浪费率',
+      value: formatPercent(summary.data?.avg_waste_ratio),
+      unit: '',
+      icon: <DeleteOutlined />,
+      hint: '剩餐量占供餐量',
+      points: calendarRows(waste.data).map(({ point }) => toNumber(point?.waste_ratio, 4)),
+      sparkLabel: '每日浪费率',
+      color: '#ce927a',
+    },
+  ];
+  return (
+    <div className="zw-reference-grid">
+      {(summary.isError || trends.isError || perCapita.isError || waste.isError) && (
+        <Alert
+          className="zw-data-note"
+          type="error"
+          title="部分数据读取失败，请刷新重试；未读取的数据不代表零值或达标。"
+        />
+      )}
+      <div className="zw-data-note">
+        {trends.data
+          ? `${trends.data.start} 至 ${trends.data.end}（含首尾，共 ${trends.data.days} 天） · ${summary.data?.days_with_records ?? '—'} 天有采集记录；缺记录留空，均值仅按已记录数据计算。`
+          : '正在读取统计范围…'}
+      </div>
+      <section className="zw-reference-metrics">
+        {metrics.map((metric) => (
+          <div className="zw-reference-metric" key={metric.label}>
+            <span className="zw-reference-icon">{metric.icon}</span>
+            <div>
+              <Metric
+                label={metric.label}
+                value={metric.value}
+                unit={metric.unit}
+                hint={metric.hint}
+                loading={summary.isPending}
+              />
+              <div className="zw-mini-history">
+                {metric.points?.length ? (
+                  <>
+                    <Sparkline values={metric.points} color={metric.color} />
+                    <small>{metric.sparkLabel}</small>
+                  </>
+                ) : (
+                  <span>统计范围：近 {days} 天</span>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </section>
+      <section className="zw-reference-nutrition">
+        <h2>
+          营养达标情况{' '}
+          <Popover content="依据最近一日的人均摄入核算结果；每项指标等权统计。">
+            <InfoCircleOutlined />
+          </Popover>
+        </h2>
+        <div className="zw-reference-caption">
+          最近记录：{perCapita.data?.latest_date ?? '暂无'}（已记录餐次）
+        </div>
+        <div className="zw-nutrition-body">
+          <Progress
+            type="circle"
+            size={118}
+            strokeWidth={14}
+            percent={known.length ? (passed / known.length) * 100 : 0}
+            strokeColor="#789775"
+            railColor="#e8dac4"
+            format={() => (
+              <span>
+                <strong>
+                  {known.length ? passed : '—'}
+                  {known.length > 0 && <small> / {known.length}</small>}
+                </strong>
+                <em>{known.length ? '指标达标' : '暂无核算'}</em>
+              </span>
+            )}
+          />
+          <ul>
+            {comparisons.slice(0, 4).map((item) => (
+              <li key={item.code}>
+                <i style={{ background: item.status === 'ok' ? '#8fa489' : '#ceb994' }} />
+                {item.label}
+                <span>{STATUS_TEXT[item.status]}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+      <section className="zw-reference-trend">
+        <header>
+          <h2>油盐糖用量趋势</h2>
+          <Segmented
+            options={RANGE_OPTIONS.map((option) => ({ label: option.label, value: option.value }))}
+            value={days}
+            onChange={(v) => setDays(Number(v))}
+          />
+        </header>
+        <span className="zw-reference-caption">每日总量 · 克</span>
+        {trends.isPending ? (
+          <Skeleton active />
+        ) : (
+          <EChart
+            height={200}
+            ariaLabel="油盐糖每日用量趋势图"
+            option={buildTrendOption(trends.data)}
+          />
+        )}
+      </section>
+      <section className="zw-reference-comparison">
+        <header>
+          <h2>人均每日参考</h2>
+          <Popover content={<p style={{ maxWidth: 320 }}>{perCapita.data?.basis_note}</p>}>
+            <span className="zw-reference-caption">
+              核算口径 <InfoCircleOutlined />
+            </span>
+          </Popover>
+        </header>
+        <p className="zw-reference-caption">
+          最近记录：{perCapita.data?.latest_date ?? '暂无'} · 非期间平均值
+        </p>
+        <ComparisonRows
+          items={comparisons
+            .filter((item) => item.code !== 'dish_variety' && !item.label.includes('种类'))
+            .slice(0, 3)}
+        />
+      </section>
+      <div className="zw-reference-bottom">
+        <DashboardMenuPreview />
+      </div>
+    </div>
+  );
 }
 
-function buildComplianceOption(data?: ComplianceResponse): EChartOption {
-  const points = data?.points ?? [];
-
-  return {
-    textStyle: chartTextStyle,
-    tooltip: {
-      ...tooltipBase,
-      trigger: 'axis',
-      valueFormatter: (value: unknown) =>
-        typeof value === 'number' ? `${(value * 100).toFixed(1)}%` : String(value),
-    },
-    grid: { left: 48, right: 18, top: 24, bottom: 30 },
-    xAxis: { ...xAxisBase, data: points.map((point) => point.date.slice(5)) },
-    yAxis: {
-      ...yAxisBase,
-      max: 1,
-      name: '达标率',
-      nameTextStyle: { color: CHART_MUTED, fontSize: 11 },
-      // 纵轴按百分比读，0.5 这种刻度对使用者没有意义
-      axisLabel: {
-        ...axisLabel,
-        formatter: (value: number) => `${Math.round(value * 100)}%`,
-      },
-    },
-    series: [
-      {
-        name: '达标率',
-        type: 'bar',
-        barWidth: '48%',
-        itemStyle: { color: CHART_GREEN, borderRadius: [5, 5, 0, 0] },
-        data: points.map((point) => toNumber(point.rate, 4)),
-      },
-    ],
-  };
+function Sparkline({ values, color }: { values: (number | null)[]; color: string }) {
+  const valid = values.filter((value): value is number => value !== null && Number.isFinite(value));
+  if (!valid.length) return <span>暂无记录</span>;
+  const min = Math.min(...valid);
+  const span = Math.max(...valid) - min || 1;
+  const segments: string[][] = [];
+  let segment: string[] = [];
+  values.forEach((value, index) => {
+    if (value === null || !Number.isFinite(value)) {
+      if (segment.length) segments.push(segment);
+      segment = [];
+      return;
+    }
+    segment.push(
+      `${(index / Math.max(1, values.length - 1)) * 170},${35 - ((value - min) / span) * 27}`,
+    );
+  });
+  if (segment.length) segments.push(segment);
+  return (
+    <svg viewBox="0 0 170 44" aria-hidden="true">
+      {segments.map((points, index) => (
+        <g key={index}>
+          <polyline
+            points={points.join(' ')}
+            fill="none"
+            stroke={color}
+            strokeWidth="1.7"
+            strokeLinejoin="round"
+          />
+          {points.map((point) => (
+            <circle
+              key={point}
+              cx={point.split(',')[0]}
+              cy={point.split(',')[1]}
+              r="1.6"
+              fill={color}
+            />
+          ))}
+        </g>
+      ))}
+    </svg>
+  );
 }
 
-function buildWasteOption(data?: WasteResponse): EChartOption {
-  const points = data?.points ?? [];
-
-  return {
-    textStyle: chartTextStyle,
-    color: [CHART_AMBER, CHART_GREEN],
-    tooltip: { ...tooltipBase, trigger: 'axis' },
-    legend: { ...legendBase, data: ['浪费率', '剩餐量'] },
-    grid: { left: 56, right: 56, top: 44, bottom: 30 },
-    xAxis: { ...xAxisBase, data: points.map((point) => point.date.slice(5)) },
-    yAxis: [
-      {
-        ...yAxisBase,
-        name: '浪费率',
-        nameTextStyle: { color: CHART_MUTED, fontSize: 11 },
-        // 不写死上限：浪费率通常在 10% 上下，固定到 100% 会把柱子压成一条线
-        axisLabel: {
-          ...axisLabel,
-          formatter: (value: number) => `${Math.round(value * 100)}%`,
-        },
-      },
-      {
-        type: 'value',
-        name: '千克',
-        nameTextStyle: { color: CHART_MUTED, fontSize: 11 },
-        position: 'right',
-        axisLabel,
-        splitLine: { show: false },
-      },
-    ],
-    series: [
-      {
-        name: '浪费率',
-        type: 'bar',
-        barWidth: '48%',
-        itemStyle: { color: CHART_AMBER, borderRadius: [5, 5, 0, 0] },
-        data: points.map((point) => toNumber(point.waste_ratio, 4)),
-      },
-      {
-        name: '剩餐量',
-        type: 'line',
-        smooth: 0.35,
-        showSymbol: false,
-        lineStyle: { width: 2.4, color: CHART_GREEN },
-        itemStyle: { color: CHART_GREEN },
-        yAxisIndex: 1,
-        data: points.map((point) => toNumber(point.leftover_weight_g) / 1000),
-      },
-    ],
-  };
+function ComparisonRows({ items }: { items: StandardComparison[] }) {
+  if (!items.length) return <p className="zw-chart-note">暂无核算结果</p>;
+  return (
+    <div className="zw-comparison-rows">
+      {items.map((item) => {
+        const ceiling = Number(item.target_max ?? item.target_min);
+        // 只画相对参考值的长度；判定与推荐范围仍直接来自业务 API。
+        const percent =
+          item.actual != null && ceiling > 0
+            ? Math.min(100, Math.max(0, (Number(item.actual) / ceiling) * 100))
+            : 0;
+        const target =
+          item.target_min != null && item.target_max != null
+            ? `${trimDecimal(item.target_min)} ~ ${trimDecimal(item.target_max)}`
+            : item.target_max != null
+              ? `≤ ${trimDecimal(item.target_max)}`
+              : item.target_min != null
+                ? `≥ ${trimDecimal(item.target_min)}`
+                : '—';
+        return (
+          <div className="zw-comparison-row" key={item.code}>
+            <div>
+              <span className="zw-reference-row-icon" aria-hidden="true">
+                {item.label.includes('油') ? (
+                  <FireOutlined />
+                ) : item.label.includes('盐') ? (
+                  <ExperimentOutlined />
+                ) : (
+                  <AppstoreOutlined />
+                )}
+              </span>
+              <strong>{item.label}</strong>
+              <span>
+                {trimDecimal(item.actual)} <small>{item.unit}</small>
+              </span>
+            </div>
+            <Progress
+              percent={percent}
+              showInfo={false}
+              strokeColor={
+                item.status === 'over' ? '#bc7d68' : item.status === 'under' ? '#b3a075' : '#8fa181'
+              }
+              railColor="#efebe2"
+              strokeWidth={7}
+            />
+            <footer>
+              <span>
+                参考 {target} {item.unit}
+              </span>
+              <Tag color={STATUS_COLOR[item.status] ?? 'default'}>
+                {STATUS_TEXT[item.status] ?? item.status}
+              </Tag>
+            </footer>
+          </div>
+        );
+      })}
+    </div>
+  );
 }

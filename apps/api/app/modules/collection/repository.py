@@ -6,7 +6,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.modules.auth.models import User
@@ -50,7 +50,7 @@ def load_menu_items(session: Session, *, on_date: date, meal_type: MealType) -> 
     )
 
 
-def load_active_dishes(session: Session) -> list[Dish]:
+def load_active_dishes(session: Session, *, include_ids: set[UUID] | None = None) -> list[Dish]:
     """全部在用的菜品，按类别与名称排序。
 
     当天还没有菜单时，采集页要靠它把可选菜品列出来——否则「勾选今日实际供应的菜品」
@@ -58,7 +58,9 @@ def load_active_dishes(session: Session) -> list[Dish]:
     """
     return list(
         session.scalars(
-            select(Dish).where(Dish.is_active.is_(True)).order_by(Dish.category, Dish.name)
+            select(Dish)
+            .where(or_(Dish.is_active.is_(True), Dish.id.in_(include_ids or set())))
+            .order_by(Dish.category, Dish.name)
         ).all()
     )
 

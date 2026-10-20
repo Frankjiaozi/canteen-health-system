@@ -12,6 +12,8 @@ import type { Conversation, PlanVersion, Review } from '../api/types';
 import { comparePlans, formatAmount } from '../lib/compare';
 import { ReadinessResult } from './ReadinessResult';
 import { basisRows } from '../lib/evidence';
+import { DishImage } from '@/features/dish/components/DishImage';
+import '@/features/dish/dish.css';
 
 const STATUS_LABEL = { ok: '在目标区间', under: '低于目标', over: '高于目标' };
 
@@ -129,6 +131,7 @@ function ReviewResult({ review, sessionId }: { review: Review; sessionId: string
 }
 
 interface Props {
+  dishImages?: Record<string, string | null | undefined>;
   activeTab: string;
   onTabChange: (value: string) => void;
   conversation: Conversation | undefined;
@@ -145,6 +148,7 @@ interface Props {
 }
 
 export function ResultPanel({
+  dishImages = {},
   activeTab,
   onTabChange,
   conversation,
@@ -205,6 +209,7 @@ export function ResultPanel({
           <div className="zw-agent-dish-list">
             {plan.dishes.map((dish) => (
               <div className="zw-agent-dish" key={dish.dish_id}>
+                <DishImage url={dishImages[dish.dish_id]} name={dish.dish_name} compact />
                 <div>
                   <h4>{dish.dish_name}</h4>
                   <span>

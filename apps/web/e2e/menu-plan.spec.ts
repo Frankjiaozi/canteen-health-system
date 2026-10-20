@@ -18,7 +18,7 @@ test('生成明日菜单后，菜品、采购单与份数口径都在', async ({
 
   // 默认入口是「一天三餐」；这条用例验的是单餐详情，先切到单日。
   await page.getByText('单日', { exact: true }).click();
-  await page.getByRole('button', { name: '生成明日菜单' }).click();
+  await page.getByRole('button', { name: '生成所选餐次菜单' }).click();
   await expect(page.getByText(/已排出 \d+ 道菜，采购 \d+ 项/)).toBeVisible();
 
   // ① 菜品推荐：只有菜，没有份数（份数归预测）
@@ -63,7 +63,7 @@ test('依据与校验里能查到每道菜的份数来源、回测误差与日�
   const tomorrow = dayjs().add(1, 'day').format('YYYY-MM-DD');
   await page.goto(`/admin/menu-plan?date=${tomorrow}&meal=LUNCH`);
   await page.getByText('单日', { exact: true }).click();
-  await page.getByRole('button', { name: '生成明日菜单' }).click();
+  await page.getByRole('button', { name: '生成所选餐次菜单' }).click();
   await expect(page.getByText(/已排出 \d+ 道菜/)).toBeVisible();
 
   // 折叠区默认收起：日常点一次按钮不需要看到这些
@@ -91,7 +91,7 @@ test('否决必须写明原因，写了才记录得下来', async ({ page }) => 
   const target = dayjs().add(2, 'day').format('YYYY-MM-DD');
   await page.goto(`/admin/menu-plan?date=${target}&meal=LUNCH`);
   await page.getByText('单日', { exact: true }).click();
-  await page.getByRole('button', { name: '生成明日菜单' }).click();
+  await page.getByRole('button', { name: '生成所选餐次菜单' }).click();
   await expect(page.getByText(/已排出 \d+ 道菜/)).toBeVisible();
 
   await page.getByRole('button', { name: '否决' }).click();
@@ -102,15 +102,14 @@ test('否决必须写明原因，写了才记录得下来', async ({ page }) => 
   await expect(page.getByText(/否决原因：当天有校外活动/)).toBeVisible();
 });
 
-test('学校管理方看得到结果，但没有生成与采纳入口', async ({ page }) => {
+test('学校管理方可进入菜单页，但没有生成与采纳入口', async ({ page }) => {
   await loginAs(page, 'school');
 
-  await page.getByRole('menuitem', { name: /日常运行/ }).click();
-  await page.getByRole('menuitem', { name: '明日菜单与采购' }).click();
+  await page.getByRole('menuitem', { name: /菜单与采购/ }).click();
 
   await expect(page.getByText('明日菜单与采购')).toBeVisible();
   await expect(page.getByRole('button', { name: '生成三餐' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '生成明日菜单' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '生成所选餐次菜单' })).toHaveCount(0);
 });
 
 test('一天三餐默认入口生成三餐与合并采购单', async ({ page }) => {
@@ -119,7 +118,7 @@ test('一天三餐默认入口生成三餐与合并采购单', async ({ page }) 
   await page.goto('/admin/menu-plan');
   await page.getByRole('button', { name: '生成三餐' }).click();
 
-  await expect(page.getByText(/① 明日三餐安排/)).toBeVisible();
+  await expect(page.getByText(/① 三餐安排/)).toBeVisible();
   await expect(page.getByText(/早餐 · \d+ 人次/)).toBeVisible();
   await expect(page.getByText(/午餐 · \d+ 人次/)).toBeVisible();
   await expect(page.getByText(/晚餐 · \d+ 人次/)).toBeVisible();

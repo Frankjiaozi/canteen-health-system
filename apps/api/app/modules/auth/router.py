@@ -11,9 +11,14 @@ from app.core.security import create_access_token
 from app.db.session import get_session
 from app.modules.auth import service
 from app.modules.auth.dependencies import get_current_user
-from app.modules.auth.schemas import AuthUser, LoginRequest, RegisterRequest
+from app.modules.auth.schemas import AuthOptions, AuthUser, LoginRequest, RegisterRequest
 
 router = APIRouter(prefix="/auth", tags=["认证"])
+
+
+@router.get("/options", response_model=AuthOptions, summary="登录页面可用功能")
+def options() -> AuthOptions:
+    return AuthOptions(registration_enabled=get_settings().allow_open_registration)
 
 
 def _set_auth_cookie(response: Response, token: str) -> None:

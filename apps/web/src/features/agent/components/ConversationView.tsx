@@ -4,7 +4,7 @@ import {
   LoadingOutlined,
   SendOutlined,
 } from '@ant-design/icons';
-import { Button, Input } from 'antd';
+import { Button, Input, Steps } from 'antd';
 import { useEffect, useRef } from 'react';
 import type { ChatMessage, PendingTask, ToolTrace } from '../api/types';
 
@@ -62,25 +62,27 @@ const STARTERS: { label: string; prompt: string; hint: string; needsPlan?: boole
 export function TraceList({ trace }: { trace: ToolTrace[] }) {
   if (!trace.length) return null;
   return (
-    <ol className="zw-agent-trace" aria-label="实际执行步骤">
-      {trace.map((step) => (
-        <li key={step.id} className={`is-${step.status}`}>
-          <span>
-            {step.status === 'running' ? (
+    <div className="zw-agent-execution-steps" aria-label="实际执行步骤">
+      <Steps
+        orientation="vertical"
+        size="small"
+        items={trace.map((step) => ({
+          key: step.id,
+          title: step.label,
+          content: step.detail,
+          status:
+            step.status === 'running' ? 'process' : step.status === 'error' ? 'error' : 'finish',
+          icon:
+            step.status === 'running' ? (
               <LoadingOutlined spin />
             ) : step.status === 'error' ? (
               <CloseCircleOutlined />
             ) : (
               <CheckCircleOutlined />
-            )}
-          </span>
-          <div>
-            {step.label}
-            {step.detail && <small>{step.detail}</small>}
-          </div>
-        </li>
-      ))}
-    </ol>
+            ),
+        }))}
+      />
+    </div>
   );
 }
 

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { ApiError } from '@/shared/api/errors';
 import { AuthShell } from '../components/AuthShell';
-import { useCurrentUser, useLogin } from '../hooks/useAuth';
+import { useAuthOptions, useCurrentUser, useLogin } from '../hooks/useAuth';
 import type { LoginPayload } from '../types';
 
 export function LoginPage() {
@@ -12,6 +12,7 @@ export function LoginPage() {
   const location = useLocation();
   const { data: currentUser } = useCurrentUser();
   const loginMutation = useLogin();
+  const options = useAuthOptions();
   const [errorText, setErrorText] = useState<string | null>(null);
 
   const from =
@@ -76,16 +77,16 @@ export function LoginPage() {
         </Button>
       </Form>
 
-      <p className="zw-login-register">
-        还没有账号？
-        <Link to="/register" state={location.state}>
-          立即注册
-        </Link>
-      </p>
-
-      {import.meta.env.DEV ? (
-        <p className="zw-login-demo">演示账号：recorder / canteen / school，口令 canteen@2026</p>
-      ) : null}
+      {options.data?.registration_enabled ? (
+        <p className="zw-login-register">
+          还没有账号？
+          <Link to="/register" state={location.state}>
+            立即注册
+          </Link>
+        </p>
+      ) : (
+        <p className="zw-login-register">需要账号？请联系管理员开通。</p>
+      )}
     </AuthShell>
   );
 }

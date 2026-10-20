@@ -52,14 +52,20 @@ export function PurchaseTable({ requirements }: { requirements: IngredientRequir
  * 单子是按**预测份数**乘出来的，所以口径要写在标题下面（`servings_note`），
  * 每道菜用了多少份在③里逐条可查——两者分开写，是为了让这一节能直接打印给采购员。
  */
-export function PurchaseList({ plan }: { plan: MenuPlanResponse }) {
+export function PurchaseList({
+  plan,
+  historical = false,
+}: {
+  plan: MenuPlanResponse;
+  historical?: boolean;
+}) {
   const summary = summarizePurchase(plan.requirements, plan.total_cost, plan.budget);
   const fallbackDishes = plan.dishes.filter((dish) => dish.prediction_fallback);
 
   return (
     <Card
       size="small"
-      title={`② 明日食材采购建议（共 ${plan.requirements.length} 项）`}
+      title={`② ${historical ? `${plan.date} 食材采购快照` : '明日食材采购建议'}（共 ${plan.requirements.length} 项）`}
       extra={
         <Typography.Text strong>
           采购金额 {formatAmount(plan.total_cost)} 元 / 预算 {formatAmount(plan.budget)} 元

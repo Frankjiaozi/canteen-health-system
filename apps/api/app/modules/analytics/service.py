@@ -27,6 +27,7 @@ from app.modules.analytics.schemas import (
     WasteResponse,
 )
 from app.modules.collection.models import DailyLog
+from app.modules.dish.images import image_url as dish_service_image_url
 from app.modules.nutrition.models import NutritionStandard
 from app.modules.nutrition.schemas import StandardComparison
 from app.shared.enums import MealType, StandardCode
@@ -101,6 +102,7 @@ def build_menu_overview(session: Session) -> MenuOverviewResponse:
                     dishes=[
                         MenuOverviewDish(
                             dish_id=str(dish.id),
+                            image_url=dish_service_image_url(dish.id),
                             name=dish.name,
                             category_label=dish.category.label,
                             cooking_method_label=dish.cooking_method.label,
@@ -185,9 +187,9 @@ def build_trends(session: Session, *, days: int) -> TrendsResponse:
                 oil_total_g=str(_total(day_logs, "oil_total_g")),
                 salt_total_g=str(_total(day_logs, "salt_total_g")),
                 sugar_total_g=str(_total(day_logs, "sugar_total_g")),
-                oil_per_capita_g=_str_or_zero(per_capita[StandardCode.EDIBLE_OIL]),
-                salt_per_capita_g=_str_or_zero(per_capita[StandardCode.SALT]),
-                sugar_per_capita_g=_str_or_zero(per_capita[StandardCode.ADDED_SUGAR]),
+                oil_per_capita_g=_optional_str(per_capita[StandardCode.EDIBLE_OIL]),
+                salt_per_capita_g=_optional_str(per_capita[StandardCode.SALT]),
+                sugar_per_capita_g=_optional_str(per_capita[StandardCode.ADDED_SUGAR]),
             )
         )
 
@@ -270,19 +272,20 @@ def build_waste(session: Session, *, days: int) -> WasteResponse:
     ratios: list[Decimal] = []
     for day, produced, leftover in rows:
         produced_decimal = Decimal(produced)
-        leftover_decimal = Decimal("0") if leftover is None else Decimal(leftover)
+        leftover_decimal = None if leftover is None else Decimal(leftover)
         ratio = (
-            Decimal("0")
-            if produced_decimal == 0
+            None
+            if produced_decimal <= 0 or leftover_decimal is None
             else quantize(leftover_decimal / produced_decimal, 4)
         )
-        ratios.append(ratio)
+        if ratio is not None:
+            ratios.append(ratio)
         points.append(
             WastePoint(
                 date=day,
                 produced_weight_g=str(produced_decimal),
-                leftover_weight_g=str(leftover_decimal),
-                waste_ratio=str(ratio),
+                leftover_weight_g=_optional_str(leftover_decimal),
+                waste_ratio=_optional_str(ratio),
             )
         )
 
@@ -313,9 +316,15 @@ def build_summary(session: Session, *, days: int) -> DashboardSummary:
         end=end,
         days_with_records=len(points),
         avg_diner_count=avg_diner,
-        avg_salt_per_capita_g=_mean_str([Decimal(p.salt_per_capita_g) for p in points]),
-        avg_oil_per_capita_g=_mean_str([Decimal(p.oil_per_capita_g) for p in points]),
-        avg_added_sugar_per_capita_g=_mean_str([Decimal(p.sugar_per_capita_g) for p in points]),
+        avg_salt_per_capita_g=_mean_str(
+            [Decimal(p.salt_per_capita_g) for p in points if p.salt_per_capita_g is not None]
+        ),
+        avg_oil_per_capita_g=_mean_str(
+            [Decimal(p.oil_per_capita_g) for p in points if p.oil_per_capita_g is not None]
+        ),
+        avg_added_sugar_per_capita_g=_mean_str(
+            [Decimal(p.sugar_per_capita_g) for p in points if p.sugar_per_capita_g is not None]
+        ),
         avg_waste_ratio=waste.average_ratio,
         avg_dish_variety=_mean_str([Decimal(count) for count in variety.values()]),
         latest_compliance_rate=latest_rate,
@@ -326,8 +335,8 @@ def _total(logs: list[DailyLog], field: str) -> Decimal:
     return quantize(sum((getattr(log, field) for log in logs), Decimal("0")), 2)
 
 
-def _str_or_zero(value: Decimal | None) -> str:
-    return "0.00" if value is None else str(value)
+def _optional_str(value: Decimal | None) -> str | None:
+    return None if value is None else str(value)
 
 
 def _amounts(totals: dict[str, str] | None) -> list[NutrientAmount]:
@@ -369,9 +378,9 @@ def _mean_str(values: list[Decimal]) -> str | None:
     return None if average is None else str(quantize(average, 2))
 
 
-def _ratio(numerator: int, denominator: int) -> str:
+def _ratio(numerator: int, denominator: int) -> str | None:
     if denominator <= 0:
-        return "0.0000"
+        return None
     return str(
         (Decimal(numerator) / Decimal(denominator)).quantize(
             Decimal("0.0001"), rounding=ROUND_HALF_UP

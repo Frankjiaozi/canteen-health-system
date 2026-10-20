@@ -56,12 +56,12 @@ def build_sheet(session: Session, *, on_date: date, meal_type: MealType) -> Dail
         item.dish_id: item
         for item in repository.load_menu_items(session, on_date=on_date, meal_type=meal_type)
     }
-    candidates = repository.load_active_dishes(session)
+    log = repository.get_log(session, on_date=on_date, meal_type=meal_type)
+    items = {item.dish_id: item for item in repository.load_items(session, log.id)} if log else {}
+    candidates = repository.load_active_dishes(session, include_ids=set(served) | set(items))
     # 排好菜单的排前面：录入员先看到的就是「今天计划做的那几道」，
     # 要临时加菜再往下列；整库混在一起按类别排，找计划里的菜得来回找
     candidates.sort(key=lambda dish: (dish.id not in served, dish.category, dish.name))
-    log = repository.get_log(session, on_date=on_date, meal_type=meal_type)
-    items = {item.dish_id: item for item in repository.load_items(session, log.id)} if log else {}
     peek = _nutrition_peek(session, on_date=on_date, meal_type=meal_type)
 
     rows: list[LoggedDish] = []
@@ -79,7 +79,7 @@ def build_sheet(session: Session, *, on_date: date, meal_type: MealType) -> Dail
                 # 所以「计划」这个标记只在提交之前成立——提交完还给每道菜挂「计划」，
                 # 等于把实际做的事说成计划做的事。计划份数不受影响，它一直留着供对账。
                 is_planned=menu_item is not None and log is None,
-                selected=menu_item is not None,
+                selected=menu_item is not None or item is not None,
                 planned_servings=(
                     None if menu_item is None else _opt_str(menu_item.planned_servings)
                 ),

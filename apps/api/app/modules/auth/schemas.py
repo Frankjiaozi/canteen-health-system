@@ -10,6 +10,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.shared.enums import UserRole
 
 
+class AuthOptions(BaseModel):
+    registration_enabled: bool
+
+
 class LoginRequest(BaseModel):
     username: str = Field(min_length=1, max_length=64, description="登录名")
     password: str = Field(min_length=1, max_length=128, description="口令")

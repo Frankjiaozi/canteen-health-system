@@ -30,7 +30,7 @@ export function AgentPage() {
   const sessionId = search.get('session');
   const [parameters, setParameters] = useState<PlanParameters>(initialParameters);
   const [loadedSession, setLoadedSession] = useState<string | null>(null);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState(() => search.get('prompt')?.slice(0, 2000) ?? '');
   const [pendingContent, setPendingContent] = useState('');
   const [trace, setTrace] = useState<ToolTrace[]>([]);
   const [statusText, setStatusText] = useState('');
@@ -160,6 +160,10 @@ export function AgentPage() {
       void client.invalidateQueries({ queryKey: ['collection'] });
       void client.invalidateQueries({ queryKey: ['dashboard'] });
       void message.success('菜单已确认发布');
+      void client.invalidateQueries({ queryKey: ['public'] });
+      void client.invalidateQueries({ queryKey: ['recommendation'] });
+      void client.invalidateQueries({ queryKey: ['forecast'] });
+      void client.invalidateQueries({ queryKey: ['menu-plan'] });
     },
     onError: (error) => {
       void message.error(errorText(error));
@@ -199,6 +203,10 @@ export function AgentPage() {
       void client.invalidateQueries({ queryKey: ['collection'] });
       void client.invalidateQueries({ queryKey: ['dashboard'] });
       void message.success('已撤回这次发布，菜单恢复成发布前的样子');
+      void client.invalidateQueries({ queryKey: ['public'] });
+      void client.invalidateQueries({ queryKey: ['recommendation'] });
+      void client.invalidateQueries({ queryKey: ['forecast'] });
+      void client.invalidateQueries({ queryKey: ['menu-plan'] });
     },
     onError: (error) => {
       void message.error(errorText(error));
@@ -351,6 +359,9 @@ export function AgentPage() {
           />
         )}
         <ResultPanel
+          dishImages={Object.fromEntries(
+            (dishes.data ?? []).map((dish) => [dish.id, dish.image_url]),
+          )}
           activeTab={resultTab}
           onTabChange={setResultTab}
           conversation={conversation}

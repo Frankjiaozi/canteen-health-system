@@ -5,13 +5,15 @@ import {
   Form,
   Input,
   InputNumber,
+  Modal,
   Select,
   Space,
   Table,
   Tag,
   Typography,
 } from 'antd';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useBeforeUnload, useBlocker } from 'react-router-dom';
 import { canWriteBusinessData } from '@/features/auth/lib/permissions';
 import { useCurrentUser } from '@/features/auth/hooks/useAuth';
 import { useEnumOptions } from '@/shared/hooks/useEnumOptions';
@@ -45,8 +47,27 @@ export function DailyLogForm({ onDate, sheet }: DailyLogFormProps) {
   const { data: enumOptions } = useEnumOptions();
   const saveMutation = useSaveSheet(onDate, sheet.meal_type);
   const canWrite = canWriteBusinessData(user);
+  const [dirty, setDirty] = useState(false);
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      canWrite &&
+      dirty &&
+      (currentLocation.pathname !== nextLocation.pathname ||
+        currentLocation.search !== nextLocation.search),
+  );
+  useBeforeUnload(
+    useCallback(
+      (event) => {
+        if (!canWrite || !dirty) return;
+        event.preventDefault();
+        event.returnValue = '';
+      },
+      [canWrite, dirty],
+    ),
+  );
 
   const patchRow = (dishId: string, patch: Partial<SheetRow>) => {
+    setDirty(true);
     setRows((current) =>
       current.map((row) => (row.dishId === dishId ? { ...row, ...patch } : row)),
     );
@@ -69,6 +90,7 @@ export function DailyLogForm({ onDate, sheet }: DailyLogFormProps) {
     }
     try {
       await saveMutation.mutateAsync(buildSavePayload(values, rows));
+      setDirty(false);
     } catch {
       // 失败提示与「存入本地队列」都在 mutation 的 onError 里完成；
       // 这里只是别让这个 rejection 漏到控制台，看着像出了别的问题
@@ -82,8 +104,20 @@ export function DailyLogForm({ onDate, sheet }: DailyLogFormProps) {
       form={form}
       layout="vertical"
       initialValues={initialFormValues(sheet)}
-      disabled={!canWrite}
+      disabled={!canWrite || saveMutation.isPending}
+      onValuesChange={() => setDirty(true)}
     >
+      <Modal
+        title="采集单尚未保存"
+        open={blocker.state === 'blocked'}
+        okText="放弃修改"
+        cancelText="继续填写"
+        okButtonProps={{ danger: true, disabled: saveMutation.isPending }}
+        onOk={() => blocker.state === 'blocked' && blocker.proceed()}
+        onCancel={() => blocker.state === 'blocked' && blocker.reset()}
+      >
+        当前输入尚未保存到服务器。离开后，这些修改将丢失。
+      </Modal>
       <Card
         size="small"
         title={`当日总量（${sheet.meal_type_label}）`}
@@ -142,7 +176,7 @@ export function DailyLogForm({ onDate, sheet }: DailyLogFormProps) {
                 <Checkbox
                   aria-label={`供应-${row.dishId}`}
                   checked={row.selected}
-                  disabled={!canWrite}
+                  disabled={!canWrite || saveMutation.isPending}
                   onChange={(event) => patchRow(row.dishId, { selected: event.target.checked })}
                 />
               ),
@@ -199,7 +233,7 @@ export function DailyLogForm({ onDate, sheet }: DailyLogFormProps) {
                       precision={2}
                       style={{ width: '100%' }}
                       value={row.servings}
-                      disabled={!canWrite || !row.selected}
+                      disabled={!canWrite || saveMutation.isPending || !row.selected}
                       placeholder={planned ? `计划 ${planned} 份` : '按实际出餐填'}
                       onChange={(value) => patchRow(row.dishId, { servings: value ?? null })}
                     />
@@ -224,7 +258,7 @@ export function DailyLogForm({ onDate, sheet }: DailyLogFormProps) {
                   style={{ width: '100%' }}
                   value={row.leftoverRatio}
                   placeholder="0～1，如 0.18"
-                  disabled={!canWrite || !row.selected}
+                  disabled={!canWrite || saveMutation.isPending || !row.selected}
                   onChange={(value) => patchRow(row.dishId, { leftoverRatio: value ?? null })}
                 />
               ),
@@ -237,7 +271,7 @@ export function DailyLogForm({ onDate, sheet }: DailyLogFormProps) {
                 <Checkbox
                   aria-label={`临时替换-${row.dishId}`}
                   checked={row.isSubstituted}
-                  disabled={!canWrite || !row.selected}
+                  disabled={!canWrite || saveMutation.isPending || !row.selected}
                   onChange={(event) =>
                     patchRow(row.dishId, { isSubstituted: event.target.checked })
                   }

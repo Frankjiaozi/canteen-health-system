@@ -2,6 +2,8 @@ import type { DailyLogWrite, MealType } from '../types';
 
 /** 队列里一条待提交的采集单。 */
 export interface QueuedEntry {
+  /** 旧版记录没有归属；保留在本地但不能自动交给当前账号。 */
+  ownerId?: string;
   /** 队列内唯一标识：同一 (日期, 餐次) 复用同一个 id，覆盖时不会留下两条 */
   id: string;
   onDate: string;
@@ -14,8 +16,8 @@ export interface QueuedEntry {
   attempts: number;
 }
 
-export function entryId(onDate: string, mealType: MealType): string {
-  return `${onDate}:${mealType}`;
+export function entryId(onDate: string, mealType: MealType, ownerId?: string): string {
+  return `${ownerId ? `${ownerId}:` : ''}${onDate}:${mealType}`;
 }
 
 export interface EnqueueResult {
@@ -33,12 +35,19 @@ export interface EnqueueResult {
  */
 export function enqueue(
   entries: QueuedEntry[],
-  input: { onDate: string; mealType: MealType; payload: DailyLogWrite; now: string },
+  input: {
+    onDate: string;
+    mealType: MealType;
+    payload: DailyLogWrite;
+    now: string;
+    ownerId?: string;
+  },
 ): EnqueueResult {
-  const id = entryId(input.onDate, input.mealType);
+  const id = entryId(input.onDate, input.mealType, input.ownerId);
   const previous = entries.find((entry) => entry.id === id) ?? null;
   const rest = entries.filter((entry) => entry.id !== id);
   const next: QueuedEntry = {
+    ownerId: input.ownerId,
     id,
     onDate: input.onDate,
     mealType: input.mealType,

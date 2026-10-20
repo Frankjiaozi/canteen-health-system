@@ -70,9 +70,11 @@ export async function syncMenuPlanBatch(
   startDate: string,
   endDate: string,
   mealType: MealType,
+  suggestionIds: Record<string, string>,
 ): Promise<MenuPlanBatchResult> {
   return unwrap(
     await api.POST('/api/v1/menu-plan/batch/sync', {
+      body: { suggestion_ids: suggestionIds },
       params: {
         query: { start_date: startDate, end_date: endDate, meal_type: mealType },
       },
