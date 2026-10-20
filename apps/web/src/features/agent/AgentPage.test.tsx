@@ -5,6 +5,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { AgentPage } from './AgentPage';
 import { agentApi, sendMessage } from './api/client';
+import { AgentHeaderTitle } from './components/AgentHeaderTitle';
 import type { Conversation, PlanParameters, PlanVersion } from './api/types';
 
 vi.mock('@/features/auth/hooks/useAuth', () => ({
@@ -129,7 +130,7 @@ it('新建任务不会因路由过渡重新带入旧会话的餐次、人数、�
   client.clear();
 });
 
-it('模型接入状态收进标题栏，数据来源提示不再占据工作区上方', async () => {
+it('模型接入状态收进顶部标题栏，数据来源提示不再占据工作区上方', async () => {
   vi.mocked(agentApi.status).mockResolvedValue({
     mode: 'model',
     model_name: 'deepseek-v4-pro',
@@ -142,12 +143,14 @@ it('模型接入状态收进标题栏，数据来源提示不再占据工作区�
     <QueryClientProvider client={client}>
       <App>
         <MemoryRouter initialEntries={['/admin/agent']}>
+          <AgentHeaderTitle />
           <AgentPage />
         </MemoryRouter>
       </App>
     </QueryClientProvider>,
   );
   expect(await screen.findByText('已接入 DeepSeek V4 Pro')).toBeInTheDocument();
+  expect(screen.getAllByRole('heading', { name: '知味膳食助手' })).toHaveLength(1);
   expect(screen.queryByText('数据来源尚未核实，仅用于功能演示。')).not.toBeInTheDocument();
   client.clear();
 });

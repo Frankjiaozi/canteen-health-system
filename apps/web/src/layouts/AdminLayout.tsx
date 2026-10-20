@@ -11,8 +11,10 @@ import {
   FormOutlined,
   LogoutOutlined,
   MenuOutlined,
+  ReloadOutlined,
   ScheduleOutlined,
 } from '@ant-design/icons';
+import { useIsMutating, useQueryClient } from '@tanstack/react-query';
 import {
   App,
   Avatar,
@@ -28,6 +30,8 @@ import {
 } from 'antd';
 import { useState, type ReactNode } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { AgentHeaderTitle } from '@/features/agent/components/AgentHeaderTitle';
+import { AdminPageHeading } from '@/layouts/AdminPageHeading';
 import { useCurrentUser, useLogout } from '@/features/auth/hooks/useAuth';
 import { usePendingCount, useSyncOfflineQueue } from '@/features/collection/hooks/useOfflineQueue';
 import { OfflineNotice } from '@/shared/components/OfflineNotice';
@@ -75,11 +79,15 @@ function toMenuItem(group: NavGroup) {
 
 export function AdminLayout() {
   const { message } = App.useApp();
+  const queryClient = useQueryClient();
+  const busy = useIsMutating() > 0;
   const navigate = useNavigate();
   const location = useLocation();
   const { data: user } = useCurrentUser();
   const logoutMutation = useLogout();
   const activeGroup = findNavGroupKey(location.pathname);
+  const isAgent = location.pathname === AGENT_NAV.path;
+  const isDashboard = location.pathname === HOME_NAV.path;
   const screens = Grid.useBreakpoint();
   const isMobile = screens.lg === false;
   const [menuOpen, setMenuOpen] = useState(false);
@@ -163,9 +171,15 @@ export function AdminLayout() {
               onClick={() => setMenuOpen(true)}
             />
           )}
-          <Typography.Text className="zw-admin-caption" type="secondary">
-            营养核算 · 采购预测 · 决策支持
-          </Typography.Text>
+          {isAgent ? (
+            <AgentHeaderTitle />
+          ) : isDashboard ? (
+            <AdminPageHeading title={HOME_NAV.title} tagline="营养核算 · 采购预测 · 决策支持" />
+          ) : (
+            <Typography.Text className="zw-admin-caption" type="secondary">
+              营养核算 · 采购预测 · 决策支持
+            </Typography.Text>
+          )}
 
           {import.meta.env.VITE_DEMO_MODE === 'true' && (
             <Tag className="zw-admin-demo-badge" color="gold">
@@ -174,6 +188,16 @@ export function AdminLayout() {
           )}
 
           <Space className="zw-admin-actions" size={12} wrap>
+            {isAgent && (
+              <Tooltip title="刷新结果">
+                <Button
+                  aria-label="刷新结果"
+                  icon={<ReloadOutlined />}
+                  disabled={busy}
+                  onClick={() => void queryClient.invalidateQueries({ queryKey: ['agent'] })}
+                />
+              </Tooltip>
+            )}
             <Tooltip title="免登录打开的食堂公开大屏">
               <Button
                 className="zw-admin-display-button"

@@ -1,6 +1,5 @@
-import { ReloadOutlined } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, App, Button, Skeleton, Tag } from 'antd';
+import { Alert, App, Button, Skeleton } from 'antd';
 import dayjs from 'dayjs';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -11,6 +10,7 @@ import type { Conversation, PlanParameters, PlanVersion, ToolTrace } from './api
 import { ConversationView } from './components/ConversationView';
 import { ResultPanel } from './components/ResultPanel';
 import { TaskPanel } from './components/TaskPanel';
+import { useAgentStatus } from './hooks/useAgentStatus';
 import './agent.css';
 
 const initialParameters = (): PlanParameters => ({
@@ -21,18 +21,6 @@ const initialParameters = (): PlanParameters => ({
   excluded_dish_ids: [],
 });
 const errorText = (error: unknown) => (error instanceof Error ? error.message : '操作失败，请重试');
-
-/** 把模型标识显示成人能读的名字；未知模型保留原值，不替它编品牌。 */
-function modelDisplayName(name: string): string {
-  if (name.toLowerCase().startsWith('deepseek-')) {
-    const parts = name
-      .slice('deepseek-'.length)
-      .split('-')
-      .map((part) => (part.toLowerCase() === 'pro' ? 'Pro' : part.toUpperCase()));
-    return `DeepSeek ${parts.join(' ')}`;
-  }
-  return name;
-}
 
 export function AgentPage() {
   const { modal, message } = App.useApp();
@@ -53,11 +41,7 @@ export function AgentPage() {
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => controller.current?.abort(), []);
   const key = (id: string) => ['agent', 'session', user?.id, id] as const;
-  const status = useQuery({
-    queryKey: ['agent', 'status', user?.id],
-    queryFn: agentApi.status,
-    retry: false,
-  });
+  const status = useAgentStatus();
   const sessions = useQuery({
     queryKey: ['agent', 'sessions', user?.id],
     queryFn: agentApi.sessions,
@@ -278,45 +262,9 @@ export function AgentPage() {
     // 换日期或餐次后，原人数不再有依据；清空后由系统重新预测。
     setParameters(dateOrMealChanged ? { ...value, diner_count: null } : value);
   };
-  const modelStatus = status.isPending
-    ? '连接中'
-    : status.isError
-      ? '未连接'
-      : status.data?.mode === 'model'
-        ? status.data.model_name
-          ? `已接入 ${modelDisplayName(status.data.model_name)}`
-          : '已接入模型'
-        : '规则模式';
 
   return (
     <main className="zw-agent">
-      <header className="zw-agent-heading">
-        <div>
-          <div className="zw-agent-title-line">
-            <span className="zw-agent-brand-dot" aria-hidden="true" />
-            <h1>知味膳食助手</h1>
-            <Tag
-              className="zw-agent-model-status"
-              color={status.isError ? 'red' : status.data?.mode === 'model' ? 'green' : 'default'}
-              bordered={false}
-            >
-              {modelStatus}
-            </Tag>
-          </div>
-          <p>把一句安排，变成可核对的菜单与采购。</p>
-        </div>
-        <Button
-          icon={<ReloadOutlined />}
-          disabled={busy}
-          onClick={() => {
-            void status.refetch();
-            void sessions.refetch();
-            if (sessionId) void current.refetch();
-          }}
-        >
-          刷新结果
-        </Button>
-      </header>
       {status.isError && (
         <Alert
           type="error"
@@ -328,7 +276,7 @@ export function AgentPage() {
               {status.error instanceof ApiError && status.error.isUnauthorized ? (
                 <Link to="/login">重新登录</Link>
               ) : (
-                '请启动 Agent 与业务服务后点击刷新结果。'
+                '请启动 Agent 与业务服务后重试。'
               )}
             </>
           }

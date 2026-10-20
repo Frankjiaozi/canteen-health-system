@@ -13,41 +13,6 @@
 .zw-agent *::after {
   box-sizing: border-box;
 }
-.zw-agent-heading {
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  align-items: center;
-  margin: 2px 0 12px;
-}
-.zw-agent-title-line {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.zw-agent h1 {
-  font-size: 25px;
-  margin: 0;
-  font-weight: 650;
-  letter-spacing: -0.6px;
-}
-.zw-agent-heading p {
-  color: var(--zw-subtle);
-  margin: 6px 0 0 20px;
-}
-.zw-agent-brand-dot {
-  width: 9px;
-  height: 17px;
-  background: var(--zw-green);
-  border-radius: 80% 20% 70% 30%;
-  transform: rotate(28deg);
-}
-.zw-agent-model-status {
-  margin-inline-start: 2px;
-  font-size: 11px;
-  line-height: 20px;
-}
 .zw-agent > .ant-alert {
   margin-bottom: 12px;
 }
@@ -983,24 +948,6 @@
   .zw-agent-workbench[data-mobile-panel='result'] > .zw-agent-task,
   .zw-agent-workbench[data-mobile-panel='result'] > .zw-agent-conversation {
     display: none;
-  }
-  .zw-agent h1 {
-    font-size: 21px;
-  }
-  .zw-agent-heading {
-    align-items: start;
-    gap: 8px;
-  }
-  .zw-agent-heading > .ant-btn {
-    font-size: 11px;
-    padding-inline: 8px;
-  }
-  .zw-agent-heading p {
-    font-size: 11px;
-    margin-left: 0;
-  }
-  .zw-agent-title-line .ant-tag {
-    font-size: 10px;
   }
   .zw-agent-workbench {
     display: flex;

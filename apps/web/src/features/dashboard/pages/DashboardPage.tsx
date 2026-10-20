@@ -13,7 +13,6 @@ import {
 } from 'antd';
 import type { TableProps } from 'antd';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { EChart, type EChartOption } from '@/shared/components/EChart';
 import { MenuOverview } from '../components/MenuOverview';
 import { useDashboard } from '../hooks/useDashboard';
@@ -45,13 +44,6 @@ export function DashboardPage() {
 
   return (
     <Space orientation="vertical" size={16} style={{ display: 'flex' }}>
-      <section className="zw-dashboard-assistant">
-        <div>
-          <h2>从今天的数据，到明天的一餐</h2>
-          <p>对话安排菜单与采购，核查近期供应记录。每一版方案保留依据，由你确认。</p>
-        </div>
-        <Link to="/admin/agent">打开知味膳食助手</Link>
-      </section>
       <Tabs
         defaultActiveKey="metrics"
         items={[
