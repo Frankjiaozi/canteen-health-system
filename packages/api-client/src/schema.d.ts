@@ -1207,11 +1207,11 @@ export interface components {
             /** Diner Count */
             diner_count: number;
             /** Oil Total G */
-            oil_total_g: string;
+            oil_total_g: string | null;
             /** Salt Total G */
-            salt_total_g: string;
+            salt_total_g: string | null;
             /** Sugar Total G */
-            sugar_total_g: string;
+            sugar_total_g: string | null;
             /** Leftover Weight G */
             leftover_weight_g?: string | null;
             /** Dish Count */
@@ -1234,21 +1234,12 @@ export interface components {
             meal_type: components["schemas"]["MealType"];
             /** Diner Count */
             diner_count: number;
-            /**
-             * Oil Total G
-             * @default 0
-             */
-            oil_total_g: number | string;
-            /**
-             * Salt Total G
-             * @default 0
-             */
-            salt_total_g: number | string;
-            /**
-             * Sugar Total G
-             * @default 0
-             */
-            sugar_total_g: number | string;
+            /** Oil Total G */
+            oil_total_g?: number | string | null;
+            /** Salt Total G */
+            salt_total_g?: number | string | null;
+            /** Sugar Total G */
+            sugar_total_g?: number | string | null;
             /** Leftover Weight G */
             leftover_weight_g?: number | string | null;
             /** Note */
@@ -3452,17 +3443,17 @@ export interface components {
             /** Diner Count */
             diner_count: number;
             /** Oil Total G */
-            oil_total_g: string;
+            oil_total_g: string | null;
             /** Salt Total G */
-            salt_total_g: string;
+            salt_total_g: string | null;
             /** Sugar Total G */
-            sugar_total_g: string;
+            sugar_total_g: string | null;
             /** Oil Per Capita G */
-            oil_per_capita_g: string;
+            oil_per_capita_g: string | null;
             /** Salt Per Capita G */
-            salt_per_capita_g: string;
+            salt_per_capita_g: string | null;
             /** Sugar Per Capita G */
-            sugar_per_capita_g: string;
+            sugar_per_capita_g: string | null;
         };
         /** TrendsResponse */
         TrendsResponse: {

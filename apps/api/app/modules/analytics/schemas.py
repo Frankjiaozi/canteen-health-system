@@ -29,12 +29,12 @@ class TrendPoint(BaseModel):
 
     date: date
     diner_count: int
-    oil_total_g: str
-    salt_total_g: str
-    sugar_total_g: str
-    oil_per_capita_g: str
-    salt_per_capita_g: str
-    sugar_per_capita_g: str
+    oil_total_g: str | None
+    salt_total_g: str | None
+    sugar_total_g: str | None
+    oil_per_capita_g: str | None
+    salt_per_capita_g: str | None
+    sugar_per_capita_g: str | None
 
 
 class TrendsResponse(BaseModel):

@@ -31,9 +31,9 @@ export function RecentLogs() {
             width: 220,
             align: 'right',
             render: (_, row) =>
-              `${Number(row.oil_total_g).toFixed(1)} / ${Number(row.salt_total_g).toFixed(
-                1,
-              )} / ${Number(row.sugar_total_g).toFixed(1)}`,
+              [row.oil_total_g, row.salt_total_g, row.sugar_total_g]
+                .map((value) => (value === null ? '未测' : Number(value).toFixed(1)))
+                .join(' / '),
           },
           { title: '菜品数', dataIndex: 'dish_count', width: 90, align: 'right' },
           {

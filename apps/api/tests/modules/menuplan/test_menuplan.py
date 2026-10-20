@@ -305,7 +305,9 @@ def test_diner_count_matrix_scales_servings_budget_and_cost_proportionally(
 
     base = plans[800]
     base_ids = [row["dish_id"] for row in base["dishes"]]
-    base_servings = {row["dish_id"]: Decimal(row["predicted_servings"]) for row in base["dishes"]}
+    # 份数用 planned_servings：预测历史不足的菜会显式退回人均一份，
+    # 但采购与预算仍必须按最终采用的份数同比缩放。
+    base_servings = {row["dish_id"]: Decimal(row["planned_servings"]) for row in base["dishes"]}
     for count in (1000, 1200):
         current = plans[count]
         factor = Decimal(count) / Decimal(800)
@@ -313,7 +315,7 @@ def test_diner_count_matrix_scales_servings_budget_and_cost_proportionally(
         assert [row["dish_id"] for row in current["dishes"]] == base_ids
         for row in current["dishes"]:
             expected = base_servings[row["dish_id"]] * factor
-            assert abs(Decimal(row["predicted_servings"]) - expected) <= Decimal("0.02")
+            assert abs(Decimal(row["planned_servings"]) - expected) <= Decimal("0.02")
         assert abs(Decimal(current["total_cost"]) - Decimal(base["total_cost"]) * factor) < 1
 
 

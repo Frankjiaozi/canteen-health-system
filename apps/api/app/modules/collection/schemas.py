@@ -82,10 +82,10 @@ class DailyLogWrite(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     meal_type: MealType = MealType.LUNCH
-    diner_count: int = Field(ge=0)
-    oil_total_g: Decimal = Field(default=Decimal("0"), ge=0)
-    salt_total_g: Decimal = Field(default=Decimal("0"), ge=0)
-    sugar_total_g: Decimal = Field(default=Decimal("0"), ge=0)
+    diner_count: int = Field(gt=0)
+    oil_total_g: Decimal | None = Field(default=None, ge=0)
+    salt_total_g: Decimal | None = Field(default=None, ge=0)
+    sugar_total_g: Decimal | None = Field(default=None, ge=0)
     leftover_weight_g: Decimal | None = Field(default=None, ge=0)
     note: str | None = Field(default=None, max_length=255)
     anomaly_flags: list[AnomalyFlag] = Field(default_factory=list)
@@ -100,9 +100,9 @@ class DailyLogSummary(BaseModel):
     meal_type: MealType
     meal_type_label: str
     diner_count: int
-    oil_total_g: str
-    salt_total_g: str
-    sugar_total_g: str
+    oil_total_g: str | None
+    salt_total_g: str | None
+    sugar_total_g: str | None
     leftover_weight_g: str | None = None
     dish_count: int
     #: 出餐总重估算（份数 × 标准份量），用于算浪费率

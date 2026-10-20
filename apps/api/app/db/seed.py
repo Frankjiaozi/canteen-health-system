@@ -1045,6 +1045,8 @@ def seed_history(
     session: Session,
     tally: _Tally,
     dish_ids: dict[str, UUID],
+    ingredient_ids: dict[str, UUID],
+    seasoning_ids: dict[str, UUID],
     recorder_id: UUID,
     days: int = HISTORY_DAYS,
 ) -> None:
@@ -1068,6 +1070,7 @@ def seed_history(
     # 而一旦对不上，回测测出来的是两者的差，不是模型的准头。
     calendar = {row.date: row.kind for row in session.scalars(select(Holiday)).all()}
     dish_lookup = {row.key: row for row in _DISHES}
+    seasoning_category_lookup = {row.key: row.category.value for row in _SEASONINGS}
 
     for offset in range(days - 1, -1, -1):
         day = today - timedelta(days=offset)
@@ -1227,6 +1230,26 @@ def seed_history(
                         daily_log_id=daily_log_id,
                         dish_id=dish_ids[dish_key],
                         servings_produced=servings,
+                        recipe_snapshot={
+                            "recipe_version": 1,
+                            "cooking_method": row.cooking_method.value,
+                            "ingredients": [
+                                {
+                                    "ingredient_id": str(ingredient_ids[ingredient_key]),
+                                    "quantity_per_serving_g": quantity,
+                                    "edible_ratio_override": edible_override,
+                                }
+                                for ingredient_key, quantity, edible_override in row.items
+                            ],
+                            "seasonings": [
+                                {
+                                    "seasoning_id": str(seasoning_ids[seasoning_key]),
+                                    "category": seasoning_category_lookup[seasoning_key],
+                                    "quantity_per_serving_g": quantity,
+                                }
+                                for seasoning_key, quantity in row.seasonings
+                            ],
+                        },
                         leftover_ratio=leftover_ratio,
                         leftover_weight_g=(
                             servings * leftover_ratio * Decimal(row.standard_serving_g)
@@ -1248,7 +1271,15 @@ def run(session: Session, *, history_days: int = HISTORY_DAYS) -> _Tally:
     seasoning_ids = seed_seasonings(session, tally)
     dish_ids = seed_dishes(session, tally, ingredient_ids, seasoning_ids)
     seed_nutrition_standards(session, tally)
-    seed_history(session, tally, dish_ids, user_ids["recorder"], days=history_days)
+    seed_history(
+        session,
+        tally,
+        dish_ids,
+        ingredient_ids,
+        seasoning_ids,
+        user_ids["recorder"],
+        days=history_days,
+    )
     session.commit()
     return tally
 

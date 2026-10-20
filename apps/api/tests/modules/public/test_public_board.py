@@ -291,3 +291,9 @@ def test_per_capita_ignores_meals_without_diners() -> None:
     logs = [SimpleNamespace(diner_count=0, salt_total_g=Decimal("100"))]
 
     assert sum_per_capita_across_meals(logs, "salt_total_g") is None
+
+
+def test_per_capita_does_not_treat_a_missing_measurement_as_zero() -> None:
+    logs = [SimpleNamespace(diner_count=100, salt_total_g=None)]
+
+    assert sum_per_capita_across_meals(logs, "salt_total_g") is None

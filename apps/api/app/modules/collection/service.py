@@ -108,9 +108,9 @@ def build_sheet(session: Session, *, on_date: date, meal_type: MealType) -> Dail
         saved=log is not None,
         submitted_at=None if log is None else log.submitted_at,
         diner_count=None if log is None else log.diner_count,
-        oil_total_g=None if log is None else str(log.oil_total_g),
-        salt_total_g=None if log is None else str(log.salt_total_g),
-        sugar_total_g=None if log is None else str(log.sugar_total_g),
+        oil_total_g=None if log is None else _opt_str(log.oil_total_g),
+        salt_total_g=None if log is None else _opt_str(log.salt_total_g),
+        sugar_total_g=None if log is None else _opt_str(log.sugar_total_g),
         leftover_weight_g=None if log is None else _opt_str(log.leftover_weight_g),
         note=None if log is None else log.note,
         anomaly_flags=_flag_rows(None if log is None else log.anomaly_flags),
@@ -184,6 +184,8 @@ def save_sheet(
     """
     if not payload.dishes:
         raise BusinessRuleError("至少要勾选一道当天供应的菜品，否则这一餐没有可核算的内容")
+    if payload.diner_count <= 0:
+        raise BusinessRuleError("就餐人次必须大于 0，否则无法计算人均摄入")
 
     seen: set[UUID] = set()
     for row in payload.dishes:
@@ -204,6 +206,9 @@ def save_sheet(
             for row in payload.dishes
         ],
         created_by=actor_id,
+    )
+    recipe_snapshots = nutrition_service.recipe_snapshots(
+        session, [row.dish_id for row in payload.dishes]
     )
 
     # 系统回写的标记要原样留住：它是校准算出来的结论，不该因为重新保存一次就消失
@@ -235,6 +240,7 @@ def save_sheet(
             {
                 "dish_id": row.dish_id,
                 "servings_produced": row.servings_produced,
+                "recipe_snapshot": recipe_snapshots.get(row.dish_id),
                 "leftover_ratio": row.leftover_ratio,
                 "leftover_weight_g": row.leftover_weight_g,
                 "note": row.note,
@@ -296,9 +302,9 @@ def list_logs(
                 meal_type=log.meal_type,
                 meal_type_label=log.meal_type.label,
                 diner_count=log.diner_count,
-                oil_total_g=str(log.oil_total_g),
-                salt_total_g=str(log.salt_total_g),
-                sugar_total_g=str(log.sugar_total_g),
+                oil_total_g=_opt_str(log.oil_total_g),
+                salt_total_g=_opt_str(log.salt_total_g),
+                sugar_total_g=_opt_str(log.sugar_total_g),
                 leftover_weight_g=_opt_str(log.leftover_weight_g),
                 dish_count=dish_count,
                 waste_ratio=_waste_ratio(log.leftover_weight_g, produced_g),
