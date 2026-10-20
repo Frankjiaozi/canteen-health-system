@@ -105,6 +105,24 @@ def test_summary_reports_all_headline_metrics(as_recorder: TestClient) -> None:
     assert body["latest_compliance_rate"] is not None
 
 
+def test_summary_supply_count_is_the_daily_total_of_three_meals(
+    as_recorder: TestClient, db_session: Session
+) -> None:
+    """看板上的「供餐人次」按天统计，早餐、午餐、晚餐要合并后才能代表供餐规模。"""
+    today = today_local()
+    start = today - timedelta(days=13)
+    by_day: dict[date, int] = defaultdict(int)
+    for log in db_session.scalars(
+        select(DailyLog).where(DailyLog.date >= start, DailyLog.date <= today)
+    ):
+        by_day[log.date] += log.diner_count
+
+    expected = int(sum(by_day.values()) / len(by_day))
+    body = as_recorder.get(f"{BASE}/summary", params={"days": 14}).json()
+
+    assert body["avg_diner_count"] == expected
+
+
 def test_trends_point_count_follows_the_range(as_recorder: TestClient) -> None:
     week = as_recorder.get(f"{BASE}/trends", params={"days": 7}).json()
     fortnight = as_recorder.get(f"{BASE}/trends", params={"days": 14}).json()

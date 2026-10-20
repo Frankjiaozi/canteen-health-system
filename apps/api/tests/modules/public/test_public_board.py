@@ -6,16 +6,17 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from types import SimpleNamespace
 
-from app.modules.dish.models import Dish
+from app.modules.collection.models import DailyLog
+from app.modules.dish.models import Dish, RecipeItem
 from app.modules.menu.models import MenuDay, MenuDayItem
 from app.modules.nutrition.models import DishNutrition
 from app.shared.enums import MealType, NutrientCaliber, NutritionValueType
 from app.shared.standards import sum_per_capita_across_meals
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from tests.helpers import today_local
@@ -182,6 +183,34 @@ def test_standards_compare_against_daily_targets(client: TestClient) -> None:
     assert salt["status"] in {"ok", "over"}
 
 
+def test_board_metrics_belong_to_the_displayed_meal(
+    client: TestClient, db_session: Session
+) -> None:
+    """菜品来自哪一餐，人次、投料和食物种类就只能取哪一餐。"""
+    menu_day = _today_menu(db_session)
+    logs = list(db_session.scalars(select(DailyLog).where(DailyLog.date == menu_day.date)).all())
+    selected = next(log for log in logs if log.meal_type == menu_day.meal_type)
+    body = client.get(BASE, params={"on_date": menu_day.date.isoformat()}).json()
+    standards = {item["code"]: item for item in body["standards"]}
+
+    assert body["diner_count"] == selected.diner_count
+    expected_salt = (selected.salt_total_g / Decimal(selected.diner_count)).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
+    assert Decimal(standards["SALT"]["actual"]) == expected_salt
+
+    expected_variety = db_session.scalar(
+        select(func.count(func.distinct(RecipeItem.ingredient_id)))
+        .select_from(RecipeItem)
+        .join(MenuDayItem, MenuDayItem.dish_id == RecipeItem.dish_id)
+        .where(MenuDayItem.menu_day_id == menu_day.id)
+    )
+    assert Decimal(standards["FOOD_VARIETY"]["actual"]) == Decimal(expected_variety)
+
+    if len(logs) > 1:
+        assert body["diner_count"] != sum(log.diner_count for log in logs)
+
+
 def test_board_can_be_queried_for_other_dates(client: TestClient) -> None:
     response = client.get(BASE, params={"on_date": "2020-01-01"})
 
@@ -191,6 +220,7 @@ def test_board_can_be_queried_for_other_dates(client: TestClient) -> None:
     # 没安排菜单的日期返回空内容，而不是 500
     assert body["dishes"] == []
     assert body["meal_label"] == "未安排"
+    assert body["diner_count"] is None
 
 
 def test_invalid_date_is_rejected(client: TestClient) -> None:

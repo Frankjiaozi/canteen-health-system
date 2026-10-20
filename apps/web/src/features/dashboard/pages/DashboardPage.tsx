@@ -68,7 +68,7 @@ export function DashboardPage() {
                   <Row gutter={[16, 16]}>
                     <Col xs={12} md={6}>
                       <Statistic
-                        title="平均每餐人次"
+                        title="供餐人次"
                         value={summary.data?.avg_diner_count ?? 0}
                         loading={summary.isPending}
                       />

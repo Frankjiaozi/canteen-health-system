@@ -72,18 +72,30 @@ def load_per_serving_nutritions(
     )
 
 
-def load_daily_logs(session: Session, on_date: date) -> list[DailyLog]:
-    return list(session.scalars(select(DailyLog).where(DailyLog.date == on_date)).all())
+def load_daily_logs(session: Session, *, on_date: date, meal_type: MealType) -> list[DailyLog]:
+    """当前展示餐次的采集记录。
+
+    大屏的菜品来自某个主餐次，人次与油盐糖也必须来自同一餐次；把同日三餐一起读出来
+    会让“午餐菜 + 全天油盐糖”同时出现在一张屏上。
+    """
+    return list(
+        session.scalars(
+            select(DailyLog).where(
+                DailyLog.date == on_date,
+                DailyLog.meal_type == meal_type,
+            )
+        ).all()
+    )
 
 
-def count_day_ingredients(session: Session, *, on_date: date) -> int:
-    """当日供应菜品用到的食材种类数（对应指南的「食物多样」）。"""
+def count_meal_ingredients(session: Session, *, on_date: date, meal_type: MealType) -> int:
+    """当前展示餐次供应菜品用到的食材种类数。"""
     total = session.scalar(
         select(func.count(func.distinct(RecipeItem.ingredient_id)))
         .select_from(RecipeItem)
         .join(MenuDayItem, MenuDayItem.dish_id == RecipeItem.dish_id)
         .join(MenuDay, MenuDay.id == MenuDayItem.menu_day_id)
-        .where(MenuDay.date == on_date)
+        .where(MenuDay.date == on_date, MenuDay.meal_type == meal_type)
     )
     return int(total or 0)
 

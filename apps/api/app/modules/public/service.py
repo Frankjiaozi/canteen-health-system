@@ -57,7 +57,12 @@ def build_board(session: Session, *, on_date: date | None = None) -> PublicBoard
         if menu_day
         else {}
     )
-    daily_logs = repository.load_daily_logs(session, target_date)
+    selected_meal = menu_day.meal_type if menu_day else None
+    daily_logs = (
+        repository.load_daily_logs(session, on_date=target_date, meal_type=selected_meal)
+        if selected_meal is not None
+        else []
+    )
     standards = repository.load_active_standards(session)
 
     # 没有营养结果的菜不上屏：与其显示一道没有数据的菜，不如不显示
@@ -67,8 +72,14 @@ def build_board(session: Session, *, on_date: date | None = None) -> PublicBoard
         StandardCode.SALT: sum_per_capita_across_meals(daily_logs, "salt_total_g"),
         StandardCode.EDIBLE_OIL: sum_per_capita_across_meals(daily_logs, "oil_total_g"),
         StandardCode.ADDED_SUGAR: sum_per_capita_across_meals(daily_logs, "sugar_total_g"),
-        StandardCode.FOOD_VARIETY: Decimal(
-            repository.count_day_ingredients(session, on_date=target_date)
+        StandardCode.FOOD_VARIETY: (
+            Decimal(
+                repository.count_meal_ingredients(
+                    session, on_date=target_date, meal_type=selected_meal
+                )
+            )
+            if selected_meal is not None
+            else None
         ),
     }
 
@@ -76,7 +87,7 @@ def build_board(session: Session, *, on_date: date | None = None) -> PublicBoard
         date=target_date,
         meal_label=menu_day.meal_type.label if menu_day else "未安排",
         generated_at=datetime.now(settings.timezone),
-        diner_count=sum(log.diner_count for log in daily_logs) or None,
+        diner_count=daily_logs[0].diner_count if daily_logs else None,
         dishes=cards,
         standards=[_standard_row(item, actuals.get(item.code)) for item in standards],
         disclaimer=DISCLAIMER,
