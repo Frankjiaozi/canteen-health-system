@@ -21,7 +21,7 @@ from app.modules.public.schemas import (
     PublicDishCard,
     StandardComparison,
 )
-from app.shared.enums import StandardCode
+from app.shared.enums import MealType, StandardCode
 from app.shared.nutrients import (
     FIELD_TO_NUTRIENT_CODE,
     NUTRIENT_FIELDS,
@@ -41,11 +41,13 @@ def today() -> date:
     return datetime.now(get_settings().timezone).date()
 
 
-def build_board(session: Session, *, on_date: date | None = None) -> PublicBoard:
+def build_board(
+    session: Session, *, on_date: date | None = None, meal_type: MealType | None = None
+) -> PublicBoard:
     target_date = on_date or today()
     settings = get_settings()
 
-    menu_day = repository.load_menu_day(session, target_date)
+    menu_day = repository.load_menu_day(session, target_date, meal_type=meal_type)
     dishes = repository.load_dishes(session, menu_day.id) if menu_day else []
     nutritions = (
         repository.load_per_serving_nutritions(
@@ -85,6 +87,7 @@ def build_board(session: Session, *, on_date: date | None = None) -> PublicBoard
 
     return PublicBoard(
         date=target_date,
+        meal_type=menu_day.meal_type if menu_day else meal_type,
         meal_label=menu_day.meal_type.label if menu_day else "未安排",
         generated_at=datetime.now(settings.timezone),
         diner_count=daily_logs[0].diner_count if daily_logs else None,

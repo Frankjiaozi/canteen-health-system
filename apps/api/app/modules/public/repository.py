@@ -21,14 +21,22 @@ from app.shared.enums import MealType, NutrientCaliber
 from app.shared.nutrition_values import VALUE_TYPES, pick_best
 
 
-def load_menu_day(session: Session, on_date: date) -> MenuDay | None:
+def load_menu_day(
+    session: Session, on_date: date, meal_type: MealType | None = None
+) -> MenuDay | None:
     """取当天的主餐次菜单。
 
     展示按餐次优先：午餐 → 晚餐 → 早餐。演示场景与多数学校都以午餐为主。
+    指定 meal_type 时只读取该餐次，供公开大屏的早/午/晚切换使用。
     """
-    menu_days = list(session.scalars(select(MenuDay).where(MenuDay.date == on_date)).all())
+    statement = select(MenuDay).where(MenuDay.date == on_date)
+    if meal_type is not None:
+        statement = statement.where(MenuDay.meal_type == meal_type)
+    menu_days = list(session.scalars(statement).all())
     if not menu_days:
         return None
+    if meal_type is not None:
+        return menu_days[0]
 
     priority = {MealType.LUNCH: 0, MealType.DINNER: 1, MealType.BREAKFAST: 2}
     return min(menu_days, key=lambda item: priority[item.meal_type])

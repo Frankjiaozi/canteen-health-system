@@ -43,6 +43,7 @@ def test_board_is_accessible_without_login(client: TestClient) -> None:
     assert response.status_code == 200, "公开大屏不能要求登录"
     body = response.json()
     assert body["dishes"], "当天应当有可展示的菜品"
+    assert body["meal_type"] in {"BREAKFAST", "LUNCH", "DINNER"}
     assert body["meal_label"]
     assert body["disclaimer"]
 
@@ -209,6 +210,45 @@ def test_board_metrics_belong_to_the_displayed_meal(
 
     if len(logs) > 1:
         assert body["diner_count"] != sum(log.diner_count for log in logs)
+
+
+def test_board_can_be_switched_between_breakfast_lunch_and_dinner(
+    client: TestClient, db_session: Session
+) -> None:
+    """三个餐次各自可查，菜品和本餐指标不能串到别的餐次。"""
+    day = today_local()
+    for meal_type in (MealType.BREAKFAST, MealType.LUNCH, MealType.DINNER):
+        body = client.get(
+            BASE,
+            params={"on_date": day.isoformat(), "meal_type": meal_type.value},
+        ).json()
+        menu_day = db_session.scalar(
+            select(MenuDay).where(MenuDay.date == day, MenuDay.meal_type == meal_type)
+        )
+        log = db_session.scalar(
+            select(DailyLog).where(DailyLog.date == day, DailyLog.meal_type == meal_type)
+        )
+
+        assert body["meal_type"] == meal_type.value
+        assert body["meal_label"] == meal_type.label
+        assert body["diner_count"] == (log.diner_count if log else None)
+        if menu_day is None:
+            assert body["dishes"] == []
+        else:
+            served = set(
+                db_session.scalars(
+                    select(Dish.name)
+                    .join(MenuDayItem, MenuDayItem.dish_id == Dish.id)
+                    .where(MenuDayItem.menu_day_id == menu_day.id)
+                )
+            )
+            assert {card["name"] for card in body["dishes"]} <= served
+
+
+def test_invalid_meal_type_is_rejected(client: TestClient) -> None:
+    response = client.get(BASE, params={"meal_type": "BRUNCH"})
+
+    assert response.status_code == 422
 
 
 def test_board_can_be_queried_for_other_dates(client: TestClient) -> None:

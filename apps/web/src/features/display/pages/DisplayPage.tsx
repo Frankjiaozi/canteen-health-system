@@ -1,9 +1,17 @@
 import { Spin, Typography } from 'antd';
 import dayjs from 'dayjs';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { BaselineStage } from '../components/BaselineStage';
 import { usePublicBoard } from '../hooks/usePublicBoard';
-import { describeStatus, describeTarget, formatActual } from '../lib/standards';
+import {
+  MEAL_OPTIONS,
+  defaultMealForTime,
+  mealLabel,
+  parseDisplayMeal,
+  type DisplayMeal,
+} from '../lib/meal';
+import { describeTarget, formatActual } from '../lib/standards';
 import type { NutrientValue, PublicDishCard, StandardComparison } from '../types';
 
 const COLORS = {
@@ -20,12 +28,29 @@ const COLORS = {
 } as const;
 
 export function DisplayPage() {
-  const { data, isPending, isError } = usePublicBoard();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [autoMeal, setAutoMeal] = useState(defaultMealForTime);
+  const mealParam = searchParams.get('meal');
+  const activeMeal = parseDisplayMeal(mealParam) ?? autoMeal;
+  const selectedMealLabel = mealLabel(activeMeal);
+  const { data, isPending, isError } = usePublicBoard(undefined, activeMeal);
+
+  const selectMeal = (meal: DisplayMeal) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('meal', meal);
+    setSearchParams(next, { replace: true });
+  };
 
   useEffect(() => {
     // 公开大屏是纯展示页，禁止误滚动与文本选中
     document.body.classList.add('is-display-mode');
     return () => document.body.classList.remove('is-display-mode');
+  }, []);
+
+  useEffect(() => {
+    // 挂机大屏没有操作时，跨过早餐/午餐/晚餐时间点要自己切换。
+    const timer = window.setInterval(() => setAutoMeal(defaultMealForTime()), 60_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   return (
@@ -44,11 +69,13 @@ export function DisplayPage() {
       >
         <Header
           date={data?.date}
-          mealLabel={data?.meal_label}
+          mealLabel={selectedMealLabel}
           dinerCount={data?.diner_count ?? null}
           loading={isPending}
           isToday={data === undefined || data.date === dayjs().format('YYYY-MM-DD')}
         />
+
+        <MealSwitch value={activeMeal} onChange={selectMeal} />
 
         <div style={{ flex: 1, minHeight: 0 }}>
           {isPending ? (
@@ -66,7 +93,7 @@ export function DisplayPage() {
           ) : (
             <Centered>
               <Typography.Title level={3} style={{ color: COLORS.muted, margin: 0 }}>
-                今日暂无已核算的菜品
+                {selectedMealLabel}暂无已核算的菜品
               </Typography.Title>
             </Centered>
           )}
@@ -81,6 +108,59 @@ export function DisplayPage() {
         ) : null}
       </div>
     </BaselineStage>
+  );
+}
+
+function MealSwitch({
+  value,
+  onChange,
+}: {
+  value: DisplayMeal;
+  onChange: (meal: DisplayMeal) => void;
+}) {
+  return (
+    <div
+      data-testid="meal-switch"
+      role="group"
+      aria-label="选择餐次"
+      style={{
+        alignSelf: 'center',
+        display: 'flex',
+        gap: 6,
+        padding: 5,
+        border: `1px solid ${COLORS.line}`,
+        borderRadius: 999,
+        background: 'rgba(255, 255, 255, 0.56)',
+        boxShadow: '0 6px 18px rgba(49, 92, 76, 0.05)',
+      }}
+    >
+      {MEAL_OPTIONS.map((option) => {
+        const active = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(option.value)}
+            style={{
+              minWidth: 88,
+              height: 36,
+              padding: '0 20px',
+              border: 'none',
+              borderRadius: 999,
+              background: active ? COLORS.green : 'transparent',
+              color: active ? '#f8fbf6' : COLORS.subtle,
+              cursor: 'pointer',
+              fontSize: 18,
+              fontFamily: 'inherit',
+              letterSpacing: 2,
+            }}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -274,7 +354,11 @@ function StandardBar({ standards }: { standards: StandardComparison[] }) {
       }}
     >
       {standards.map((standard) => {
-        const style = describeStatus(standard.status);
+        const over = standard.status === 'over';
+        const unknown = standard.status === 'unknown';
+        const statusColor = over ? COLORS.error : unknown ? COLORS.muted : COLORS.subtle;
+        const statusText = over ? '超过每日上限' : unknown ? '暂无数据' : '参考每日基准';
+        const label = standard.code === 'FOOD_VARIETY' ? '本餐食物种类' : standard.label;
         return (
           <div
             key={standard.code}
@@ -282,7 +366,7 @@ function StandardBar({ standards }: { standards: StandardComparison[] }) {
               background: COLORS.card,
               border: COLORS.cardBorder,
               boxShadow: COLORS.cardShadow,
-              borderLeft: `4px solid ${style.color}`,
+              borderLeft: `4px solid ${statusColor}`,
               borderRadius: 12,
               padding: '14px 18px',
             }}
@@ -290,8 +374,8 @@ function StandardBar({ standards }: { standards: StandardComparison[] }) {
             <div
               style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}
             >
-              <span style={{ fontSize: 20, color: COLORS.subtle }}>{standard.label}</span>
-              <span style={{ fontSize: 18, color: style.color }}>{style.text}</span>
+              <span style={{ fontSize: 20, color: COLORS.subtle }}>{label}</span>
+              <span style={{ fontSize: 16, color: statusColor }}>{statusText}</span>
             </div>
             <div style={{ marginTop: 8, display: 'flex', alignItems: 'baseline', gap: 8 }}>
               <span style={{ fontSize: 34, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
