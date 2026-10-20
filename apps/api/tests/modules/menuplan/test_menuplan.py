@@ -322,18 +322,18 @@ def test_diner_count_matrix_scales_servings_budget_and_cost_proportionally(
 def test_low_budget_plan_reports_energy_under_instead_of_claiming_all_ok(
     as_recorder: TestClient,
 ) -> None:
-    """历史低能量场景：预算压到 1 元时，能量缺口必须明确报 under。"""
+    """历史低能量场景：预算压到 3 元时，能量缺口必须明确报 under。"""
     target = _fresh_date() + timedelta(days=3)
     response = as_recorder.post(
         f"{BASE}/generate",
         params={"on_date": target.isoformat(), "meal_type": "LUNCH"},
-        json={"budget_per_person": "1.00"},
+        json={"budget_per_person": "3.00"},
     )
     assert response.status_code == 200, response.text
     plan = response.json()
     energy = next(row for row in plan["gaps"] if row["code"] == "energy_kcal")
     assert energy["status"] == "under"
-    assert Decimal(energy["gap"]) > 100
+    assert Decimal(energy["gap"]) > 30
     assert any(row["status"] != "ok" for row in plan["gaps"])
 
 

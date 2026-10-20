@@ -95,9 +95,8 @@ def generate(
     **份数不由推荐决定**。推荐回答的是「明天做哪几道菜」；份数是预测的活——
     它要考虑明天是不是放假、这道菜历史卖得怎么样，而推荐手里没有这些信息。
 
-    但份数必须参与营养评估：「人均供给」= Σ(单份营养 × 份数) ÷ 人次，
-    不知道做多少份就算不出这一餐提供了多少营养。所以它是**输入**，不是推荐的结果。
-    不传时按「每人一份」估——那只是评估基准，不代表建议这么做。
+    营养评估固定按「每人一份」的标准套餐：每道入选菜贡献一个标准份。
+    预测份数只用于采购与出餐计划，不进入套餐营养计算。
     """
     settings = get_settings()
     dishes = repository.load_active_dishes(session)
@@ -181,6 +180,7 @@ def generate(
         fixed_servings=baseline,
         excluded_dish_ids=frozenset(excluded),
         usage_counts=usage_counts or {},
+        standard_package=True,
     )
 
     try:
@@ -221,10 +221,8 @@ def generate(
                 "salt_g": str(by_id[item.dish_id].salt_g),
                 "popularity": str(by_id[item.dish_id].popularity.quantize(Decimal("1"))),
                 "nutrition_basis": snapshots[item.dish_id],
-                # 这一版是拿哪套份数评估营养的。它不是推荐给出的建议份数，
-                # 而是**同步到当日数据**时要写的计划份数——快照因此能自解释：
-                # 事后看到「那天计划做 812 份米饭」，能对上当时确实按下 812 份评估过。
-                "planned_servings": str(item.servings),
+                # 套餐快照固定记录一个标准份；实际采购份数由 menu-plan 预测链路单独保存。
+                "planned_servings": "1",
             }
             for item in plan.items
         ],
@@ -233,6 +231,7 @@ def generate(
             "per_capita": {code: str(value) for code, value in plan.per_capita.items()},
             "items": [row.model_dump(mode="json") for row in gaps],
             "budget": str(budget),
+            "package_basis": "ONE_STANDARD_SERVING_PER_DISH",
             "target_basis": target_basis,
             "binding": plan.binding,
             "solver_status": plan.solver_status,

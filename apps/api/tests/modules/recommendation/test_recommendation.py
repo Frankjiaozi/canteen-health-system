@@ -141,6 +141,32 @@ def test_fixed_plan_takes_the_servings_it_is_given_and_chooses_nothing() -> None
     assert plan.cost == Decimal("800.00")
 
 
+def test_standard_package_uses_one_serving_per_dish_not_the_forecast_quantity() -> None:
+    """每人套餐按每道菜一个标准份评估，采购预测份数不能放大营养口径。"""
+    dishes = [
+        _dish("白粥", energy="30", salt="0", oil="0", cost="0.4"),
+        _dish("煮鸡蛋", energy="78", salt="0.1", oil="0", cost="0.7"),
+    ]
+    constraints = _constraints(
+        targets=(
+            solver.PlanTarget("energy_kcal", "能量", "千卡", Decimal("100"), Decimal("120")),
+            solver.PlanTarget("SALT", "食盐", "g", None, Decimal("5")),
+        ),
+        fixed_servings={
+            dishes[0].dish_id: Decimal("600"),
+            dishes[1].dish_id: Decimal("800"),
+        },
+        standard_package=True,
+    )
+
+    plan = solver.fixed_plan(dishes, constraints=constraints)
+
+    assert plan.per_capita["energy_kcal"] == Decimal("108.000")
+    assert plan.per_capita["SALT"] == Decimal("0.100")
+    assert plan.cost == Decimal("220.00")
+    assert all(item.servings == Decimal("1") for item in plan.items)
+
+
 def test_plan_satisfies_every_hard_constraint() -> None:
     """需求要求「生成的菜单满足全部硬约束」，那就逐条量一遍。"""
     pool = [
