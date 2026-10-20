@@ -73,8 +73,12 @@ def test_summary_average_salt_matches_manual_calculation(
         select(DailyLog).where(DailyLog.date >= window_start, DailyLog.date <= today)
     ):
         by_day[log.date].append(log)
+    # 日人均值本身按两位小数对外（趋势图的点就是这个精度），汇总再对它取平均。
+    # 手算也必须先落到同一精度，否则未舍入的日值平均后会在临界日差出 0.01。
     per_day = [
-        sum((log.salt_total_g / Decimal(log.diner_count) for log in logs), Decimal("0"))
+        sum((log.salt_total_g / Decimal(log.diner_count) for log in logs), Decimal("0")).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
         for logs in by_day.values()
         if logs
     ]
