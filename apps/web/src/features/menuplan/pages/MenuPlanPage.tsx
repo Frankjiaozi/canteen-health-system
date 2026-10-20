@@ -1,4 +1,4 @@
-import { Button, Card, DatePicker, Empty, Segmented, Space, Typography } from 'antd';
+import { Button, DatePicker, Empty, Segmented, Space, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useState } from 'react';
 import { useCurrentUser } from '@/features/auth/hooks/useAuth';
@@ -6,6 +6,7 @@ import { canWriteBusinessData } from '@/features/auth/lib/permissions';
 import { useSuggestionDetail } from '@/features/recommendation/hooks/useRecommendation';
 import { useDateMealSelection } from '@/shared/hooks/useDateMealSelection';
 import { useEnumOptions } from '@/shared/hooks/useEnumOptions';
+import { PagePanel } from '@/shared/components/PagePanel';
 import { DailyPlanView } from '../components/DailyPlanView';
 import { PlanEvidence } from '../components/PlanEvidence';
 import { PurchaseList } from '../components/PurchaseList';
@@ -19,6 +20,7 @@ import {
   type DailySyncOutcome,
 } from '../hooks/useMenuPlan';
 import type { DailyMenuPlanResponse, MealType } from '../types';
+import './menuplan.css';
 
 /**
  * 明日菜单与采购。
@@ -81,127 +83,150 @@ export function MenuPlanPage() {
   const single = mode === 'single';
 
   return (
-    <Space orientation="vertical" size={16} style={{ width: '100%' }}>
-      <Card
-        title="明日菜单与采购"
-        extra={
-          <Space>
-            <Segmented<'daily' | 'single' | 'batch'>
-              value={mode}
+    <PagePanel
+      filters={
+        <>
+          <Segmented<'daily' | 'single' | 'batch'>
+            value={mode}
+            onChange={(value) => {
+              setMode(value);
+              setSyncOutcomes(null);
+            }}
+            options={[
+              { value: 'daily', label: '一天三餐' },
+              { value: 'single', label: '单日' },
+              { value: 'batch', label: '批量排菜单' },
+            ]}
+          />
+          {/* 批量用的是它自己的日期区间 */}
+          {mode !== 'batch' ? (
+            <DatePicker
+              value={dayjs(onDate)}
+              allowClear={false}
               onChange={(value) => {
-                setMode(value);
-                setSyncOutcomes(null);
-              }}
-              options={[
-                { value: 'daily', label: '一天三餐' },
-                { value: 'single', label: '单日' },
-                { value: 'batch', label: '批量排菜单' },
-              ]}
-            />
-            {/* 批量用的是它自己的日期区间 */}
-            {mode !== 'batch' ? (
-              <DatePicker
-                value={dayjs(onDate)}
-                allowClear={false}
-                onChange={(value) => {
-                  if (value) {
-                    setDate(value.format('YYYY-MM-DD'));
-                    setSyncedId(null);
-                    setSyncOutcomes(null);
-                    dailyGenerate.reset();
-                  }
-                }}
-              />
-            ) : null}
-            {mode !== 'daily' ? (
-              <Segmented<MealType>
-                value={mealType}
-                onChange={(value) => {
-                  setMeal(value);
+                if (value) {
+                  setDate(value.format('YYYY-MM-DD'));
                   setSyncedId(null);
                   setSyncOutcomes(null);
                   dailyGenerate.reset();
-                }}
-                options={(enumOptions?.meal_type ?? []).map((option) => ({
-                  value: option.value as MealType,
-                  label: option.label,
-                }))}
-              />
-            ) : null}
-            {canWrite && single ? (
-              <Button type="primary" loading={generate.isPending} onClick={handleGenerate}>
-                生成明日菜单
-              </Button>
-            ) : null}
-            {canWrite && daily ? (
-              <Button
-                type="primary"
-                loading={dailyGenerate.isPending}
-                onClick={handleGenerateDaily}
-              >
-                生成三餐
-              </Button>
-            ) : null}
-          </Space>
-        }
-      >
-        {daily ? (
-          dailyPlan ? (
-            <DailyPlanView
-              plan={dailyPlan}
-              canWrite={canWrite}
-              syncing={dailySync.isPending}
-              outcomes={syncOutcomes}
-              onSync={handleSyncDaily}
+                }
+              }}
             />
+          ) : null}
+          {mode !== 'daily' ? (
+            <Segmented<MealType>
+              value={mealType}
+              onChange={(value) => {
+                setMeal(value);
+                setSyncedId(null);
+                setSyncOutcomes(null);
+                dailyGenerate.reset();
+              }}
+              options={(enumOptions?.meal_type ?? []).map((option) => ({
+                value: option.value as MealType,
+                label: option.label,
+              }))}
+            />
+          ) : null}
+        </>
+      }
+      actions={
+        <>
+          {canWrite && single ? (
+            <Button type="primary" loading={generate.isPending} onClick={handleGenerate}>
+              生成明日菜单
+            </Button>
+          ) : null}
+          {canWrite && daily ? (
+            <Button type="primary" loading={dailyGenerate.isPending} onClick={handleGenerateDaily}>
+              生成三餐
+            </Button>
+          ) : null}
+        </>
+      }
+      bodyClassName="is-padded"
+    >
+      {daily ? (
+        dailyPlan ? (
+          <DailyPlanView
+            plan={dailyPlan}
+            canWrite={canWrite}
+            syncing={dailySync.isPending}
+            outcomes={syncOutcomes}
+            onSync={handleSyncDaily}
+          />
+        ) : (
+          <div className="zw-plan-empty">
+            <div className="zw-plan-empty-copy">
+              <span className="zw-kicker">一次生成</span>
+              <h3>把明天的三餐和采购一起排好</h3>
+              <p>
+                {canWrite
+                  ? '定好日期和餐次，点右上角「生成三餐」即可。'
+                  : '三餐菜单由食堂这边生成；生成后这里的菜品与采购单你都能看到。'}
+              </p>
+            </div>
+            <ol>
+              <li>
+                <span>01</span>
+                <div>
+                  <strong>配菜</strong>
+                  <p>在油盐糖与蛋白质目标下，挑出早、午、晚三餐。</p>
+                </div>
+              </li>
+              <li>
+                <span>02</span>
+                <div>
+                  <strong>定份数</strong>
+                  <p>参考同星期历史与就餐人数，给每道菜一份预测。</p>
+                </div>
+              </li>
+              <li>
+                <span>03</span>
+                <div>
+                  <strong>出采购</strong>
+                  <p>按配方折算原料，合并成一张可核对的采购单。</p>
+                </div>
+              </li>
+            </ol>
+          </div>
+        )
+      ) : single ? (
+        <>
+          <Typography.Paragraph type="secondary">
+            一次生成三件事：在营养目标下选出做哪几道菜 → 按同星期历史与节假日日历预测每道菜做多少份
+            → 按各菜配方算出要买多少料。份数只有一套，采购量就是用它乘出来的。
+          </Typography.Paragraph>
+
+          {plan ? (
+            <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                {plan.notes.join('；')}
+              </Typography.Paragraph>
+              <RecommendedDishes
+                plan={plan}
+                suggestion={suggestion.data}
+                synced={synced}
+                syncing={syncMutation.isPending}
+                onSync={handleSync}
+              />
+              <PurchaseList plan={plan} />
+              <PlanEvidence plan={plan} />
+            </Space>
           ) : (
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
               description={
                 canWrite
-                  ? '选好日期后点「生成三餐」，一次排出早餐、午餐、晚餐，并生成合并采购单。'
-                  : '三餐菜单由食堂这边生成；生成后这里的菜品与采购单你都能看到。'
+                  ? '选好日期与餐次后点「生成明日菜单」，这里会给出菜品、份数与采购建议。'
+                  : '菜单由食堂这边生成；生成后这里的每一栏你都能看到。'
               }
             />
-          )
-        ) : single ? (
-          <>
-            <Typography.Paragraph type="secondary">
-              一次生成三件事：在营养目标下选出做哪几道菜 →
-              按同星期历史与节假日日历预测每道菜做多少份 →
-              按各菜配方算出要买多少料。份数只有一套，采购量就是用它乘出来的。
-            </Typography.Paragraph>
-
-            {plan ? (
-              <Space orientation="vertical" size={16} style={{ width: '100%' }}>
-                <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-                  {plan.notes.join('；')}
-                </Typography.Paragraph>
-                <RecommendedDishes
-                  plan={plan}
-                  suggestion={suggestion.data}
-                  synced={synced}
-                  syncing={syncMutation.isPending}
-                  onSync={handleSync}
-                />
-                <PurchaseList plan={plan} />
-                <PlanEvidence plan={plan} />
-              </Space>
-            ) : (
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description={
-                  canWrite
-                    ? '选好日期与餐次后点「生成明日菜单」，这里会给出菜品、份数与采购建议。'
-                    : '菜单由食堂这边生成；生成后这里的每一栏你都能看到。'
-                }
-              />
-            )}
-          </>
-        ) : (
-          <BatchPlanner mealType={mealType} />
-        )}
-      </Card>
-    </Space>
+          )}
+        </>
+      ) : (
+        <BatchPlanner mealType={mealType} />
+      )}
+    </PagePanel>
   );
 }

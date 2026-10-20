@@ -14,13 +14,13 @@ export interface StatusStyle {
 export function describeStatus(status: string): StatusStyle {
   switch (status as StandardStatus) {
     case 'ok':
-      return { color: '#2f7d4f', text: '达标' };
+      return { color: '#3d7a58', text: '达标' };
     case 'over':
-      return { color: '#b5473a', text: '超出上限' };
+      return { color: '#ad4f3e', text: '超出上限' };
     case 'under':
-      return { color: '#a8711e', text: '低于推荐' };
+      return { color: '#b07b32', text: '低于推荐' };
     default:
-      return { color: '#7a8a7e', text: '暂无数据' };
+      return { color: '#647268', text: '暂无数据' };
   }
 }
 

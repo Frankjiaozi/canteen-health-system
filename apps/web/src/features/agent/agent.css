@@ -299,7 +299,8 @@
   display: flex;
   flex-direction: column;
   align-self: stretch;
-  height: min(850px, calc(100dvh - 260px));
+  /* 铺到内容区底部，输入框才会贴近视口下缘，而不是悬在页面中间 */
+  height: calc(100dvh - 146px);
   min-height: 470px;
   border-right: 1px solid var(--zw-line);
 }
@@ -513,7 +514,7 @@
   padding: 24px;
   min-width: 0;
   background: #fff;
-  height: min(850px, calc(100dvh - 260px));
+  height: calc(100dvh - 146px);
   min-height: 470px;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -899,12 +900,12 @@
     grid-row: 1;
     border-right: 0;
     min-height: 580px;
-    height: 650px;
+    height: calc(100dvh - 146px);
   }
   .zw-agent-results {
     grid-column: 1 / -1;
     border-top: 1px solid var(--zw-line);
-    height: 650px;
+    height: calc(100dvh - 146px);
   }
   .zw-agent-awaiting {
     padding-block: 45px;
@@ -1000,7 +1001,7 @@
   .zw-agent-conversation {
     width: 100%;
     min-height: 250px;
-    height: calc(100dvh - 380px);
+    height: calc(100dvh - 200px);
     border: 0;
   }
   .zw-agent-chat-scroll {
@@ -1022,7 +1023,7 @@
     width: 100%;
     padding: 19px 15px;
     min-height: 250px;
-    height: calc(100dvh - 380px);
+    height: calc(100dvh - 200px);
   }
   .zw-agent-result-top h2 {
     font-size: 16px;

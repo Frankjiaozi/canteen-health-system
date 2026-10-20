@@ -1,6 +1,7 @@
 import {
   Button,
   Card,
+  Checkbox,
   Form,
   Input,
   InputNumber,
@@ -138,8 +139,7 @@ export function DailyLogForm({ onDate, sheet }: DailyLogFormProps) {
               width: 70,
               align: 'center',
               render: (_, row) => (
-                <input
-                  type="checkbox"
+                <Checkbox
                   aria-label={`供应-${row.dishId}`}
                   checked={row.selected}
                   disabled={!canWrite}
@@ -158,7 +158,7 @@ export function DailyLogForm({ onDate, sheet }: DailyLogFormProps) {
                       <Typography.Text strong>{dish?.name}</Typography.Text>
                       {/* 「计划」这两个字只在采集页说：它是「明日菜单与采购」排的，
                           和录入员此刻勾的实际供应不是一回事 */}
-                      {dish?.is_planned ? <Tag color="blue">计划</Tag> : null}
+                      {dish?.is_planned ? <Tag className="zw-tag-sage">计划</Tag> : null}
                     </Space>
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                       {dish?.category_label} · {dish?.cooking_method_label}
@@ -223,6 +223,7 @@ export function DailyLogForm({ onDate, sheet }: DailyLogFormProps) {
                   precision={4}
                   style={{ width: '100%' }}
                   value={row.leftoverRatio}
+                  placeholder="0～1，如 0.18"
                   disabled={!canWrite || !row.selected}
                   onChange={(value) => patchRow(row.dishId, { leftoverRatio: value ?? null })}
                 />
@@ -233,8 +234,7 @@ export function DailyLogForm({ onDate, sheet }: DailyLogFormProps) {
               width: 110,
               align: 'center',
               render: (_, row) => (
-                <input
-                  type="checkbox"
+                <Checkbox
                   aria-label={`临时替换-${row.dishId}`}
                   checked={row.isSubstituted}
                   disabled={!canWrite || !row.selected}

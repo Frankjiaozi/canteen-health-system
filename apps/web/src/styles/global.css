@@ -1,5 +1,21 @@
 :root {
   color-scheme: light;
+  --zw-ink: #22312a;
+  --zw-ink-soft: #4c6054;
+  --zw-green: #2f5a48;
+  --zw-green-deep: #234438;
+  --zw-sage: #dfe8dc;
+  --zw-tint: #eef3ea;
+  --zw-paper: #f6f4ed;
+  --zw-paper-deep: #efece2;
+  --zw-card: #fffdf8;
+  --zw-line: #e3dfd2;
+  --zw-line-soft: #eeeae0;
+  --zw-amber: #b07b32;
+  --zw-red: #ad4f3e;
+  --zw-muted: #647268;
+  --zw-serif: 'Songti SC', 'STSong', 'Noto Serif SC', 'SimSun', serif;
+  --zw-brand: 'KaiTi', 'STKaiti', 'Songti SC', serif;
 }
 
 html,
@@ -11,10 +27,208 @@ body,
 
 body {
   font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
-    'Microsoft YaHei', sans-serif;
-  background-color: #f5f7fa;
-  color: rgba(0, 0, 0, 0.88);
+    'PingFang SC',
+    'Hiragino Sans GB',
+    'Microsoft YaHei',
+    'Segoe UI',
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+  background-color: var(--zw-paper);
+  color: var(--zw-ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgba(47, 90, 72, 0.18);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #c3c9bd transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #c3c9bd;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #a4b1a5;
+  background-clip: padding-box;
+}
+
+a {
+  color: var(--zw-green);
+}
+
+/* 统一的内容面板：一张暖白纸，不靠重阴影，靠细描边与留白分层 */
+.zw-page-panel.ant-card {
+  border: 1px solid var(--zw-line);
+  background: var(--zw-card);
+  box-shadow: 0 1px 2px rgba(34, 49, 42, 0.03);
+}
+
+.zw-page-panel.ant-card .ant-card-head {
+  min-height: 50px;
+  border-bottom: 1px solid var(--zw-line-soft);
+}
+
+.zw-page-panel.ant-card > .ant-card-body {
+  padding: 0;
+}
+
+.zw-page-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 18px;
+  flex-wrap: wrap;
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--zw-line-soft);
+}
+
+.zw-page-toolbar-filters,
+.zw-page-toolbar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+}
+
+.zw-page-toolbar-actions {
+  margin-left: auto;
+}
+
+.zw-page-toolbar-meta {
+  color: var(--zw-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.zw-page-body {
+  padding: 0;
+}
+
+.zw-page-body.is-padded {
+  padding: 20px 22px 22px;
+}
+
+.zw-page-intro.ant-typography {
+  margin: 0;
+  padding: 18px 22px;
+  color: var(--zw-muted);
+  font-size: 12.5px;
+  line-height: 1.85;
+  border-bottom: 1px solid var(--zw-line-soft);
+}
+
+.zw-page-panel .ant-table-wrapper .ant-table {
+  background: transparent;
+}
+
+.zw-page-panel .ant-table-wrapper .ant-table-pagination.ant-pagination {
+  margin: 16px 22px;
+}
+
+.zw-page-panel .ant-table-wrapper .ant-table-thead > tr > th {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.zw-page-panel .ant-table-wrapper .ant-table-tbody > tr > td {
+  transition: background-color 0.16s ease;
+}
+
+.zw-page-panel .ant-table-wrapper .ant-table-tbody > tr:last-child > td {
+  border-bottom: 0;
+}
+
+/* 页内小节标题：用于面板里的图表、分组 */
+.zw-section-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+}
+
+.zw-section-title h2 {
+  margin: 0;
+  font-family: var(--zw-serif);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--zw-ink);
+}
+
+.zw-section-title p {
+  margin: 0;
+  color: var(--zw-muted);
+  font-size: 12px;
+}
+
+.zw-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--zw-muted);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+}
+
+.zw-kicker::before {
+  content: '';
+  width: 18px;
+  height: 1px;
+  background: var(--zw-green);
+  opacity: 0.55;
+}
+
+.zw-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 信息标签收进品牌色阶，避免 AntD 默认蓝成为画面里唯一的冷色 */
+.zw-tag-sage.ant-tag {
+  border-color: var(--zw-sage);
+  background: var(--zw-tint);
+  color: var(--zw-green);
+}
+
+/* 页面切换时轻抬一次，避免内容硬切；系统要求减少动效时完全关闭 */
+@keyframes zw-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.zw-admin-content > * {
+  animation: zw-rise 0.34s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zw-admin-content > *,
+  .zw-login-panel,
+  .zw-login-brand {
+    animation: none !important;
+  }
 }
 
 /* 公开大屏是免登录的纯展示页，禁止误滚动与文本选中 */

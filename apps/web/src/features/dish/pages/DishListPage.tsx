@@ -1,7 +1,7 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons';
 import {
   Button,
-  Card,
+  Grid,
   Input,
   Popconfirm,
   Select,
@@ -16,6 +16,7 @@ import { useState } from 'react';
 import { useCurrentUser } from '@/features/auth/hooks/useAuth';
 import { canWriteBusinessData } from '@/features/auth/lib/permissions';
 import { useEnumOptions } from '@/shared/hooks/useEnumOptions';
+import { PagePanel } from '@/shared/components/PagePanel';
 import { DishFormDrawer } from '../components/DishFormDrawer';
 import { ImportDrawer } from '../components/ImportDrawer';
 import { useDeactivateDish, useDishDetail, useDishList } from '../hooks/useDishes';
@@ -25,6 +26,8 @@ import type { Dish, DishCategory } from '../types';
 export function DishListPage() {
   const { data: user } = useCurrentUser();
   const { data: enumOptions } = useEnumOptions();
+  const screens = Grid.useBreakpoint();
+  const isPhone = screens.md === false;
   const canWrite = canWriteBusinessData(user);
 
   const [page, setPage] = useState(1);
@@ -54,8 +57,8 @@ export function DishListPage() {
     {
       title: '菜品',
       dataIndex: 'name',
-      fixed: 'left',
-      width: 160,
+      fixed: isPhone ? undefined : 'left',
+      width: isPhone ? 150 : 160,
       render: (name: string, record) => (
         <Space orientation="vertical" size={0}>
           <Typography.Text strong>{name}</Typography.Text>
@@ -63,25 +66,32 @@ export function DishListPage() {
             {record.is_active ? null : <Tag>已停用</Tag>}
             {record.nutrition === null ? <Tag color="warning">无配方</Tag> : null}
             {/* 早餐固定供应不属于「午晚餐轮换」，不标出来会被当成漏排 */}
-            {record.is_breakfast_staple ? <Tag color="blue">早餐固定</Tag> : null}
+            {record.is_breakfast_staple ? <Tag className="zw-tag-sage">早餐固定</Tag> : null}
             <Tag>配方 v{record.recipe_version}</Tag>
           </Space>
         </Space>
       ),
     },
-    { title: '类别', dataIndex: 'category_label', width: 90 },
-    { title: '烹饪', dataIndex: 'cooking_method_label', width: 80 },
+    { title: '类别', dataIndex: 'category_label', width: isPhone ? 80 : 90 },
+    {
+      title: '烹饪',
+      dataIndex: 'cooking_method_label',
+      width: 80,
+      responsive: ['md'],
+    },
     {
       title: '标准份量（克）',
       dataIndex: 'standard_serving_g',
       width: 120,
       align: 'right',
+      responsive: ['md'],
     },
     {
       title: '单份能量（千卡）',
       key: 'energy',
       width: 130,
       align: 'right',
+      responsive: ['md'],
       render: (_, record) => formatNutrient(record.nutrition?.energy_kcal, 2),
     },
     {
@@ -89,6 +99,7 @@ export function DishListPage() {
       key: 'protein',
       width: 130,
       align: 'right',
+      responsive: ['md'],
       render: (_, record) => formatNutrient(record.nutrition?.protein_g, 3),
     },
     {
@@ -96,23 +107,26 @@ export function DishListPage() {
       key: 'sodium',
       width: 130,
       align: 'right',
+      responsive: ['md'],
       render: (_, record) => formatNutrient(record.nutrition?.sodium_mg, 2),
     },
     {
       title: '操作',
       key: 'actions',
-      fixed: 'right',
-      width: 140,
+      fixed: isPhone ? undefined : 'right',
+      width: isPhone ? 110 : 160,
       render: (_, record) =>
         canWrite && record.is_active ? (
-          <Space size={4}>
+          <Space size={isPhone ? 0 : 4}>
             <Button
               type="link"
               size="small"
               icon={<EditOutlined />}
+              title="编辑"
+              aria-label="编辑"
               onClick={() => openEdit(record)}
             >
-              编辑
+              {isPhone ? null : '编辑'}
             </Button>
             <Popconfirm
               title="停用该菜品？"
@@ -121,8 +135,15 @@ export function DishListPage() {
               cancelText="取消"
               onConfirm={() => void deactivateMutation.mutateAsync(record.id)}
             >
-              <Button type="link" size="small" danger icon={<DeleteOutlined />}>
-                停用
+              <Button
+                type="link"
+                size="small"
+                danger
+                icon={<DeleteOutlined />}
+                title="停用"
+                aria-label="停用"
+              >
+                {isPhone ? null : '停用'}
               </Button>
             </Popconfirm>
           </Space>
@@ -133,11 +154,48 @@ export function DishListPage() {
   ];
 
   return (
-    <Card
-      title="菜品与配方"
-      extra={
-        <Space>
-          <Typography.Text type="secondary">共 {listQuery.data?.total ?? 0} 道</Typography.Text>
+    <PagePanel
+      filters={
+        <>
+          <Input.Search
+            allowClear
+            placeholder="按名称搜索"
+            style={{ width: 240 }}
+            onSearch={(value) => {
+              setKeyword(value);
+              setPage(1);
+            }}
+          />
+          <Select<DishCategory>
+            allowClear
+            placeholder="全部类别"
+            style={{ width: 150 }}
+            value={category ?? undefined}
+            onChange={(value) => {
+              setCategory(value ?? null);
+              setPage(1);
+            }}
+            options={(enumOptions?.dish_category ?? []).map((option) => ({
+              value: option.value as DishCategory,
+              label: option.label,
+            }))}
+          />
+          <Space size={6}>
+            <Switch
+              size="small"
+              checked={includeInactive}
+              onChange={(checked) => {
+                setIncludeInactive(checked);
+                setPage(1);
+              }}
+            />
+            <Typography.Text type="secondary">包含已停用</Typography.Text>
+          </Space>
+        </>
+      }
+      actions={
+        <>
+          <span className="zw-page-toolbar-meta">共 {listQuery.data?.total ?? 0} 道</span>
           {canWrite ? (
             <>
               <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>
@@ -148,53 +206,16 @@ export function DishListPage() {
               </Button>
             </>
           ) : null}
-        </Space>
+        </>
       }
     >
-      <Space wrap style={{ marginBottom: 16 }}>
-        <Input.Search
-          allowClear
-          placeholder="按名称搜索"
-          style={{ width: 240 }}
-          onSearch={(value) => {
-            setKeyword(value);
-            setPage(1);
-          }}
-        />
-        <Select<DishCategory>
-          allowClear
-          placeholder="全部类别"
-          style={{ width: 150 }}
-          value={category ?? undefined}
-          onChange={(value) => {
-            setCategory(value ?? null);
-            setPage(1);
-          }}
-          options={(enumOptions?.dish_category ?? []).map((option) => ({
-            value: option.value as DishCategory,
-            label: option.label,
-          }))}
-        />
-        <Space size={6}>
-          <Switch
-            size="small"
-            checked={includeInactive}
-            onChange={(checked) => {
-              setIncludeInactive(checked);
-              setPage(1);
-            }}
-          />
-          <Typography.Text type="secondary">包含已停用</Typography.Text>
-        </Space>
-      </Space>
-
       <Table<Dish>
         rowKey="id"
         size="small"
         loading={listQuery.isFetching}
         columns={columns}
         dataSource={listQuery.data?.items ?? []}
-        scroll={{ x: 1200 }}
+        scroll={isPhone ? undefined : { x: 1000 }}
         pagination={{
           current: page,
           pageSize,
@@ -217,6 +238,6 @@ export function DishListPage() {
         />
       ) : null}
       <ImportDrawer open={importOpen} onClose={() => setImportOpen(false)} />
-    </Card>
+    </PagePanel>
   );
 }

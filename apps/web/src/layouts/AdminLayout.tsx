@@ -15,19 +15,7 @@ import {
   ScheduleOutlined,
 } from '@ant-design/icons';
 import { useIsMutating, useQueryClient } from '@tanstack/react-query';
-import {
-  App,
-  Avatar,
-  Button,
-  Drawer,
-  Grid,
-  Layout,
-  Menu,
-  Space,
-  Tag,
-  Tooltip,
-  Typography,
-} from 'antd';
+import { App, Avatar, Button, Drawer, Grid, Layout, Menu, Space, Tag, Tooltip } from 'antd';
 import { useState, type ReactNode } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AgentHeaderTitle } from '@/features/agent/components/AgentHeaderTitle';
@@ -37,7 +25,7 @@ import { usePendingCount, useSyncOfflineQueue } from '@/features/collection/hook
 import { OfflineNotice } from '@/shared/components/OfflineNotice';
 import {
   AGENT_NAV,
-  findNavGroupKey,
+  findNavLeaf,
   HOME_NAV,
   NAV_GROUPS,
   type NavGroup,
@@ -85,9 +73,8 @@ export function AdminLayout() {
   const location = useLocation();
   const { data: user } = useCurrentUser();
   const logoutMutation = useLogout();
-  const activeGroup = findNavGroupKey(location.pathname);
   const isAgent = location.pathname === AGENT_NAV.path;
-  const isDashboard = location.pathname === HOME_NAV.path;
+  const navLeaf = findNavLeaf(location.pathname);
   const screens = Grid.useBreakpoint();
   const isMobile = screens.lg === false;
   const [menuOpen, setMenuOpen] = useState(false);
@@ -111,57 +98,57 @@ export function AdminLayout() {
   };
 
   const navigation = (
-    <>
+    <div className="zw-admin-nav">
       <div className="zw-admin-brand" aria-label="知味校园智慧膳食平台">
-        <strong>知味</strong>
-        <small>校园智慧膳食</small>
+        <span className="zw-admin-brand-seal" aria-hidden="true">
+          味
+        </span>
+        <div className="zw-admin-brand-copy">
+          <strong>知味</strong>
+          <small>校园智慧膳食平台</small>
+        </div>
       </div>
       <Menu
-        // 换页面时重建菜单，让 defaultOpenKeys 按当前页重算一次。
-        // 比在 effect 里同步状态干净：也省掉「用户点开另一组又跳走」这类边界
-        key={location.pathname}
+        className="zw-admin-menu"
         mode="inline"
         selectedKeys={[location.pathname]}
         items={menuItems}
-        // 只展开当前页所在的分组：一进来把两组都摊开，跟没分组差不了多少
-        defaultOpenKeys={activeGroup === null ? [] : [activeGroup]}
+        // 业务入口只有 6 个，默认全展开：分组的标题仍能建立层级，
+        // 但不用让用户在首页多点一次才能找到模块
+        defaultOpenKeys={NAV_GROUPS.map((group) => group.key)}
         onClick={({ key }) => {
           setMenuOpen(false);
           if (key !== location.pathname) void navigate(key);
         }}
         style={{ borderInlineEnd: 'none' }}
       />
-    </>
+      <div className="zw-admin-nav-foot" aria-hidden="true">
+        <span>一餐一饭</span>
+        <span>知味知营养</span>
+      </div>
+    </div>
   );
 
   return (
-    <Layout className="zw-admin-shell" style={{ minHeight: '100%' }}>
+    <Layout className="zw-admin-shell">
       {isMobile ? (
         <Drawer
           title="知味 · 校园智慧膳食"
           placement="left"
+          width={276}
           open={menuOpen}
           onClose={() => setMenuOpen(false)}
         >
           {navigation}
         </Drawer>
       ) : (
-        <Sider theme="light">{navigation}</Sider>
+        <Sider className="zw-admin-sider" theme="light" width={252}>
+          {navigation}
+        </Sider>
       )}
 
       <Layout>
-        <Header
-          className="zw-admin-header"
-          style={{
-            background: '#fff',
-            borderBottom: '1px solid #f0f0f0',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-            paddingInline: 16,
-          }}
-        >
+        <Header className="zw-admin-header">
           {isMobile && (
             <Button
               className="zw-admin-menu-toggle"
@@ -173,12 +160,11 @@ export function AdminLayout() {
           )}
           {isAgent ? (
             <AgentHeaderTitle />
-          ) : isDashboard ? (
-            <AdminPageHeading title={HOME_NAV.title} tagline="营养核算 · 采购预测 · 决策支持" />
           ) : (
-            <Typography.Text className="zw-admin-caption" type="secondary">
-              营养核算 · 采购预测 · 决策支持
-            </Typography.Text>
+            <AdminPageHeading
+              title={navLeaf?.title ?? HOME_NAV.title}
+              tagline={navLeaf?.description}
+            />
           )}
 
           {import.meta.env.VITE_DEMO_MODE === 'true' && (
@@ -187,7 +173,7 @@ export function AdminLayout() {
             </Tag>
           )}
 
-          <Space className="zw-admin-actions" size={12} wrap>
+          <Space className="zw-admin-actions" size={10} wrap>
             {isAgent && (
               <Tooltip title="刷新结果">
                 <Button
@@ -211,19 +197,25 @@ export function AdminLayout() {
             {user ? (
               <Space className="zw-admin-user" size={8}>
                 <Avatar size="small">{user.display_name.slice(0, 1)}</Avatar>
-                <Typography.Text>{user.display_name}</Typography.Text>
-                <Tag color="blue">{user.role_label}</Tag>
+                <span className="zw-admin-user-copy">
+                  <strong>{user.display_name}</strong>
+                  <small>{user.role_label}</small>
+                </span>
               </Space>
             ) : (
               <Tag icon={<ClockCircleOutlined />}>加载中</Tag>
             )}
-            <Button
-              icon={<LogoutOutlined />}
-              loading={logoutMutation.isPending}
-              onClick={() => void handleLogout()}
-            >
-              退出
-            </Button>
+            <Tooltip title="退出登录">
+              <Button
+                className="zw-admin-logout"
+                aria-label="退出"
+                icon={<LogoutOutlined />}
+                loading={logoutMutation.isPending}
+                onClick={() => void handleLogout()}
+              >
+                <span className="zw-admin-logout-label">退出</span>
+              </Button>
+            </Tooltip>
           </Space>
         </Header>
 

@@ -12,9 +12,13 @@ export function AdminPageHeading({
   return (
     <div className="zw-admin-page-heading">
       <span className="zw-admin-page-mark" aria-hidden="true" />
-      <h1 className="zw-admin-page-title">{title}</h1>
-      {tag}
-      {tagline && <span className="zw-admin-page-tagline">{tagline}</span>}
+      <div className="zw-admin-page-heading-copy">
+        <div className="zw-admin-page-title-row">
+          <h1 className="zw-admin-page-title">{title}</h1>
+          {tag}
+        </div>
+        {tagline && <p className="zw-admin-page-tagline">{tagline}</p>}
+      </div>
     </div>
   );
 }

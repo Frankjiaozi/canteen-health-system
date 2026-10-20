@@ -1,7 +1,8 @@
-import { Alert, Card, DatePicker, Segmented, Skeleton, Space, Typography } from 'antd';
+import { Alert, DatePicker, Segmented, Skeleton, Space, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useEnumOptions } from '@/shared/hooks/useEnumOptions';
 import { useDateMealSelection } from '@/shared/hooks/useDateMealSelection';
+import { PagePanel } from '@/shared/components/PagePanel';
 import { DailyLogForm } from '../components/DailyLogForm';
 import { PendingQueue } from '../components/PendingQueue';
 import { RecentLogs } from '../components/RecentLogs';
@@ -17,10 +18,9 @@ export function DailyLogPage() {
   return (
     <Space orientation="vertical" size={16} style={{ width: '100%' }}>
       <PendingQueue />
-      <Card
-        title="每日采集"
-        extra={
-          <Space>
+      <PagePanel
+        filters={
+          <>
             <DatePicker
               value={dayjs(onDate)}
               allowClear={false}
@@ -34,10 +34,11 @@ export function DailyLogPage() {
                 label: option.label,
               }))}
             />
-          </Space>
+          </>
         }
+        bodyClassName="is-padded"
       >
-        <Typography.Paragraph type="secondary">
+        <Typography.Paragraph type="secondary" style={{ marginTop: 0, marginBottom: 18 }}>
           每天只需要填几个数字：勾出今天供应的菜、份数、人次、油盐糖实际用量、剩餐。
           保存后当餐营养立即重算，公开大屏随即可见。
         </Typography.Paragraph>
@@ -59,7 +60,7 @@ export function DailyLogPage() {
             sheet={sheetQuery.data}
           />
         ) : null}
-      </Card>
+      </PagePanel>
       <RecentLogs />
     </Space>
   );
