@@ -63,7 +63,7 @@ describe('基准对照文案', () => {
   });
 
   it('状态用不同的中文与颜色区分不足和超标', () => {
-    expect(describeStatus('over')).toEqual({ color: '#ff7875', text: '超出上限' });
+    expect(describeStatus('over')).toEqual({ color: '#b5473a', text: '超出上限' });
     expect(describeStatus('under').text).toBe('低于推荐');
     expect(describeStatus('ok').text).toBe('达标');
     expect(describeStatus('unknown').text).toBe('暂无数据');

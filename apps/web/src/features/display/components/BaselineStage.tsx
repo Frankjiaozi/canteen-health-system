@@ -22,7 +22,7 @@ export function BaselineStage({ children }: { children: ReactNode }) {
         position: 'fixed',
         inset: 0,
         overflow: 'hidden',
-        background: 'radial-gradient(circle at 50% 0%, #123a6b 0%, #0a1a33 55%, #050d1a 100%)',
+        background: 'radial-gradient(circle at 18% 0%, #ffffff 0%, #f4f7f1 42%, #e7eee4 100%)',
       }}
     >
       <div

@@ -6,8 +6,18 @@ import { usePublicBoard } from '../hooks/usePublicBoard';
 import { describeStatus, describeTarget, formatActual } from '../lib/standards';
 import type { NutrientValue, PublicDishCard, StandardComparison } from '../types';
 
-const CARD_BACKGROUND = 'rgba(255, 255, 255, 0.06)';
-const CARD_BORDER = '1px solid rgba(120, 180, 255, 0.22)';
+const COLORS = {
+  ink: '#20332d',
+  green: '#315c4c',
+  subtle: '#677a70',
+  muted: '#7a8a7e',
+  line: '#dce5de',
+  card: 'rgba(255, 255, 255, 0.86)',
+  cardBorder: '1px solid rgba(49, 92, 76, 0.14)',
+  cardShadow: '0 14px 38px rgba(49, 92, 76, 0.08)',
+  warning: '#a8711e',
+  error: '#b5473a',
+} as const;
 
 export function DisplayPage() {
   const { data, isPending, isError } = usePublicBoard();
@@ -29,7 +39,7 @@ export function DisplayPage() {
           display: 'flex',
           flexDirection: 'column',
           gap: 24,
-          color: '#eaf2ff',
+          color: COLORS.ink,
         }}
       >
         <Header
@@ -47,7 +57,7 @@ export function DisplayPage() {
             </Centered>
           ) : isError ? (
             <Centered>
-              <Typography.Title level={3} style={{ color: '#ffc53d', margin: 0 }}>
+              <Typography.Title level={3} style={{ color: COLORS.error, margin: 0 }}>
                 暂时读不到今日数据，请稍后自动重试
               </Typography.Title>
             </Centered>
@@ -55,7 +65,7 @@ export function DisplayPage() {
             <DishGrid dishes={data.dishes} />
           ) : (
             <Centered>
-              <Typography.Title level={3} style={{ color: '#8fa6c4', margin: 0 }}>
+              <Typography.Title level={3} style={{ color: COLORS.muted, margin: 0 }}>
                 今日暂无已核算的菜品
               </Typography.Title>
             </Centered>
@@ -65,7 +75,7 @@ export function DisplayPage() {
         {data && data.standards.length > 0 ? <StandardBar standards={data.standards} /> : null}
 
         {data ? (
-          <Typography.Text style={{ color: '#7f93ad', fontSize: 15, lineHeight: 1.5 }}>
+          <Typography.Text style={{ color: COLORS.muted, fontSize: 15, lineHeight: 1.5 }}>
             {data.disclaimer}
           </Typography.Text>
         ) : null}
@@ -106,16 +116,24 @@ function Header({ date, mealLabel, dinerCount, loading, isToday }: HeaderProps) 
       }}
     >
       <div>
-        <div style={{ fontSize: 30, fontWeight: 600, letterSpacing: 2 }}>
+        <div style={{ fontSize: 30, fontWeight: 600, letterSpacing: 2, color: COLORS.green }}>
           知味 · 校园智慧膳食平台
         </div>
-        <div style={{ fontSize: 52, fontWeight: 700, marginTop: 8, lineHeight: 1.1 }}>
+        <div
+          style={{
+            fontSize: 52,
+            fontWeight: 700,
+            marginTop: 8,
+            lineHeight: 1.1,
+            color: COLORS.ink,
+          }}
+        >
           {isToday ? '今日菜单与营养' : '菜单与营养'}
         </div>
       </div>
       <div style={{ textAlign: 'right', lineHeight: 1.6 }}>
         <div style={{ fontSize: 26 }}>{formatted}</div>
-        <div style={{ fontSize: 22, color: '#9fc0e8' }}>
+        <div style={{ fontSize: 22, color: COLORS.subtle }}>
           {loading ? '读取中…' : `${mealLabel ?? '未安排'} · 就餐 ${dinerCount ?? '—'} 人次`}
         </div>
       </div>
@@ -155,8 +173,9 @@ function DishCard({ dish }: { dish: PublicDishCard }) {
     <section
       data-testid="dish-card"
       style={{
-        background: CARD_BACKGROUND,
-        border: CARD_BORDER,
+        background: COLORS.card,
+        border: COLORS.cardBorder,
+        boxShadow: COLORS.cardShadow,
         borderRadius: 16,
         padding: '22px 24px',
         display: 'flex',
@@ -170,11 +189,11 @@ function DishCard({ dish }: { dish: PublicDishCard }) {
       <div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
           <span style={{ fontSize: 34, fontWeight: 600 }}>{dish.name}</span>
-          <span style={{ fontSize: 18, color: '#9fc0e8' }}>
+          <span style={{ fontSize: 18, color: COLORS.subtle }}>
             {dish.category_label} · {dish.cooking_method_label}
           </span>
         </div>
-        <div style={{ fontSize: 17, color: '#8fa6c4', marginTop: 6 }}>
+        <div style={{ fontSize: 17, color: COLORS.muted, marginTop: 6 }}>
           每份 {formatServing(dish.standard_serving_g)} 克
           {dish.allergens.length > 0 ? ` · 含过敏原：${dish.allergens.join('、')}` : ''}
         </div>
@@ -187,11 +206,11 @@ function DishCard({ dish }: { dish: PublicDishCard }) {
             padding: '2px 10px',
             borderRadius: 999,
             fontSize: 15,
-            color: dish.value_type === 'THEORETICAL' ? '#9fc0e8' : '#7fe0a6',
+            color: dish.value_type === 'THEORETICAL' ? COLORS.subtle : COLORS.green,
             border: `1px solid ${
               dish.value_type === 'THEORETICAL'
-                ? 'rgba(120, 180, 255, 0.35)'
-                : 'rgba(127, 224, 166, 0.45)'
+                ? 'rgba(49, 92, 76, 0.24)'
+                : 'rgba(49, 92, 76, 0.42)'
             }`,
           }}
         >
@@ -215,7 +234,7 @@ function DishCard({ dish }: { dish: PublicDishCard }) {
       </div>
 
       {dish.missing_nutrients.length > 0 ? (
-        <div style={{ fontSize: 14, color: '#ffc53d' }}>部分成分缺失，数值区间已相应放宽</div>
+        <div style={{ fontSize: 14, color: COLORS.warning }}>部分成分缺失，数值区间已相应放宽</div>
       ) : null}
     </section>
   );
@@ -228,16 +247,16 @@ function NutrientRow({ nutrient }: { nutrient: NutrientValue }) {
         display: 'flex',
         alignItems: 'baseline',
         justifyContent: 'space-between',
-        borderBottom: '1px dashed rgba(120, 180, 255, 0.18)',
+        borderBottom: `1px dashed ${COLORS.line}`,
         paddingBottom: 6,
       }}
     >
-      <span style={{ fontSize: 22, color: '#c7d8ee' }}>{nutrient.label}</span>
+      <span style={{ fontSize: 22, color: COLORS.subtle }}>{nutrient.label}</span>
       <span style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
         <span style={{ fontSize: 32, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
           {nutrient.value}
         </span>
-        <span style={{ fontSize: 18, color: '#9fc0e8' }}>{nutrient.unit}</span>
+        <span style={{ fontSize: 18, color: COLORS.subtle }}>{nutrient.unit}</span>
       </span>
     </div>
   );
@@ -260,8 +279,9 @@ function StandardBar({ standards }: { standards: StandardComparison[] }) {
           <div
             key={standard.code}
             style={{
-              background: CARD_BACKGROUND,
-              border: CARD_BORDER,
+              background: COLORS.card,
+              border: COLORS.cardBorder,
+              boxShadow: COLORS.cardShadow,
               borderLeft: `4px solid ${style.color}`,
               borderRadius: 12,
               padding: '14px 18px',
@@ -270,16 +290,16 @@ function StandardBar({ standards }: { standards: StandardComparison[] }) {
             <div
               style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}
             >
-              <span style={{ fontSize: 20, color: '#c7d8ee' }}>{standard.label}</span>
+              <span style={{ fontSize: 20, color: COLORS.subtle }}>{standard.label}</span>
               <span style={{ fontSize: 18, color: style.color }}>{style.text}</span>
             </div>
             <div style={{ marginTop: 8, display: 'flex', alignItems: 'baseline', gap: 8 }}>
               <span style={{ fontSize: 34, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
                 {formatActual(standard)}
               </span>
-              <span style={{ fontSize: 18, color: '#9fc0e8' }}>{standard.unit}</span>
+              <span style={{ fontSize: 18, color: COLORS.subtle }}>{standard.unit}</span>
             </div>
-            <div style={{ fontSize: 16, color: '#8fa6c4', marginTop: 4 }}>
+            <div style={{ fontSize: 16, color: COLORS.muted, marginTop: 4 }}>
               {describeTarget(standard)}
             </div>
           </div>
