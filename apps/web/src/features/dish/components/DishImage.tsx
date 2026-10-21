@@ -1,7 +1,8 @@
 import { PictureOutlined } from '@ant-design/icons';
 import { useState } from 'react';
+import { resolveDishImageUrl } from '../lib/defaultImage';
 
-/** 没有用户图片时始终显示占位，不用示例食物照片替代。 */
+/** 用户上传图优先；没有上传时使用随应用发布的内置菜品图。 */
 export function DishImage({
   url,
   name,
@@ -12,11 +13,13 @@ export function DishImage({
   compact?: boolean;
 }) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
-  const showImage = !!url && failedUrl !== url;
+  const uploaded = url && failedUrl !== url ? url : null;
+  const source = uploaded || resolveDishImageUrl(name);
+  const showImage = !!source && failedUrl !== source;
   return (
     <div className={`zw-dish-image${compact ? ' is-compact' : ''}`}>
       {showImage ? (
-        <img src={url} alt={name} loading="lazy" onError={() => setFailedUrl(url)} />
+        <img src={source} alt={name} loading="lazy" onError={() => setFailedUrl(source)} />
       ) : (
         <span>
           <PictureOutlined />
