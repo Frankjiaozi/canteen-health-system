@@ -6,12 +6,14 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
-from app.shared.enums import MealType, SuggestionStatus
+from app.shared.enums import MealType, PackageCode, SuggestionStatus
 
 
 class PlannedDishRead(BaseModel):
     dish_id: str
     dish_name: str
+    package_codes: list[PackageCode] = Field(default_factory=lambda: [PackageCode.COMMON])
+    package_labels: list[str] = Field(default_factory=lambda: [PackageCode.COMMON.label])
     category_label: str
     cooking_method_label: str
     #: 这一道菜的成本（元）。份数不在这里——推荐只回答「做哪几道菜」，
@@ -45,6 +47,21 @@ class SuggestionReason(BaseModel):
     text: str
 
 
+class MenuPackageRead(BaseModel):
+    """一份每人套餐的菜品、营养差距与依据。"""
+
+    code: PackageCode
+    label: str
+    dishes: list[PlannedDishRead]
+    gaps: list[NutrientGap]
+    reasons: list[SuggestionReason]
+    cost_estimate: str
+    budget: str
+    per_capita: dict[str, str]
+    binding: list[str]
+    solver_status: str
+
+
 class MenuSuggestionRead(BaseModel):
     id: str
     date: date
@@ -52,7 +69,11 @@ class MenuSuggestionRead(BaseModel):
     meal_type_label: str
     status: SuggestionStatus
     status_label: str
+    #: 兼容旧调用方的扁平列表；每道共用菜只出现一次，package_codes 标出 A/B。
     dishes: list[PlannedDishRead]
+    packages: list[MenuPackageRead] = Field(default_factory=list)
+    #: A/B 采购与成本分摊占比；不影响每份套餐的营养口径。
+    package_shares: dict[str, str] = Field(default_factory=dict)
     gaps: list[NutrientGap]
     reasons: list[SuggestionReason]
     cost_estimate: str

@@ -13,7 +13,7 @@ from uuid import UUID
 
 from app.modules.forecast.schemas import IngredientRequirement
 from app.modules.recommendation.schemas import NutrientGap, SuggestionReason
-from app.shared.enums import MealType
+from app.shared.enums import MealType, PackageCode
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -22,6 +22,10 @@ class MenuPlanDish(BaseModel):
 
     dish_id: str
     dish_name: str
+    #: 同一道菜可同时属于 A/B（主食共用），因此这里用集合而不是单值。
+    package_codes: list[PackageCode] = Field(default_factory=lambda: [PackageCode.COMMON])
+    package_labels: list[str] = Field(default_factory=lambda: [PackageCode.COMMON.label])
+    is_shared: bool = False
     category_label: str
     cooking_method_label: str
     #: 单份营养与调料用量，便于核对它为什么入选
@@ -37,13 +41,28 @@ class MenuPlanDish(BaseModel):
     planned_servings: str | None = None
 
 
+class MenuPlanPackage(BaseModel):
+    """一份标准套餐在菜单计划中的视图。"""
+
+    code: PackageCode
+    label: str
+    dish_ids: list[str]
+    gaps: list[NutrientGap]
+    reasons: list[SuggestionReason]
+    cost_estimate: str
+    per_capita: dict[str, str]
+
+
 class MenuPlanResponse(BaseModel):
     date: date
     meal_type: MealType
     meal_type_label: str
     diner_count: int
     suggestion_id: str
+    #: 扁平清单，同一道共用主食只出现一次，供采购聚合使用。
     dishes: list[MenuPlanDish]
+    packages: list[MenuPlanPackage] = Field(default_factory=list)
+    package_shares: dict[str, str] = Field(default_factory=dict)
     gaps: list[NutrientGap]
     reasons: list[SuggestionReason]
     requirements: list[IngredientRequirement]

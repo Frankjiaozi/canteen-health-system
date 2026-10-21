@@ -28,7 +28,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.db.types import enum_check, enum_type
-from app.shared.enums import FeedbackSource, MealType
+from app.shared.enums import FeedbackSource, MealType, PackageCode
 
 
 class DailyLog(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -95,9 +95,16 @@ class DailyLogItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     leftover_ratio: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
     leftover_weight_g: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     note: Mapped[str | None] = mapped_column(String(255))
+    #: 与菜单计划保持同一套餐归属；共用主食为 COMMON。
+    package_code: Mapped[PackageCode] = mapped_column(
+        enum_type(PackageCode),
+        nullable=False,
+        server_default=PackageCode.COMMON.value,
+    )
 
     __table_args__ = (
         UniqueConstraint("daily_log_id", "dish_id"),
+        enum_check("package_code", PackageCode),
         CheckConstraint("servings_produced >= 0", name="servings_non_negative"),
         CheckConstraint(
             "leftover_ratio IS NULL OR (leftover_ratio >= 0 AND leftover_ratio <= 1)",

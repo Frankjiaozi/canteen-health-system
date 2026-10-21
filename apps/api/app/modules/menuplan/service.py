@@ -22,8 +22,10 @@ from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
+from typing import Any
 from uuid import UUID
 
+from app.core.config import get_settings
 from app.core.errors import AppError, BusinessRuleError, ConflictError
 from app.core.logging import get_logger
 from app.modules.auth import repository as auth_repository
@@ -37,13 +39,14 @@ from app.modules.menuplan.schemas import (
     MenuPlanBatchDay,
     MenuPlanBatchResult,
     MenuPlanDish,
+    MenuPlanPackage,
     MenuPlanResponse,
     MenuPlanSyncResult,
     PublishPlanRequest,
 )
 from app.modules.recommendation import repository as recommendation_repository
 from app.modules.recommendation import service as recommendation_service
-from app.shared.enums import MealType, SuggestionStatus
+from app.shared.enums import MealType, PackageCode, SuggestionStatus
 from sqlalchemy.orm import Session
 
 logger = get_logger(__name__)
@@ -116,6 +119,7 @@ def build_menu_plan(
     usage_counts: dict[UUID, int] | None = None,
 ) -> MenuPlanResponse:
     """生成明天的菜单与采购建议。"""
+    settings = get_settings()
     candidate_ids = recommendation_service.candidate_dish_ids(
         session, on_date=on_date, meal_type=meal_type
     )
@@ -200,15 +204,34 @@ def build_menu_plan(
     )
     session.commit()
 
-    requirements, total_cost = forecast_service.build_purchase_list(
-        session,
-        servings_by_dish={dish_id: servings_by_dish[dish_id] for dish_id in recommended_ids},
-    )
+    package_shares = {
+        PackageCode.A: Decimal(
+            suggestion.package_shares.get(PackageCode.A.value, settings.package_share_a)
+        ),
+        PackageCode.B: Decimal(
+            suggestion.package_shares.get(PackageCode.B.value, settings.package_share_b)
+        ),
+    }
+
+    def allocated_servings(dish: Any) -> Decimal:
+        dish_id = UUID(str(dish.dish_id))
+        total = servings_by_dish[dish_id]
+        codes = list(getattr(dish, "package_codes", [PackageCode.COMMON]))
+        if not codes or PackageCode.COMMON in codes:
+            return total
+        share = sum(
+            (package_shares[code] for code in codes if code in package_shares),
+            Decimal("0"),
+        )
+        return (total * share).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     dishes = [
         MenuPlanDish(
             dish_id=dish.dish_id,
             dish_name=dish.dish_name,
+            package_codes=list(dish.package_codes),
+            package_labels=list(dish.package_labels),
+            is_shared=PackageCode.COMMON in dish.package_codes,
             category_label=dish.category_label,
             cooking_method_label=dish.cooking_method_label,
             energy_kcal=dish.energy_kcal,
@@ -225,21 +248,45 @@ def build_menu_plan(
                 None,
             ),
             prediction_fallback=UUID(dish.dish_id) not in prediction.servings,
-            planned_servings=str(servings_by_dish[UUID(dish.dish_id)]),
+            planned_servings=str(allocated_servings(dish)),
         )
         for dish in suggestion.dishes
+    ]
+    purchase_servings = {
+        UUID(dish.dish_id): Decimal(dish.planned_servings or "0") for dish in dishes
+    }
+    requirements, total_cost = forecast_service.build_purchase_list(
+        session,
+        servings_by_dish=purchase_servings,
+    )
+    packages = [
+        MenuPlanPackage(
+            code=package.code,
+            label=package.label,
+            dish_ids=[
+                dish.dish_id
+                for dish in dishes
+                if package.code in dish.package_codes or dish.is_shared
+            ],
+            gaps=package.gaps,
+            reasons=package.reasons,
+            cost_estimate=package.cost_estimate,
+            per_capita=package.per_capita,
+        )
+        for package in suggestion.packages
     ]
 
     fallback_names = [dish.dish_name for dish in dishes if dish.prediction_fallback]
     if meal_type is MealType.BREAKFAST:
         notes = [
             "早餐按固定组合供应：上哪几道菜由菜品库的「早餐固定供应」决定，不参与每日选菜。",
-            "份数仍由预测按同星期历史与日历修正给出；采购量按这些份数算。",
+            "早餐主食由 A/B 两份套餐共用；其它菜不重复，采购按配置的套餐占比分摊。",
         ]
     else:
         notes = [
             "菜品由推荐在营养目标下选出；份数由预测按同星期历史与日历修正给出。",
-            "营养按每人一份标准套餐评估；预测份数只用于采购，不再反过来改变套餐营养。",
+            "每餐生成 A/B 两份每人套餐；非主食不重复，主食允许共用。",
+            "营养按每份套餐独立评估；预测份数只用于采购，不再反过来改变套餐营养。",
             "同一天的另一餐已经排过的菜不会再选（主食可以重样）。",
         ]
     if diner_count is None:
@@ -273,6 +320,11 @@ def build_menu_plan(
         diner_count=diners,
         suggestion_id=suggestion.id,
         dishes=dishes,
+        packages=packages,
+        package_shares={
+            PackageCode.A.value: str(package_shares[PackageCode.A]),
+            PackageCode.B.value: str(package_shares[PackageCode.B]),
+        },
         gaps=suggestion.gaps,
         reasons=suggestion.reasons,
         requirements=requirements,
@@ -284,8 +336,10 @@ def build_menu_plan(
         calendar_notes=[prediction.calendar_note] if prediction.calendar_note else [],
         skipped_predictions=prediction.skipped,
         servings_note=(
-            "采购量 = 推荐选出的菜 × 该菜明天的预测份数；"
-            "预测不出来时退回「每人一份」估算并逐行标注。"
+            f"采购量按 A/B 占比 {package_shares[PackageCode.A]:.0%}/"
+            f"{package_shares[PackageCode.B]:.0%} 分摊：非主食只计入所属套餐，"
+            "共用主食只计一次；预测份数来自逐菜预测，预测不出来时"
+            "退回「每人一份」估算并逐行标注。"
         ),
         notes=notes,
         budget_per_person=str(Decimal(suggestion.budget) / Decimal(diners)),

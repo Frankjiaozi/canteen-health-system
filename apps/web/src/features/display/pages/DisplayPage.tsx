@@ -11,6 +11,12 @@ import {
   parseDisplayMeal,
   type DisplayMeal,
 } from '../lib/meal';
+import {
+  availablePackages,
+  dishesForPackage,
+  PACKAGE_OPTIONS,
+  type DisplayPackage,
+} from '../lib/packages';
 import { describeTarget, formatActual } from '../lib/standards';
 import type { NutrientValue, PublicDishCard, StandardComparison } from '../types';
 
@@ -34,10 +40,23 @@ export function DisplayPage() {
   const activeMeal = parseDisplayMeal(mealParam) ?? autoMeal;
   const selectedMealLabel = mealLabel(activeMeal);
   const { data, isPending, isError } = usePublicBoard(undefined, activeMeal);
+  const packageOptions = availablePackages(data?.dishes);
+  const requestedPackage = searchParams.get('package');
+  const activePackage: DisplayPackage | null =
+    packageOptions.find((option) => option.value === requestedPackage)?.value ??
+    packageOptions[0]?.value ??
+    null;
+  const visibleDishes = dishesForPackage(data?.dishes, activePackage);
 
   const selectMeal = (meal: DisplayMeal) => {
     const next = new URLSearchParams(searchParams);
     next.set('meal', meal);
+    setSearchParams(next, { replace: true });
+  };
+
+  const selectPackage = (packageCode: DisplayPackage) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('package', packageCode);
     setSearchParams(next, { replace: true });
   };
 
@@ -75,7 +94,20 @@ export function DisplayPage() {
           isToday={data === undefined || data.date === dayjs().format('YYYY-MM-DD')}
         />
 
-        <MealSwitch value={activeMeal} onChange={selectMeal} />
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: 18,
+            flexWrap: 'wrap',
+          }}
+        >
+          <MealSwitch value={activeMeal} onChange={selectMeal} />
+          {packageOptions.length > 1 && activePackage ? (
+            <PackageSwitch value={activePackage} onChange={selectPackage} />
+          ) : null}
+        </div>
 
         <div style={{ flex: 1, minHeight: 0 }}>
           {isPending ? (
@@ -88,8 +120,8 @@ export function DisplayPage() {
                 暂时读不到今日数据，请稍后自动重试
               </Typography.Title>
             </Centered>
-          ) : data && data.dishes.length > 0 ? (
-            <DishGrid dishes={data.dishes} />
+          ) : data && visibleDishes.length > 0 ? (
+            <DishGrid dishes={visibleDishes} />
           ) : (
             <Centered>
               <Typography.Title level={3} style={{ color: COLORS.muted, margin: 0 }}>
@@ -108,6 +140,56 @@ export function DisplayPage() {
         ) : null}
       </div>
     </BaselineStage>
+  );
+}
+
+function PackageSwitch({
+  value,
+  onChange,
+}: {
+  value: DisplayPackage;
+  onChange: (packageCode: DisplayPackage) => void;
+}) {
+  return (
+    <div
+      data-testid="package-switch"
+      role="group"
+      aria-label="选择套餐"
+      style={{
+        display: 'flex',
+        gap: 4,
+        padding: 4,
+        border: `1px solid ${COLORS.line}`,
+        borderRadius: 999,
+        background: 'rgba(255, 255, 255, 0.56)',
+      }}
+    >
+      {PACKAGE_OPTIONS.map((option) => {
+        const active = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(option.value)}
+            style={{
+              minWidth: 88,
+              height: 32,
+              padding: '0 16px',
+              border: 'none',
+              borderRadius: 999,
+              background: active ? COLORS.ink : 'transparent',
+              color: active ? '#f8fbf6' : COLORS.subtle,
+              cursor: 'pointer',
+              fontSize: 16,
+              fontFamily: 'inherit',
+            }}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -272,6 +354,9 @@ function DishCard({ dish }: { dish: PublicDishCard }) {
           <span style={{ fontSize: 18, color: COLORS.subtle }}>
             {dish.category_label} · {dish.cooking_method_label}
           </span>
+          {dish.is_shared ? (
+            <span style={{ fontSize: 16, color: COLORS.warning }}>A/B 共用</span>
+          ) : null}
         </div>
         <div style={{ fontSize: 17, color: COLORS.muted, marginTop: 6 }}>
           每份 {formatServing(dish.standard_serving_g)} 克

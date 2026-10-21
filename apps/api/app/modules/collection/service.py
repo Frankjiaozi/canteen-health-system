@@ -33,7 +33,13 @@ from app.modules.collection.schemas import (
 )
 from app.modules.menu import service as menu_service
 from app.modules.nutrition import service as nutrition_service
-from app.shared.enums import MANUAL_ANOMALY_FLAGS, AnomalyFlag, AuditAction, MealType
+from app.shared.enums import (
+    MANUAL_ANOMALY_FLAGS,
+    AnomalyFlag,
+    AuditAction,
+    MealType,
+    PackageCode,
+)
 from app.shared.nutrition_values import VALUE_TYPE_DESCRIPTIONS, pick_best
 
 logger = get_logger(__name__)
@@ -69,10 +75,20 @@ def build_sheet(session: Session, *, on_date: date, meal_type: MealType) -> Dail
         menu_item = served.get(dish.id)
         item = items.get(dish.id)
         nutrition = peek.get(dish.id)
+        package_code = (
+            item.package_code
+            if item is not None
+            else menu_item.package_code
+            if menu_item is not None
+            else PackageCode.COMMON
+        )
         rows.append(
             LoggedDish(
                 dish_id=str(dish.id),
                 name=dish.name,
+                package_codes=[package_code],
+                package_labels=[package_code.label],
+                is_shared=package_code is PackageCode.COMMON,
                 category_label=dish.category.label,
                 cooking_method_label=dish.cooking_method.label,
                 # 采集提交之前，菜单日上写的是「计划供应」，采集提交之后写的是「实际供应」。
@@ -193,6 +209,12 @@ def save_sheet(
             raise BusinessRuleError("同一道菜只能出现一次，请检查勾选的菜品")
         seen.add(row.dish_id)
 
+    planned_packages = {
+        item.dish_id: item.package_code
+        for item in repository.load_menu_items(
+            session, on_date=on_date, meal_type=payload.meal_type
+        )
+    }
     menu_service.confirm_menu_day(
         session,
         on_date=on_date,
@@ -202,6 +224,7 @@ def save_sheet(
                 dish_id=row.dish_id,
                 is_substituted=row.is_substituted,
                 note=row.substitution_note,
+                package_code=planned_packages.get(row.dish_id, PackageCode.COMMON),
             )
             for row in payload.dishes
         ],
@@ -244,6 +267,7 @@ def save_sheet(
                 "leftover_ratio": row.leftover_ratio,
                 "leftover_weight_g": row.leftover_weight_g,
                 "note": row.note,
+                "package_code": planned_packages.get(row.dish_id, PackageCode.COMMON),
             }
             for row in payload.dishes
         ],

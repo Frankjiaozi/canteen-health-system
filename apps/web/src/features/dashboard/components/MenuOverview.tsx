@@ -10,6 +10,12 @@ const STATUS_COLOR = {
 } as const;
 
 function MealCard({ meal }: { meal: MenuOverviewMeal }) {
+  const groups = meal.dishes.reduce<Record<string, MenuOverviewMeal['dishes']>>((result, dish) => {
+    const key = dish.package_labels?.join(' / ') || '当前套餐';
+    (result[key] ??= []).push(dish);
+    return result;
+  }, {});
+
   return (
     <Card
       size="small"
@@ -26,17 +32,30 @@ function MealCard({ meal }: { meal: MenuOverviewMeal }) {
       }
     >
       {meal.dishes.length ? (
-        <Space orientation="vertical" size={7} style={{ width: '100%' }}>
-          {meal.dishes.map((dish) => (
-            <div
-              key={dish.dish_id}
-              style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}
-            >
-              <span>{dish.name}</span>
-              <Typography.Text type="secondary">
-                {dish.category_label} · {dish.cooking_method_label} ·{' '}
-                {dish.planned_servings ? `${trimDecimal(dish.planned_servings)} 份` : '份数未填'}
-              </Typography.Text>
+        <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+          {Object.entries(groups).map(([label, dishes]) => (
+            <div key={label}>
+              <Tag
+                color={label === '套餐 B' ? 'geekblue' : label === 'A/B 共用' ? 'gold' : 'green'}
+              >
+                {label}
+              </Tag>
+              <Space orientation="vertical" size={7} style={{ width: '100%', marginTop: 6 }}>
+                {dishes.map((dish) => (
+                  <div
+                    key={dish.dish_id}
+                    style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}
+                  >
+                    <span>{dish.name}</span>
+                    <Typography.Text type="secondary">
+                      {dish.category_label} · {dish.cooking_method_label} ·{' '}
+                      {dish.planned_servings
+                        ? `${trimDecimal(dish.planned_servings)} 份`
+                        : '份数未填'}
+                    </Typography.Text>
+                  </div>
+                ))}
+              </Space>
             </div>
           ))}
         </Space>

@@ -8,7 +8,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.shared.enums import AnomalyFlag, MealType
+from app.shared.enums import AnomalyFlag, MealType, PackageCode
 
 
 class LoggedDish(BaseModel):
@@ -16,6 +16,9 @@ class LoggedDish(BaseModel):
 
     dish_id: str
     name: str
+    package_codes: list[PackageCode] = Field(default_factory=lambda: [PackageCode.COMMON])
+    package_labels: list[str] = Field(default_factory=lambda: [PackageCode.COMMON.label])
+    is_shared: bool = False
     category_label: str
     cooking_method_label: str
     #: 是否已确认为当餐供应的菜。当天还没有菜单时，整份菜品库都会列出来供勾选

@@ -11,7 +11,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.modules.nutrition.schemas import StandardComparison
-from app.shared.enums import MealType
+from app.shared.enums import MealType, PackageCode
 
 
 class StandardTarget(BaseModel):
@@ -113,6 +113,9 @@ class DashboardSummary(BaseModel):
 class MenuOverviewDish(BaseModel):
     dish_id: str
     name: str
+    package_codes: list[PackageCode] = Field(default_factory=lambda: [PackageCode.COMMON])
+    package_labels: list[str] = Field(default_factory=lambda: [PackageCode.COMMON.label])
+    is_shared: bool = False
     category_label: str
     cooking_method_label: str
     planned_servings: str | None = None

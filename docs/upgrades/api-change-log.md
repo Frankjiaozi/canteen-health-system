@@ -1,5 +1,15 @@
 # 接口变更清单
 
+## 2026-10-21 · A/B 双套餐
+
+- `MenuSuggestionRead` 新增 `packages`、`package_shares`；`PlannedDishRead` 新增
+  `package_codes/package_labels`。
+- `MenuPlanResponse` 新增 `packages`、`package_shares`；`MenuPlanDish` 新增
+  `package_codes/package_labels/is_shared`，同时保留扁平 `dishes` 供旧调用方读取。
+- `MenuOverviewDish`、`LoggedDish`、`PublicDishCard` 新增套餐归属字段。
+- 扁平 `dishes` 中同一道共用主食只出现一次；套餐视图通过 `dish_ids` 引用它。
+- 采购份数以 `planned_servings` 为准；`predicted_servings` 仍是该菜在整餐的预测总份数。
+
 更新：2026-10-19。记录当前主分支相对既有契约新增或改语义的接口。
 字段的完整类型仍以 Pydantic/OpenAPI 和 `packages/api-client/src/schema.d.ts` 为准。
 

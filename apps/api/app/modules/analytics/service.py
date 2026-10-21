@@ -29,7 +29,7 @@ from app.modules.analytics.schemas import (
 from app.modules.collection.models import DailyLog
 from app.modules.nutrition.models import NutritionStandard
 from app.modules.nutrition.schemas import StandardComparison
-from app.shared.enums import MealType, StandardCode
+from app.shared.enums import MealType, PackageCode, StandardCode
 from app.shared.nutrients import (
     FIELD_TO_NUTRIENT_CODE,
     NUTRIENT_FIELDS,
@@ -102,6 +102,9 @@ def build_menu_overview(session: Session) -> MenuOverviewResponse:
                         MenuOverviewDish(
                             dish_id=str(dish.id),
                             name=dish.name,
+                            package_codes=[item.package_code],
+                            package_labels=[item.package_code.label],
+                            is_shared=item.package_code is PackageCode.COMMON,
                             category_label=dish.category.label,
                             cooking_method_label=dish.cooking_method.label,
                             planned_servings=(

@@ -138,6 +138,7 @@ done
 | `POSTGRES_PASSWORD` / `JWT_SECRET` | 内置默认值 | 必须替换 |
 | `COOKIE_SECURE` | `false` | 有 HTTPS 时必须为 `true` |
 | `ALLOW_OPEN_REGISTRATION` | `true`（方便现场注册试用） | **必须为 `false`**，账号由管理员开通 |
+| `PACKAGE_SHARE_A` / `PACKAGE_SHARE_B` | `0.5` / `0.5` | 按实际套餐选择比例配置；两项合计必须为 1，只影响采购与成本分摊 |
 | `AGENT_MODEL_*` / `AGENT_MODE`（知味膳食助手） | 可以留空（规则模式，数据不出校） | 用云端端点也行；按学校要求选提供方，并把数据流向告知使用者 |
 | 种子脚本 | 可直接执行 | 需要 `ALLOW_DEMO_SEED=true` 显式放行 |
 

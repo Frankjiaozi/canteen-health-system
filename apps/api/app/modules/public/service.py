@@ -21,7 +21,7 @@ from app.modules.public.schemas import (
     PublicDishCard,
     StandardComparison,
 )
-from app.shared.enums import MealType, StandardCode
+from app.shared.enums import MealType, PackageCode, StandardCode
 from app.shared.nutrients import (
     FIELD_TO_NUTRIENT_CODE,
     NUTRIENT_FIELDS,
@@ -48,11 +48,11 @@ def build_board(
     settings = get_settings()
 
     menu_day = repository.load_menu_day(session, target_date, meal_type=meal_type)
-    dishes = repository.load_dishes(session, menu_day.id) if menu_day else []
+    dish_items = repository.load_dish_items(session, menu_day.id) if menu_day else []
     nutritions = (
         repository.load_per_serving_nutritions(
             session,
-            dish_ids=[dish.id for dish in dishes],
+            dish_ids=[dish.id for dish, _ in dish_items],
             on_date=target_date,
             meal_type=menu_day.meal_type,
         )
@@ -68,7 +68,11 @@ def build_board(
     standards = repository.load_active_standards(session)
 
     # 没有营养结果的菜不上屏：与其显示一道没有数据的菜，不如不显示
-    cards = [_dish_card(dish, nutritions[dish.id]) for dish in dishes if dish.id in nutritions]
+    cards = [
+        _dish_card(dish, nutritions[dish.id], package_code)
+        for dish, package_code in dish_items
+        if dish.id in nutritions
+    ]
 
     actuals: dict[StandardCode, Decimal | None] = {
         StandardCode.SALT: sum_per_capita_across_meals(daily_logs, "salt_total_g"),
@@ -97,7 +101,7 @@ def build_board(
     )
 
 
-def _dish_card(dish: Dish, nutrition: DishNutrition) -> PublicDishCard:
+def _dish_card(dish: Dish, nutrition: DishNutrition, package_code: PackageCode) -> PublicDishCard:
     ranges = nutrition.uncertainty.get("ranges", {})
     nutrients = [
         NutrientValue(
@@ -115,6 +119,9 @@ def _dish_card(dish: Dish, nutrition: DishNutrition) -> PublicDishCard:
     return PublicDishCard(
         dish_id=dish.id,
         name=dish.name,
+        package_codes=[package_code],
+        package_labels=[package_code.label],
+        is_shared=package_code is PackageCode.COMMON,
         category_label=dish.category.label,
         cooking_method_label=dish.cooking_method.label,
         standard_serving_g=str(dish.standard_serving_g),

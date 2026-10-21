@@ -14,7 +14,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.db.types import enum_check, enum_type
-from app.shared.enums import MealType
+from app.shared.enums import MealType, PackageCode
 
 
 class MenuDay(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -57,5 +57,14 @@ class MenuDayItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Boolean, nullable=False, server_default=text("false")
     )
     substitution_note: Mapped[str | None] = mapped_column(String(255))
+    #: A/B 套餐归属。共用主食写 COMMON，避免采购聚合时重复计数。
+    package_code: Mapped[PackageCode] = mapped_column(
+        enum_type(PackageCode),
+        nullable=False,
+        server_default=PackageCode.COMMON.value,
+    )
 
-    __table_args__ = (UniqueConstraint("menu_day_id", "dish_id"),)
+    __table_args__ = (
+        UniqueConstraint("menu_day_id", "dish_id"),
+        enum_check("package_code", PackageCode),
+    )

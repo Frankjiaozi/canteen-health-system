@@ -159,6 +159,11 @@ export function DailyLogForm({ onDate, sheet }: DailyLogFormProps) {
                       {/* 「计划」这两个字只在采集页说：它是「明日菜单与采购」排的，
                           和录入员此刻勾的实际供应不是一回事 */}
                       {dish?.is_planned ? <Tag color="blue">计划</Tag> : null}
+                      {dish?.package_labels?.length ? (
+                        <Tag color={dish.is_shared ? 'gold' : 'green'}>
+                          {dish.package_labels.join(' / ')}
+                        </Tag>
+                      ) : null}
                     </Space>
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                       {dish?.category_label} · {dish?.cooking_method_label}

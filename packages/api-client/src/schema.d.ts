@@ -2075,6 +2075,15 @@ export interface components {
             dish_id: string;
             /** Name */
             name: string;
+            /** Package Codes */
+            package_codes?: components["schemas"]["PackageCode"][];
+            /** Package Labels */
+            package_labels?: string[];
+            /**
+             * Is Shared
+             * @default false
+             */
+            is_shared: boolean;
             /** Category Label */
             category_label: string;
             /** Cooking Method Label */
@@ -2174,6 +2183,15 @@ export interface components {
             dish_id: string;
             /** Name */
             name: string;
+            /** Package Codes */
+            package_codes?: components["schemas"]["PackageCode"][];
+            /** Package Labels */
+            package_labels?: string[];
+            /**
+             * Is Shared
+             * @default false
+             */
+            is_shared: boolean;
             /** Category Label */
             category_label: string;
             /** Cooking Method Label */
@@ -2212,6 +2230,33 @@ export interface components {
             tomorrow: string;
             /** Days */
             days: components["schemas"]["MenuOverviewDay"][];
+        };
+        /**
+         * MenuPackageRead
+         * @description 一份每人套餐的菜品、营养差距与依据。
+         */
+        MenuPackageRead: {
+            code: components["schemas"]["PackageCode"];
+            /** Label */
+            label: string;
+            /** Dishes */
+            dishes: components["schemas"]["PlannedDishRead"][];
+            /** Gaps */
+            gaps: components["schemas"]["NutrientGap"][];
+            /** Reasons */
+            reasons: components["schemas"]["SuggestionReason"][];
+            /** Cost Estimate */
+            cost_estimate: string;
+            /** Budget */
+            budget: string;
+            /** Per Capita */
+            per_capita: {
+                [key: string]: string;
+            };
+            /** Binding */
+            binding: string[];
+            /** Solver Status */
+            solver_status: string;
         };
         /**
          * MenuPlanBatchDay
@@ -2318,6 +2363,15 @@ export interface components {
             dish_id: string;
             /** Dish Name */
             dish_name: string;
+            /** Package Codes */
+            package_codes?: components["schemas"]["PackageCode"][];
+            /** Package Labels */
+            package_labels?: string[];
+            /**
+             * Is Shared
+             * @default false
+             */
+            is_shared: boolean;
             /** Category Label */
             category_label: string;
             /** Cooking Method Label */
@@ -2342,6 +2396,27 @@ export interface components {
             /** Planned Servings */
             planned_servings?: string | null;
         };
+        /**
+         * MenuPlanPackage
+         * @description 一份标准套餐在菜单计划中的视图。
+         */
+        MenuPlanPackage: {
+            code: components["schemas"]["PackageCode"];
+            /** Label */
+            label: string;
+            /** Dish Ids */
+            dish_ids: string[];
+            /** Gaps */
+            gaps: components["schemas"]["NutrientGap"][];
+            /** Reasons */
+            reasons: components["schemas"]["SuggestionReason"][];
+            /** Cost Estimate */
+            cost_estimate: string;
+            /** Per Capita */
+            per_capita: {
+                [key: string]: string;
+            };
+        };
         /** MenuPlanResponse */
         MenuPlanResponse: {
             /**
@@ -2358,6 +2433,12 @@ export interface components {
             suggestion_id: string;
             /** Dishes */
             dishes: components["schemas"]["MenuPlanDish"][];
+            /** Packages */
+            packages?: components["schemas"]["MenuPlanPackage"][];
+            /** Package Shares */
+            package_shares?: {
+                [key: string]: string;
+            };
             /** Gaps */
             gaps: components["schemas"]["NutrientGap"][];
             /** Reasons */
@@ -2448,6 +2529,12 @@ export interface components {
             status_label: string;
             /** Dishes */
             dishes: components["schemas"]["PlannedDishRead"][];
+            /** Packages */
+            packages?: components["schemas"]["MenuPackageRead"][];
+            /** Package Shares */
+            package_shares?: {
+                [key: string]: string;
+            };
             /** Gaps */
             gaps: components["schemas"]["NutrientGap"][];
             /** Reasons */
@@ -2613,6 +2700,15 @@ export interface components {
             /** Sodium Mg */
             sodium_mg: string;
         };
+        /**
+         * PackageCode
+         * @description 一餐内的套餐归属。
+         *
+         *     主食允许 A/B 共用，用 ``COMMON`` 明确表达。把共用主食分别记成 A 和 B 会在
+         *     采购聚合时被计两次，除非每个下游都记得再做一次去重；用独立代码从源头避免这个坑。
+         * @enum {string}
+         */
+        PackageCode: "A" | "B" | "COMMON";
         /** PerCapitaResponse */
         PerCapitaResponse: {
             /** Days */
@@ -2722,6 +2818,10 @@ export interface components {
             dish_id: string;
             /** Dish Name */
             dish_name: string;
+            /** Package Codes */
+            package_codes?: components["schemas"]["PackageCode"][];
+            /** Package Labels */
+            package_labels?: string[];
             /** Category Label */
             category_label: string;
             /** Cooking Method Label */
@@ -2792,6 +2892,15 @@ export interface components {
             dish_id: string;
             /** Name */
             name: string;
+            /** Package Codes */
+            package_codes?: components["schemas"]["PackageCode"][];
+            /** Package Labels */
+            package_labels?: string[];
+            /**
+             * Is Shared
+             * @default false
+             */
+            is_shared: boolean;
             /** Category Label */
             category_label: string;
             /** Cooking Method Label */
@@ -3615,10 +3724,12 @@ export type SchemaMenuOverviewDay = components['schemas']['MenuOverviewDay'];
 export type SchemaMenuOverviewDish = components['schemas']['MenuOverviewDish'];
 export type SchemaMenuOverviewMeal = components['schemas']['MenuOverviewMeal'];
 export type SchemaMenuOverviewResponse = components['schemas']['MenuOverviewResponse'];
+export type SchemaMenuPackageRead = components['schemas']['MenuPackageRead'];
 export type SchemaMenuPlanBatchDay = components['schemas']['MenuPlanBatchDay'];
 export type SchemaMenuPlanBatchResult = components['schemas']['MenuPlanBatchResult'];
 export type SchemaMenuPlanConstraints = components['schemas']['MenuPlanConstraints'];
 export type SchemaMenuPlanDish = components['schemas']['MenuPlanDish'];
+export type SchemaMenuPlanPackage = components['schemas']['MenuPlanPackage'];
 export type SchemaMenuPlanResponse = components['schemas']['MenuPlanResponse'];
 export type SchemaMenuPlanSyncResult = components['schemas']['MenuPlanSyncResult'];
 export type SchemaMenuSuggestionRead = components['schemas']['MenuSuggestionRead'];
@@ -3627,6 +3738,7 @@ export type SchemaNutrientGap = components['schemas']['NutrientGap'];
 export type SchemaNutrientValue = components['schemas']['NutrientValue'];
 export type SchemaNutritionComparison = components['schemas']['NutritionComparison'];
 export type SchemaNutritionSummary = components['schemas']['NutritionSummary'];
+export type SchemaPackageCode = components['schemas']['PackageCode'];
 export type SchemaPerCapitaResponse = components['schemas']['PerCapitaResponse'];
 export type SchemaPlanReadiness = components['schemas']['PlanReadiness'];
 export type SchemaPlannedDishRead = components['schemas']['PlannedDishRead'];

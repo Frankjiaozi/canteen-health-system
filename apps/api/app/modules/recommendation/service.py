@@ -27,13 +27,20 @@ from app.modules.recommendation import repository, solver, targets
 from app.modules.recommendation.models import MenuSuggestion
 from app.modules.recommendation.schemas import (
     DecideRequest,
+    MenuPackageRead,
     MenuSuggestionRead,
     NutrientGap,
     PlannedDishRead,
     SuggestionReason,
     SuggestionSummary,
 )
-from app.shared.enums import DishCategory, MealType, SeasoningCategory, SuggestionStatus
+from app.shared.enums import (
+    DishCategory,
+    MealType,
+    PackageCode,
+    SeasoningCategory,
+    SuggestionStatus,
+)
 
 logger = get_logger(__name__)
 
@@ -184,17 +191,115 @@ def generate(
     )
 
     try:
-        plan = (
-            solver.fixed_plan(candidates, constraints=constraints)
+        package_plans = (
+            _breakfast_package_plans(candidates, constraints)
             if is_breakfast
-            else solver.solve_menu(candidates, constraints)
+            else solver.solve_package_pair(candidates, constraints)
         )
     except solver.InfeasibleError as error:
         raise BusinessRuleError(str(error), details={"conflicts": error.conflicts}) from error
-    missing_price = any(materials[item.dish_id].missing_price for item in plan.items)
+
+    shares = {
+        PackageCode.A: Decimal(str(settings.package_share_a)),
+        PackageCode.B: Decimal(str(settings.package_share_b)),
+    }
+    all_items = [
+        item for code in (PackageCode.A, PackageCode.B) for item in package_plans[code].items
+    ]
+    missing_price = any(materials[item.dish_id].missing_price for item in all_items)
     by_id = {dish.dish_id: dish for dish in candidates}
-    gaps = _gaps(plan_targets, plan.per_capita, meal_type)
-    reasons = _reasons(plan, gaps, by_id, previous, other_meal, dishes, breakfast=is_breakfast)
+    package_rows: list[MenuPackageRead] = []
+    package_details: dict[str, dict[str, object]] = {}
+    package_codes_by_dish: dict[UUID, list[PackageCode]] = {}
+    for code in (PackageCode.A, PackageCode.B):
+        plan = package_plans[code]
+        gaps = _gaps(plan_targets, plan.per_capita, meal_type)
+        reasons = _reasons(
+            plan,
+            gaps,
+            by_id,
+            previous,
+            other_meal,
+            dishes,
+            breakfast=is_breakfast,
+        )
+        if code is PackageCode.B:
+            prior_package_names = "、".join(
+                sorted(
+                    by_id[item.dish_id].name
+                    for item in package_plans[PackageCode.A].items
+                    if by_id[item.dish_id].category is not DishCategory.STAPLE
+                )
+            )
+            if prior_package_names:
+                reasons.append(
+                    SuggestionReason(
+                        kind="constraint",
+                        text=f"套餐 A 已安排 {prior_package_names}，套餐 B 不再重复（主食可共用）",
+                    )
+                )
+        package_cost = (plan.cost * shares[code]).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        dish_rows = [
+            PlannedDishRead(
+                dish_id=str(item.dish_id),
+                dish_name=by_id[item.dish_id].name,
+                package_codes=[code],
+                package_labels=[code.label],
+                category_label=by_id[item.dish_id].category.label,
+                cooking_method_label=by_id[item.dish_id].cooking_method.label,
+                cost=str(item.cost),
+                energy_kcal=str(by_id[item.dish_id].energy_kcal),
+                salt_g=str(by_id[item.dish_id].salt_g),
+                popularity=str(by_id[item.dish_id].popularity.quantize(Decimal("1"))),
+                nutrition_basis=snapshots[item.dish_id],
+            )
+            for item in plan.items
+        ]
+        package_rows.append(
+            MenuPackageRead(
+                code=code,
+                label=code.label,
+                dishes=dish_rows,
+                gaps=gaps,
+                reasons=reasons,
+                cost_estimate=str(package_cost),
+                budget=str(budget),
+                per_capita={key: str(value) for key, value in plan.per_capita.items()},
+                binding=plan.binding,
+                solver_status=plan.solver_status,
+            )
+        )
+        package_details[code.value] = {
+            "per_capita": {key: str(value) for key, value in plan.per_capita.items()},
+            "items": [row.model_dump(mode="json") for row in gaps],
+            "reasons": [row.model_dump(mode="json") for row in reasons],
+            "binding": plan.binding,
+            "solver_status": plan.solver_status,
+            "cost_estimate": str(package_cost),
+        }
+        for item in plan.items:
+            package_codes_by_dish.setdefault(item.dish_id, []).append(code)
+
+    common_staples = {
+        dish_id
+        for dish_id, codes in package_codes_by_dish.items()
+        if len(codes) == 2 and by_id[dish_id].category is DishCategory.STAPLE
+    }
+    flat_items = []
+    seen_dish_ids: set[UUID] = set()
+    for code in (PackageCode.A, PackageCode.B):
+        for item in package_plans[code].items:
+            if item.dish_id not in seen_dish_ids:
+                flat_items.append(item)
+                seen_dish_ids.add(item.dish_id)
+
+    def dish_package_codes(dish_id: UUID) -> list[PackageCode]:
+        if dish_id in common_staples:
+            return [PackageCode.COMMON]
+        return package_codes_by_dish[dish_id]
+
+    flat_gaps = package_rows[0].gaps
+    reasons = _unique_reasons([reason for package in package_rows for reason in package.reasons])
     if batch_excluded:
         names = "、".join(
             sorted(str(getattr(dishes.get(item), "name", item)) for item in batch_excluded)
@@ -206,35 +311,58 @@ def generate(
         )
         reasons.append(SuggestionReason(kind="constraint", text=f"按本次要求排除：{names}"))
 
-    suggestion = repository.save_suggestion(
-        session,
-        on_date=on_date,
-        meal_type=meal_type,
-        candidate_menu=[
+    candidate_menu: list[dict[str, object]] = []
+    for item in flat_items:
+        codes = dish_package_codes(item.dish_id)
+        allocated_share = sum(
+            (shares[code] for code in codes if code is not PackageCode.COMMON),
+            Decimal("0"),
+        )
+        if PackageCode.COMMON in codes:
+            allocated_share = Decimal("1")
+        candidate_menu.append(
             {
                 "dish_id": str(item.dish_id),
                 "dish_name": by_id[item.dish_id].name,
+                "package_codes": [code.value for code in codes],
+                "package_labels": [code.label for code in codes],
                 "category_label": by_id[item.dish_id].category.label,
                 "cooking_method_label": by_id[item.dish_id].cooking_method.label,
-                "cost": str(item.cost),
+                "cost": str(
+                    (by_id[item.dish_id].cost_per_serving * diners * allocated_share).quantize(
+                        Decimal("0.01")
+                    )
+                ),
                 "energy_kcal": str(by_id[item.dish_id].energy_kcal),
                 "salt_g": str(by_id[item.dish_id].salt_g),
                 "popularity": str(by_id[item.dish_id].popularity.quantize(Decimal("1"))),
                 "nutrition_basis": snapshots[item.dish_id],
-                # 套餐快照固定记录一个标准份；实际采购份数由 menu-plan 预测链路单独保存。
+                # 套餐营养固定记录一个标准份；采购份数在 menu-plan 链路单独分配。
                 "planned_servings": "1",
             }
-            for item in plan.items
-        ],
+        )
+    total_cost = sum(
+        (package_plans[code].cost * shares[code] for code in shares), Decimal("0")
+    ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    suggestion = repository.save_suggestion(
+        session,
+        on_date=on_date,
+        meal_type=meal_type,
+        candidate_menu=candidate_menu,
         nutrition_gap={
             "diner_count": diners,
-            "per_capita": {code: str(value) for code, value in plan.per_capita.items()},
-            "items": [row.model_dump(mode="json") for row in gaps],
+            "per_capita": package_rows[0].per_capita,
+            "items": [row.model_dump(mode="json") for row in flat_gaps],
             "budget": str(budget),
-            "package_basis": "ONE_STANDARD_SERVING_PER_DISH",
+            "package_basis": "TWO_STANDARD_PACKAGES_WITH_DISJOINT_NON_STAPLES",
+            "package_shares": {
+                PackageCode.A.value: str(shares[PackageCode.A]),
+                PackageCode.B.value: str(shares[PackageCode.B]),
+            },
+            "packages": package_details,
             "target_basis": target_basis,
-            "binding": plan.binding,
-            "solver_status": plan.solver_status,
+            "binding": package_rows[0].binding,
+            "solver_status": package_rows[0].solver_status,
             "excluded_dishes": sorted(
                 str(getattr(dishes.get(dish_id), "name", dish_id)) for dish_id in excluded
             ),
@@ -244,7 +372,7 @@ def generate(
                 else None
             ),
         },
-        cost_estimate=plan.cost,
+        cost_estimate=total_cost,
         reasons=[reason.model_dump(mode="json") for reason in reasons],
     )
     session.commit()
@@ -252,8 +380,8 @@ def generate(
         "菜单推荐：%s %s，%d 道菜，成本 %s 元（%d 人次）",
         on_date,
         meal_type.label,
-        len(plan.items),
-        plan.cost,
+        len(flat_items),
+        total_cost,
         diners,
     )
     return read_suggestion(suggestion)
@@ -330,6 +458,7 @@ class PlannedDish:
 
     dish_id: UUID
     planned_servings: Decimal | None
+    package_codes: tuple[PackageCode, ...] = (PackageCode.COMMON,)
 
 
 def planned_dishes(
@@ -356,12 +485,83 @@ def planned_dishes(
                 if row.get("planned_servings") is None
                 else Decimal(str(row["planned_servings"]))
             ),
+            package_codes=tuple(
+                PackageCode(str(code))
+                for code in row.get(
+                    "package_codes",
+                    [PackageCode.COMMON.value],
+                )
+            ),
         )
         for row in (suggestion.candidate_menu or [])
     ]
     if not rows:
         raise BusinessRuleError("这一版菜单里没有菜品，无法同步")
     return rows, suggestion.status
+
+
+def _breakfast_package_plans(
+    candidates: list[solver.CandidateDish],
+    constraints: solver.PlanConstraints,
+) -> dict[PackageCode, solver.PlanResult]:
+    """把固定早餐组合稳定地分成 A/B 两份。
+
+    主食同时进入两份套餐，并在采购侧记为共用；其余菜按类别与数量均衡拆分。
+    早餐不求解营养目标，但仍沿用标准套餐的营养核算与差距展示。
+    """
+    common = [dish for dish in candidates if dish.category is DishCategory.STAPLE]
+    others = [dish for dish in candidates if dish.category is not DishCategory.STAPLE]
+    grouped: dict[DishCategory, list[solver.CandidateDish]] = {
+        category: [] for category in DishCategory
+    }
+    for dish in others:
+        grouped[dish.category].append(dish)
+
+    packages: dict[PackageCode, list[solver.CandidateDish]] = {
+        PackageCode.A: list(common),
+        PackageCode.B: list(common),
+    }
+    for category in DishCategory:
+        for dish in sorted(grouped[category], key=lambda row: (row.name, str(row.dish_id))):
+            count_a = sum(
+                1
+                for item in packages[PackageCode.A]
+                if item.category is category and item.category is not DishCategory.STAPLE
+            )
+            count_b = sum(
+                1
+                for item in packages[PackageCode.B]
+                if item.category is category and item.category is not DishCategory.STAPLE
+            )
+            target = (
+                PackageCode.A
+                if (count_a, len(packages[PackageCode.A]))
+                <= (count_b, len(packages[PackageCode.B]))
+                else PackageCode.B
+            )
+            packages[target].append(dish)
+
+    if not packages[PackageCode.A] or not packages[PackageCode.B]:
+        raise solver.InfeasibleError(
+            "早餐无法组成两份套餐",
+            ["早餐固定供应菜不足；请至少保留一道主食和两道非主食菜"],
+        )
+    return {
+        code: solver.fixed_plan(dishes, constraints=constraints)
+        for code, dishes in packages.items()
+    }
+
+
+def _unique_reasons(reasons: list[SuggestionReason]) -> list[SuggestionReason]:
+    seen: set[tuple[str, str]] = set()
+    rows: list[SuggestionReason] = []
+    for reason in reasons:
+        key = (reason.kind, reason.text)
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append(reason)
+    return rows
 
 
 def _candidates(
@@ -562,6 +762,55 @@ def read_suggestion(suggestion: MenuSuggestion) -> MenuSuggestionRead:
     """把落库的推荐读成对外结构。不重算，只用当初存下来的快照。"""
     menu = suggestion.candidate_menu or []
     gap_data = suggestion.nutrition_gap or {}
+
+    def dish_read(row: Mapping[str, Any]) -> PlannedDishRead:
+        codes = [
+            PackageCode(str(value))
+            for value in row.get("package_codes", [PackageCode.COMMON.value])
+        ]
+        return PlannedDishRead(
+            dish_id=str(row.get("dish_id")),
+            dish_name=str(row.get("dish_name")),
+            package_codes=codes,
+            package_labels=[code.label for code in codes],
+            category_label=str(row.get("category_label", "")),
+            cooking_method_label=str(row.get("cooking_method_label", "")),
+            cost=str(row.get("cost")),
+            energy_kcal=str(row.get("energy_kcal", "—")),
+            salt_g=str(row.get("salt_g", "—")),
+            popularity=str(row.get("popularity", "—")),
+            nutrition_basis=str(row.get("nutrition_basis", "")),
+        )
+
+    flat_dishes = [dish_read(row) for row in menu]
+    package_data = gap_data.get("packages", {})
+    packages: list[MenuPackageRead] = []
+    for code in (PackageCode.A, PackageCode.B):
+        detail = package_data.get(code.value)
+        if not isinstance(detail, dict):
+            continue
+        packages.append(
+            MenuPackageRead(
+                code=code,
+                label=code.label,
+                dishes=[
+                    dish
+                    for dish in flat_dishes
+                    if code in dish.package_codes or PackageCode.COMMON in dish.package_codes
+                ],
+                gaps=[NutrientGap(**row) for row in detail.get("items", [])],
+                reasons=[SuggestionReason(**row) for row in detail.get("reasons", [])],
+                cost_estimate=str(detail.get("cost_estimate", "0")),
+                budget=str(gap_data.get("budget", "")),
+                per_capita={
+                    str(key): str(value)
+                    for key, value in dict(detail.get("per_capita", {})).items()
+                },
+                binding=list(detail.get("binding", [])),
+                solver_status=str(detail.get("solver_status", "")),
+            )
+        )
+
     return MenuSuggestionRead(
         id=str(suggestion.id),
         date=suggestion.date,
@@ -569,20 +818,11 @@ def read_suggestion(suggestion: MenuSuggestion) -> MenuSuggestionRead:
         meal_type_label=suggestion.meal_type.label,
         status=suggestion.status,
         status_label=suggestion.status.label,
-        dishes=[
-            PlannedDishRead(
-                dish_id=str(row.get("dish_id")),
-                dish_name=str(row.get("dish_name")),
-                category_label=str(row.get("category_label", "")),
-                cooking_method_label=str(row.get("cooking_method_label", "")),
-                cost=str(row.get("cost")),
-                energy_kcal=str(row.get("energy_kcal", "—")),
-                salt_g=str(row.get("salt_g", "—")),
-                popularity=str(row.get("popularity", "—")),
-                nutrition_basis=str(row.get("nutrition_basis", "")),
-            )
-            for row in menu
-        ],
+        dishes=flat_dishes,
+        packages=packages,
+        package_shares={
+            str(key): str(value) for key, value in dict(gap_data.get("package_shares", {})).items()
+        },
         gaps=[NutrientGap(**row) for row in gap_data.get("items", [])],
         reasons=[SuggestionReason(**row) for row in (suggestion.reasons or [])],
         cost_estimate=str(suggestion.cost_estimate or 0),

@@ -208,10 +208,10 @@ def test_the_three_meals_of_a_day_do_not_share_dishes(as_recorder: TestClient) -
     assert names(lunch) != names(dinner)
 
 
-def test_purchase_list_is_recommended_dishes_times_predicted_servings(
+def test_purchase_list_uses_package_allocated_planned_servings(
     as_recorder: TestClient, db_session: Session
 ) -> None:
-    """份数口径：采购量 = 推荐选出的菜 × 该菜明天的预测份数。（本次改动的核心）"""
+    """采购量 = 套餐分摊后的计划份数，共用主食只计一次。"""
     target = today_local() + timedelta(days=1)
 
     body = as_recorder.post(
@@ -229,7 +229,7 @@ def test_purchase_list_is_recommended_dishes_times_predicted_servings(
     assert not body["skipped_predictions"], "有 8 周历史时不该有预测不出来的菜"
 
     expected = _expected_quantities(
-        db_session, dishes=body["dishes"], servings_key="predicted_servings", fallback=Decimal("0")
+        db_session, dishes=body["dishes"], servings_key="planned_servings", fallback=Decimal("0")
     )
     actual = {row["name"]: Decimal(row["quantity"]) for row in body["requirements"]}
 
@@ -241,6 +241,39 @@ def test_purchase_list_is_recommended_dishes_times_predicted_servings(
     assert Decimal(body["total_cost"]) == sum(
         (Decimal(row["estimated_cost"]) for row in priced), Decimal("0")
     ).quantize(Decimal("0.01"))
+
+
+def test_ab_packages_split_non_staples_and_share_the_staple(as_recorder: TestClient) -> None:
+    target = _fresh_date() + timedelta(days=1)
+    body = as_recorder.post(
+        f"{BASE}/generate",
+        params={"on_date": target.isoformat(), "meal_type": "LUNCH", "diner_count": 800},
+    ).json()
+
+    assert body["package_shares"] == {"A": "0.5", "B": "0.5"}
+    assert [package["code"] for package in body["packages"]] == ["A", "B"]
+    package_names = {
+        package["code"]: {
+            dish["dish_name"] for dish in body["dishes"] if dish["dish_id"] in package["dish_ids"]
+        }
+        for package in body["packages"]
+    }
+    non_staples = {
+        code: {
+            dish["dish_name"]
+            for dish in body["dishes"]
+            if dish["dish_name"] in names and dish["category_label"] != "主食"
+        }
+        for code, names in package_names.items()
+    }
+    assert not (non_staples["A"] & non_staples["B"])
+    shared = [dish for dish in body["dishes"] if dish["is_shared"]]
+    assert len(shared) == 1 and shared[0]["category_label"] == "主食"
+
+    for dish in body["dishes"]:
+        total = Decimal(dish["predicted_servings"]) if dish["predicted_servings"] else Decimal(800)
+        expected = total if dish["is_shared"] else total * Decimal("0.5")
+        assert abs(Decimal(dish["planned_servings"]) - expected) <= Decimal("0.01")
 
 
 def test_generate_without_diner_count_uses_the_same_diner_forecast(
@@ -431,10 +464,10 @@ def test_servings_note_says_where_the_numbers_come_from(
     assert body["notes"], "至少要有说明菜品与份数各自由谁决定"
 
 
-def test_prediction_supplies_the_servings_the_dishes_are_planned_with(
+def test_purchase_list_matches_the_package_allocated_servings(
     as_recorder: TestClient, db_session: Session
 ) -> None:
-    """推荐用来评估营养的份数，就是页面上显示的那一套（不存在第二个份数）。"""
+    """采购必须用 A/B 分摊后的计划份数，而不是把每道菜的整份预测重复乘两次。"""
     target = today_local() + timedelta(days=1)
 
     body = as_recorder.post(
@@ -445,7 +478,7 @@ def test_prediction_supplies_the_servings_the_dishes_are_planned_with(
     _, total_cost = forecast_service.build_purchase_list(
         db_session,
         servings_by_dish={
-            UUID(dish["dish_id"]): Decimal(dish["predicted_servings"]) for dish in body["dishes"]
+            UUID(dish["dish_id"]): Decimal(dish["planned_servings"]) for dish in body["dishes"]
         },
     )
     assert Decimal(body["total_cost"]) == Decimal(str(total_cost))
@@ -476,8 +509,8 @@ def test_prediction_fallback_is_flagged_instead_of_hidden(
     expected = _expected_quantities(
         db_session,
         dishes=body["dishes"],
-        servings_key="predicted_servings",
-        fallback=Decimal(diners),
+        servings_key="planned_servings",
+        fallback=Decimal("0"),
     )
     actual = {row["name"]: Decimal(row["quantity"]) for row in body["requirements"]}
     assert actual == expected, "退回基准份数时采购量仍要算得出来，并与之吻合"
@@ -559,6 +592,10 @@ def test_sync_puts_the_plan_into_the_day_for_collection_and_board(
     assert {row["dish_id"] for row in planned} == {dish["dish_id"] for dish in plan["dishes"]}
     assert all(row["selected"] for row in planned)
     assert all(row["planned_servings"] for row in planned)
+    assert {row["dish_id"]: row["package_codes"][0] for row in planned} == {
+        dish["dish_id"]: ("COMMON" if dish["is_shared"] else dish["package_codes"][0])
+        for dish in plan["dishes"]
+    }
     # 计划里的菜排在最前面，录入员一眼看到的就是「今天计划做的那几道」
     assert all(row["is_planned"] for row in sheet["dishes"][: len(planned)])
     # 计划菜已经勾好，页面不再额外塞一段解释性提示

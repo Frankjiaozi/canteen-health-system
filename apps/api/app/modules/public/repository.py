@@ -17,7 +17,7 @@ from app.modules.collection.models import DailyLog
 from app.modules.dish.models import Dish, RecipeItem
 from app.modules.menu.models import MenuDay, MenuDayItem
 from app.modules.nutrition.models import DishNutrition, NutritionStandard
-from app.shared.enums import MealType, NutrientCaliber
+from app.shared.enums import MealType, NutrientCaliber, PackageCode
 from app.shared.nutrition_values import VALUE_TYPES, pick_best
 
 
@@ -42,15 +42,16 @@ def load_menu_day(
     return min(menu_days, key=lambda item: priority[item.meal_type])
 
 
-def load_dishes(session: Session, menu_day_id: UUID) -> list[Dish]:
-    return list(
-        session.scalars(
-            select(Dish)
+def load_dish_items(session: Session, menu_day_id: UUID) -> list[tuple[Dish, PackageCode]]:
+    return [
+        (dish, package_code)
+        for dish, package_code in session.execute(
+            select(Dish, MenuDayItem.package_code)
             .join(MenuDayItem, MenuDayItem.dish_id == Dish.id)
             .where(MenuDayItem.menu_day_id == menu_day_id)
             .order_by(Dish.category, Dish.name)
         ).all()
-    )
+    ]
 
 
 def load_per_serving_nutritions(
