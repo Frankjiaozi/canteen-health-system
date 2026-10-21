@@ -66,5 +66,5 @@ test('批量生成后切换餐次，旧结果及导入入口清空', async ({ pa
   await expect(page.getByText('测试午餐')).toBeVisible();
   await page.getByText('晚餐', { exact: true }).click();
   await expect(page.getByText('测试午餐')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '一键导入当日菜单' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '采纳并同步' })).toHaveCount(0);
 });

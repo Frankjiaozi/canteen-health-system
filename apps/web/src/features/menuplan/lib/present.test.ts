@@ -118,7 +118,7 @@ describe('导入结果与生成结果的合并', () => {
       [
         batchDay({
           status: 'IMPORTED',
-          status_label: '已导入',
+          status_label: '已采纳',
           dish_names: [],
           dish_count: 0,
           cost_per_person: undefined,
