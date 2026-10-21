@@ -1,12 +1,14 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { InkAtmosphere } from './InkAtmosphere';
 import { InkProgressStroke } from './InkProgressStroke';
+import { InkLoadingNumber } from './InkLoadingNumber';
 import './intro.css';
 const ART = '/intro/ink-wordmark-cursive.png';
 const SWEEP_START = 160;
 const SWEEP_END = 1950;
 const SEAL_START = 2270;
 const DURATION = 2600;
+const PLAYBACK_SPEED = 1.45;
 const clamp = (value: number) => Math.max(0, Math.min(1, value));
 const settle = (value: number) => value * value * (3 - 2 * value);
 const DOTS = [
@@ -59,7 +61,10 @@ export function IntroPreviewPage({ onComplete }: { onComplete?: () => void }) {
     };
     const frame = (now: number) => {
       if (!document.hidden) {
-        elapsedRef.current = Math.min(DURATION, elapsedRef.current + (now - previous));
+        elapsedRef.current = Math.min(
+          DURATION,
+          elapsedRef.current + (now - previous) * PLAYBACK_SPEED,
+        );
         setElapsed(elapsedRef.current);
       }
       previous = now;
@@ -254,10 +259,7 @@ export function IntroPreviewPage({ onComplete }: { onComplete?: () => void }) {
           aria-valuemax={100}
           aria-valuenow={percentage}
         >
-          <span className="ink-loading-number">
-            {String(percentage).padStart(2, '0')}
-            <span className="ink-loading-unit">%</span>
-          </span>
+          <InkLoadingNumber value={percentage} />
           <span className="ink-loading-caption">
             {percentage === 100 ? '准备就绪' : '正在进入'}
           </span>
