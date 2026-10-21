@@ -16,14 +16,14 @@ test('生成明日菜单后，菜品、采购单与份数口径都在', async ({
   // 默认日期必须是明天：这一页回答的就是「明天做什么、买什么」
   await expect(page.getByRole('textbox', { name: /日期/ })).toHaveValue(tomorrow);
 
-  // 默认入口是「一天三餐」；这条用例验的是单餐详情，先切到单日。
-  await page.getByText('单日', { exact: true }).click();
-  await page.getByRole('button', { name: '生成所选餐次菜单' }).click();
+  // 默认入口是「一天三餐」；这条用例验的是单餐详情，先切到单餐。
+  await page.getByText('单餐', { exact: true }).click();
+  await page.getByRole('button', { name: '生成单餐' }).click();
   await expect(page.getByText(/已排出 \d+ 道菜，采购 \d+ 项/)).toBeVisible();
 
   // ① 菜品推荐：只有菜，没有份数（份数归预测）
   await expect(page.getByText('① 明日菜品推荐')).toBeVisible();
-  await expect(page.getByRole('columnheader', { name: '单份能量' })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: '单份能量' }).first()).toBeVisible();
   await expect(page.getByRole('columnheader', { name: '建议份数' })).toHaveCount(0);
   await expect(page.getByText('与营养目标的差距')).toBeVisible();
   await page.getByText(/与营养目标的差距/).click();
@@ -35,7 +35,6 @@ test('生成明日菜单后，菜品、采购单与份数口径都在', async ({
   // ② 采购建议：公斤计、按金额从大到小
   await expect(page.getByText(/② 明日食材采购建议（共 \d+ 项）/)).toBeVisible();
   await expect(page.getByText(/采购金额 [\d,.]+ 元 \/ 预算 [\d,.]+ 元/).first()).toBeVisible();
-  await expect(page.getByText(/采购量 = 推荐选出的菜 × 该菜明天的预测份数/)).toBeVisible();
   const purchaseTable = page
     .getByRole('columnheader', { name: '预计金额（元）' })
     .locator('xpath=ancestor::table')
@@ -62,8 +61,8 @@ test('依据与校验里能查到每道菜的份数来源、回测误差与日�
 
   const tomorrow = dayjs().add(1, 'day').format('YYYY-MM-DD');
   await page.goto(`/admin/menu-plan?date=${tomorrow}&meal=LUNCH`);
-  await page.getByText('单日', { exact: true }).click();
-  await page.getByRole('button', { name: '生成所选餐次菜单' }).click();
+  await page.getByText('单餐', { exact: true }).click();
+  await page.getByRole('button', { name: '生成单餐' }).click();
   await expect(page.getByText(/已排出 \d+ 道菜/)).toBeVisible();
 
   // 折叠区默认收起：日常点一次按钮不需要看到这些
@@ -90,8 +89,8 @@ test('否决必须写明原因，写了才记录得下来', async ({ page }) => 
 
   const target = dayjs().add(2, 'day').format('YYYY-MM-DD');
   await page.goto(`/admin/menu-plan?date=${target}&meal=LUNCH`);
-  await page.getByText('单日', { exact: true }).click();
-  await page.getByRole('button', { name: '生成所选餐次菜单' }).click();
+  await page.getByText('单餐', { exact: true }).click();
+  await page.getByRole('button', { name: '生成单餐' }).click();
   await expect(page.getByText(/已排出 \d+ 道菜/)).toBeVisible();
 
   await page.getByRole('button', { name: '否决' }).click();
@@ -109,7 +108,7 @@ test('学校管理方可进入菜单页，但没有生成与采纳入口', async
 
   await expect(page.getByText('明日菜单与采购')).toBeVisible();
   await expect(page.getByRole('button', { name: '生成三餐' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '生成所选餐次菜单' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '生成单餐' })).toHaveCount(0);
 });
 
 test('一天三餐默认入口生成三餐与合并采购单', async ({ page }) => {
@@ -126,4 +125,17 @@ test('一天三餐默认入口生成三餐与合并采购单', async ({ page }) 
   await expect(page.getByRole('button', { name: '同步三餐至当日数据' })).toBeVisible();
   await expect(page.getByText(/采购量 = 三餐各自推荐菜/)).toHaveCount(0);
   await expect(page.getByText(/按餐次分别校验/)).toHaveCount(0);
+});
+
+test('空状态不重复入口，也不展示流程说明', async ({ page }) => {
+  await loginAs(page, 'recorder');
+  await page.goto('/admin/menu-plan?date=2028-01-15');
+
+  await expect(page.getByText('一天三餐', { exact: true })).toBeVisible();
+  await expect(page.getByText('单餐', { exact: true })).toBeVisible();
+  await expect(page.getByText('单日', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('暂无菜单方案', { exact: true })).toBeVisible();
+  await expect(page.getByText('配菜', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('定份数', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('出采购', { exact: true })).toHaveCount(0);
 });

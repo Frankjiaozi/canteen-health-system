@@ -19,8 +19,8 @@ test('同步之后：采集页按计划勾好，公开大屏不用登录就看�
   await saveCollection(page, dayjs(TARGET).subtract(1, 'day').format('YYYY-MM-DD'));
 
   await page.goto(`/admin/menu-plan?date=${TARGET}&meal=LUNCH`);
-  await page.getByText('单日', { exact: true }).click();
-  await page.getByRole('button', { name: '生成所选餐次菜单' }).click();
+  await page.getByText('单餐', { exact: true }).click();
+  await page.getByRole('button', { name: '生成单餐' }).click();
   await expect(page.getByText(/已排出 \d+ 道菜/)).toBeVisible();
 
   await page.getByRole('button', { name: '同步至当日数据' }).click();
@@ -48,14 +48,30 @@ test('同步之后：采集页按计划勾好，公开大屏不用登录就看�
 
   // 公开大屏：免登录页面直接看得到这一天的菜品与营养
   const board = await (
-    await page.request.get(`/api/v1/public/board/today?on_date=${TARGET}`)
+    await page.request.get(`/api/v1/public/board/today?on_date=${TARGET}&meal_type=LUNCH`)
   ).json();
   expect(board.dishes.length).toBe(planned.length);
   expect(board.dishes[0].nutrients).toHaveLength(5);
 
-  await page.goto(`/display?date=${TARGET}`);
-  for (const card of board.dishes) {
+  await page.goto(`/display?date=${TARGET}&meal=LUNCH`);
+  const packageADishes = board.dishes.filter(
+    (card: { package_codes?: string[] }) =>
+      card.package_codes?.includes('A') || card.package_codes?.includes('COMMON'),
+  );
+  for (const card of packageADishes) {
     await expect(page.getByText(card.name, { exact: true }).first()).toBeVisible();
+  }
+  if (
+    board.dishes.some((card: { package_codes?: string[] }) => card.package_codes?.includes('B'))
+  ) {
+    await page.getByRole('button', { name: '套餐 B' }).click();
+    const packageBDishes = board.dishes.filter(
+      (card: { package_codes?: string[] }) =>
+        card.package_codes?.includes('B') || card.package_codes?.includes('COMMON'),
+    );
+    for (const card of packageBDishes) {
+      await expect(page.getByText(card.name, { exact: true }).first()).toBeVisible();
+    }
   }
   // 油盐糖那几项要等当天采集完才有数——采集之前如实显示「暂无数据」，不拿别处的数顶上
   await expect(page.getByText('暂无数据').first()).toBeVisible();
@@ -72,8 +88,8 @@ test('已经录过采集的那一天，计划不会再盖上去', async ({ page 
   await saveCollection(page, target);
 
   await page.goto(`/admin/menu-plan?date=${target}&meal=LUNCH`);
-  await page.getByText('单日', { exact: true }).click();
-  await page.getByRole('button', { name: '生成所选餐次菜单' }).click();
+  await page.getByText('单餐', { exact: true }).click();
+  await page.getByRole('button', { name: '生成单餐' }).click();
   await expect(page.getByText(/已排出 \d+ 道菜/)).toBeVisible();
   await page.getByRole('button', { name: '同步至当日数据' }).click();
   await page.getByRole('button', { name: '确认同步' }).click();

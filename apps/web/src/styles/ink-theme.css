@@ -222,10 +222,6 @@ textarea {
 .zw-login-plate {
   opacity: 0.24;
 }
-.zw-plan-empty,
-.zw-plan-empty-copy {
-  color: var(--zw-ink);
-}
 .zw-agent {
   --zw-ink: #273a31;
   --zw-green: #607c5c;

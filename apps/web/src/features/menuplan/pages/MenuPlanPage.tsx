@@ -22,7 +22,6 @@ import {
   type DailySyncOutcome,
 } from '../hooks/useMenuPlan';
 import type { DailyMenuPlanResponse, MealType } from '../types';
-import './menuplan.css';
 
 /**
  * 明日菜单与采购。
@@ -31,7 +30,7 @@ import './menuplan.css';
  * 分两页的时候，定完菜单还要再点一次才看得到采购量，而菜单本身又只在有份数时才算得准；
  * 合成一页之后，一次生成、一套份数、一张采购单。
  *
- * 「单日」与「批量排菜单」是同一件事的两个粒度：出去吃一顿 vs 一次排一两个星期。
+ * 「单餐」与「批量排菜单」是同一件事的两个粒度：排一餐 vs 一次排一两个星期。
  * 放在同一页用模式切换，导航里就不必再多一个入口。
  */
 export function MenuPlanPage() {
@@ -53,7 +52,7 @@ export function MenuPlanPage() {
   // 「已同步」只对**当前这一版**成立：换日期或重新生成之后，计划又变回未同步
   const [syncedId, setSyncedId] = useState<string | null>(null);
   const [syncOutcomes, setSyncOutcomes] = useState<DailySyncOutcome[] | null>(null);
-  // 单日 / 批量：同一件事的两个粒度，放一页里用模式切换，导航里不再多一个入口
+  // 单餐 / 批量：同一件事的两个粒度，放一页里用模式切换，导航里不再多一个入口
   const [mode, setMode] = useState<'daily' | 'single' | 'batch' | 'history'>(
     canWrite ? 'daily' : 'history',
   );
@@ -102,7 +101,7 @@ export function MenuPlanPage() {
             }}
             options={[
               { value: 'daily', label: '一天三餐' },
-              { value: 'single', label: '单日' },
+              { value: 'single', label: '单餐' },
               { value: 'batch', label: '批量排菜单' },
               { value: 'history', label: '菜单与采购历史' },
             ]}
@@ -150,7 +149,7 @@ export function MenuPlanPage() {
               disabled={busy}
               onClick={handleGenerate}
             >
-              生成所选餐次菜单
+              生成单餐
             </Button>
           ) : null}
           {canWrite && daily ? (
@@ -179,48 +178,10 @@ export function MenuPlanPage() {
             onSync={handleSyncDaily}
           />
         ) : (
-          <div className="zw-plan-empty">
-            <div className="zw-plan-empty-copy">
-              <span className="zw-kicker">一次生成</span>
-              <h3>把明天的三餐和采购一起排好</h3>
-              <p>
-                {canWrite
-                  ? '定好日期和餐次，点右上角「生成三餐」即可。'
-                  : '请切换到「菜单与采购历史」查看已保存方案，当前供应情况可在首页菜单和供餐记录中查看。'}
-              </p>
-            </div>
-            <ol>
-              <li>
-                <span>01</span>
-                <div>
-                  <strong>配菜</strong>
-                  <p>在油盐糖与蛋白质目标下，挑出早、午、晚三餐。</p>
-                </div>
-              </li>
-              <li>
-                <span>02</span>
-                <div>
-                  <strong>定份数</strong>
-                  <p>参考同星期历史与就餐人数，给每道菜一份预测。</p>
-                </div>
-              </li>
-              <li>
-                <span>03</span>
-                <div>
-                  <strong>出采购</strong>
-                  <p>按配方折算原料，合并成一张可核对的采购单。</p>
-                </div>
-              </li>
-            </ol>
-          </div>
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无菜单方案" />
         )
       ) : single ? (
         <>
-          <Typography.Paragraph type="secondary">
-            一次生成三件事：在营养目标下选出做哪几道菜 → 按同星期历史与节假日日历预测每道菜做多少份
-            → 按各菜配方算出要买多少料。份数只有一套，采购量就是用它乘出来的。
-          </Typography.Paragraph>
-
           {plan ? (
             <Space orientation="vertical" size={16} style={{ width: '100%' }}>
               <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
@@ -237,14 +198,7 @@ export function MenuPlanPage() {
               <PlanEvidence plan={plan} />
             </Space>
           ) : (
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description={
-                canWrite
-                  ? '选好日期与餐次后点「生成所选餐次菜单」，这里会给出菜品、份数与采购建议。'
-                  : '请切换到「菜单与采购历史」查看已保存方案，当前供应情况可在首页菜单和供餐记录中查看。'
-              }
-            />
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无菜单方案" />
           )}
         </>
       ) : (
