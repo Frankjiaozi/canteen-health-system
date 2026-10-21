@@ -56,7 +56,7 @@ def _recent_day_serving(session: Session, dish_name: str) -> MenuDay:
         .order_by(MenuDay.date.desc())
         .limit(1)
     )
-    assert menu_day is not None, f"演示历史里应当有供应过「{dish_name}」的日子"
+    assert menu_day is not None, f"功能验证历史里应当有供应过「{dish_name}」的日子"
     return menu_day
 
 
@@ -126,7 +126,7 @@ def test_coefficient_matches_independent_hand_calculation(
         DAILY_CLOSURE, params={"on_date": menu_day.date.isoformat(), "meal_type": "LUNCH"}
     ).json()
 
-    assert body["window"]["samples"] >= 21, "演示历史应当够做一次按方法的分组拟合"
+    assert body["window"]["samples"] >= 21, "功能验证历史应当够做一次按方法的分组拟合"
     assert body["window"]["fallback_reason"] is None
 
     by_method = {row["cooking_method"]: row for row in body["factors"]}

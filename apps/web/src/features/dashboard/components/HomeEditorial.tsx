@@ -23,11 +23,7 @@ export function HomeEditorial() {
                   weekday: 'long',
                 })
               : '今日膳食'}
-            <span>
-              {import.meta.env.VITE_DEMO_MODE === 'true'
-                ? '独立演示 · 合成数据'
-                : '一餐一饭，皆有心意'}
-            </span>
+            <span>一餐一饭，皆有心意</span>
           </p>
           <h1>
             知食之味，

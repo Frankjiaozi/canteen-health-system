@@ -16,7 +16,7 @@ from app.modules.nutrition import service
 
 logger = get_logger("app.nutrition.compute")
 
-#: 默认计算最近 8 周，与演示种子的历史跨度对齐（见 app/db/seed.py 的 HISTORY_DAYS）。
+#: 默认计算最近 8 周，与初始化种子的历史跨度对齐（见 app/db/seed.py 的 HISTORY_DAYS）。
 #: 生产环境的定期重算可以用 --days 覆盖。
 DEFAULT_DAYS = 56
 

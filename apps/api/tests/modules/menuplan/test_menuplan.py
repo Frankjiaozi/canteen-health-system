@@ -227,7 +227,7 @@ def test_purchase_list_uses_independent_same_weekday_servings_per_dish(
     ).json()
 
     db_session.expire_all()
-    assert body["dishes"], "演示数据下应当能推荐出菜品"
+    assert body["dishes"], "初始化样本数据下应当能推荐出菜品"
     assert body["requirements"], "采购建议不该是空的"
     assert body["date"] == target.isoformat()
     assert body["diner_count"] > 0
@@ -245,7 +245,7 @@ def test_purchase_list_uses_independent_same_weekday_servings_per_dish(
 
     # 金额也要与逐项单价对得上，否则「合计」会和明细自相矛盾
     priced = [row for row in body["requirements"] if row["estimated_cost"] is not None]
-    assert priced, "演示数据里应当有带单价的食材"
+    assert priced, "初始化样本数据里应当有带单价的食材"
     assert Decimal(body["total_cost"]) == sum(
         (Decimal(row["estimated_cost"]) for row in priced), Decimal("0")
     ).quantize(Decimal("0.01"))
@@ -989,7 +989,7 @@ def test_school_admin_cannot_generate_the_menu(as_school_admin: TestClient) -> N
 def test_unpriced_material_sinks_to_the_bottom(db_session: Session) -> None:
     """缺单价时如实留空，并排到最后——算不出金额的料不该占着最该先看的位置。"""
     dish_id = db_session.scalar(select(RecipeItem.dish_id).limit(1))
-    assert dish_id is not None, "演示数据里应当有配方"
+    assert dish_id is not None, "初始化样本数据里应当有配方"
 
     unpriced = Ingredient(
         name="测试用无单价食材",

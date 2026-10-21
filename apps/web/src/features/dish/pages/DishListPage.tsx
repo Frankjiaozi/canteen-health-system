@@ -23,7 +23,7 @@ import {
   Skeleton,
 } from 'antd';
 import type { TableProps } from 'antd';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useCurrentUser } from '@/features/auth/hooks/useAuth';
 import { canWriteBusinessData } from '@/features/auth/lib/permissions';
 import { useEnumOptions } from '@/shared/hooks/useEnumOptions';
@@ -37,6 +37,8 @@ import { useDeactivateDish, useDishDetail, useDishList } from '../hooks/useDishe
 import { defaultDishImageUrl } from '../lib/defaultImage';
 import { formatNutrient } from '@/features/ingredient/lib/query';
 import type { Dish, DishCategory } from '../types';
+import { DishDetailDrawer } from '../components/DishDetailDrawer';
+import { useDishBrowseState } from '../hooks/useDishBrowseState';
 
 export function DishListPage() {
   const { data: user } = useCurrentUser();
@@ -45,12 +47,10 @@ export function DishListPage() {
   const isPhone = screens.md === false;
   const canWrite = canWriteBusinessData(user);
 
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(12);
-  const [view, setView] = useState('cards');
-  const [keyword, setKeyword] = useState('');
-  const [category, setCategory] = useState<DishCategory | null>(null);
-  const [includeInactive, setIncludeInactive] = useState(false);
+  const { state: browse, update: updateBrowse, restoreScroll } = useDishBrowseState(user?.id);
+  const { page, pageSize, view, keyword, category, includeInactive } = browse;
+  const [searchText, setSearchText] = useState(keyword);
+  const [viewingId, setViewingId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingSection, setEditingSection] = useState('basic');
@@ -59,6 +59,21 @@ export function DishListPage() {
   const listQuery = useDishList({ page, pageSize, keyword, category, includeInactive });
   const detailQuery = useDishDetail(drawerOpen ? editingId : null);
   const deactivateMutation = useDeactivateDish();
+  useEffect(() => {
+    if (listQuery.isPending || !listQuery.isSuccess) return;
+    const frame = requestAnimationFrame(restoreScroll);
+    return () => cancelAnimationFrame(frame);
+  }, [listQuery.isPending, listQuery.isSuccess, restoreScroll]);
+  useEffect(() => {
+    if (
+      listQuery.data &&
+      !listQuery.isPlaceholderData &&
+      page > 1 &&
+      !listQuery.data.items.length
+    ) {
+      updateBrowse({ page: 1 });
+    }
+  }, [listQuery.data, listQuery.isPlaceholderData, page, updateBrowse]);
 
   const openCreate = () => {
     setEditingSection('basic');
@@ -67,6 +82,7 @@ export function DishListPage() {
   };
 
   const openEdit = (dish: Dish, section = 'basic') => {
+    setViewingId(null);
     setEditingSection(section);
     setEditingId(dish.id);
     setDrawerOpen(true);
@@ -80,7 +96,13 @@ export function DishListPage() {
       width: isPhone ? 150 : 160,
       render: (name: string, record) => (
         <Space orientation="vertical" size={0}>
-          <Typography.Text strong>{name}</Typography.Text>
+          <button
+            type="button"
+            className="zw-dish-title-link"
+            onClick={() => setViewingId(record.id)}
+          >
+            {name}
+          </button>
           <Space size={4}>
             {record.is_active ? null : <Tag>已停用</Tag>}
             {record.nutrition === null ? <Tag color="warning">无配方</Tag> : null}
@@ -178,11 +200,15 @@ export function DishListPage() {
         <>
           <Input.Search
             allowClear
+            value={searchText}
+            onChange={(event) => {
+              setSearchText(event.target.value);
+              if (!event.target.value) updateBrowse({ keyword: '', page: 1 });
+            }}
             placeholder="按名称搜索"
             style={{ width: 240 }}
             onSearch={(value) => {
-              setKeyword(value);
-              setPage(1);
+              updateBrowse({ keyword: value.trim(), page: 1 });
             }}
           />
           <Select<DishCategory>
@@ -191,8 +217,7 @@ export function DishListPage() {
             style={{ width: 150 }}
             value={category ?? undefined}
             onChange={(value) => {
-              setCategory(value ?? null);
-              setPage(1);
+              updateBrowse({ category: value ?? null, page: 1 });
             }}
             options={(enumOptions?.dish_category ?? []).map((option) => ({
               value: option.value as DishCategory,
@@ -204,8 +229,7 @@ export function DishListPage() {
               size="small"
               checked={includeInactive}
               onChange={(checked) => {
-                setIncludeInactive(checked);
-                setPage(1);
+                updateBrowse({ includeInactive: checked, page: 1 });
               }}
             />
             <Typography.Text type="secondary">包含已停用</Typography.Text>
@@ -217,7 +241,7 @@ export function DishListPage() {
           <Segmented
             aria-label="菜品展示方式"
             value={view}
-            onChange={setView}
+            onChange={(value) => updateBrowse({ view: value })}
             options={[
               { value: 'cards', label: '卡片', icon: <AppstoreOutlined /> },
               { value: 'list', label: '列表', icon: <UnorderedListOutlined /> },
@@ -237,8 +261,22 @@ export function DishListPage() {
         </>
       }
     >
+      <div className="zw-dish-category-nav" role="group" aria-label="菜品分类导航">
+        {[{ value: '', label: '全部菜品' }, ...(enumOptions?.dish_category ?? [])].map((option) => (
+          <Button
+            key={option.value}
+            type="text"
+            aria-pressed={category === (option.value || null)}
+            onClick={() =>
+              updateBrowse({ category: (option.value || null) as DishCategory | null, page: 1 })
+            }
+          >
+            {option.label}
+          </Button>
+        ))}
+      </div>
       {view === 'cards' ? (
-        <div className="zw-dish-gallery-wrap">
+        <div className="zw-dish-gallery-wrap" aria-busy={listQuery.isFetching}>
           {listQuery.isPending ? (
             <Skeleton active />
           ) : listQuery.isError ? (
@@ -252,7 +290,14 @@ export function DishListPage() {
               {listQuery.data.items.map((dish) => (
                 <SoftCard className="zw-dish-card" key={dish.id}>
                   <div className="zw-dish-card-visual">
-                    <DishImage url={dish.image_url} name={dish.name} />
+                    <button
+                      type="button"
+                      className="zw-dish-photo-button"
+                      aria-label={`查看${dish.name}详情`}
+                      onClick={() => setViewingId(dish.id)}
+                    >
+                      <DishImage url={dish.image_url} name={dish.name} />
+                    </button>
                     {canWrite && dish.is_active && (
                       <Button
                         type="text"
@@ -266,7 +311,15 @@ export function DishListPage() {
                   </div>
                   <div className="zw-dish-card-copy">
                     <div className="zw-dish-card-heading">
-                      <h2>{dish.name}</h2>
+                      <h2>
+                        <button
+                          type="button"
+                          className="zw-dish-title-link"
+                          onClick={() => setViewingId(dish.id)}
+                        >
+                          {dish.name}
+                        </button>
+                      </h2>
                       {!dish.is_active && <Tag>已停用</Tag>}
                     </div>
                     <Space size={4} wrap>
@@ -287,13 +340,12 @@ export function DishListPage() {
                           {formatNutrient(dish.nutrition?.energy_kcal, 1)} <small>千卡</small>
                         </dd>
                       </div>
-                      <div>
-                        <dt>配方版本</dt>
-                        <dd>v{dish.recipe_version}</dd>
-                      </div>
                     </dl>
                     <footer>
                       <span>{dish.nutrition ? '已有标准配方' : '待完善配方'}</span>
+                      <Button type="link" size="small" onClick={() => setViewingId(dish.id)}>
+                        查看配方
+                      </Button>
                       {canWrite && dish.is_active && (
                         <Space size={2}>
                           <Button
@@ -331,8 +383,7 @@ export function DishListPage() {
             pageSizeOptions={[12, 24, 48]}
             showTotal={(total) => `共 ${total} 道菜品`}
             onChange={(next, size) => {
-              setPage(next);
-              setPageSize(size);
+              updateBrowse({ page: size === pageSize ? next : 1, pageSize: size });
             }}
           />
         </div>
@@ -351,13 +402,29 @@ export function DishListPage() {
             showSizeChanger: true,
             showTotal: (total) => `共 ${total} 条`,
             onChange: (nextPage, nextPageSize) => {
-              setPage(nextPage);
-              setPageSize(nextPageSize);
+              updateBrowse({
+                page: nextPageSize === pageSize ? nextPage : 1,
+                pageSize: nextPageSize,
+              });
             },
           }}
         />
       )}
 
+      {viewingId && (
+        <DishDetailDrawer
+          id={viewingId}
+          canWrite={canWrite}
+          onClose={() => setViewingId(null)}
+          onEdit={openEdit}
+        />
+      )}
+      {drawerOpen && detailQuery.isError && (
+        <div role="alert">
+          菜品详情读取失败。<Button onClick={() => void detailQuery.refetch()}>重新加载</Button>
+          <Button onClick={() => setDrawerOpen(false)}>取消</Button>
+        </div>
+      )}
       {drawerOpen && (editingId === null || detailQuery.data !== undefined) ? (
         <DishFormDrawer
           // 换菜品时用 key 强制重建，让表单拿到新的初始值

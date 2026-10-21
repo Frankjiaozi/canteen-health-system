@@ -1,7 +1,7 @@
 const LABELS: Record<string, string> = {
   meal_share: '本餐占全天份额',
-  energy_target_kcal: '全天能量演示上限 / 千卡',
-  energy_target_min_kcal: '全天能量演示下限 / 千卡',
+  energy_target_kcal: '全天能量参考上限 / 千卡',
+  energy_target_min_kcal: '全天能量参考下限 / 千卡',
   energy_source: '能量目标依据',
   energy_verified: '能量目标是否已核实',
   macro_source: '营养素换算口径',

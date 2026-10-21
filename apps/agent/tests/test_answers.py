@@ -48,7 +48,7 @@ def test_plan_answer_handles_withdrawal_and_only_compares_saved_values():
     previous, current = version(), version()
     current.revision = 2
     current.result["total_cost"] = "999.99"
-    current.undone = {"undone_by": "演示用户"}
+    current.undone = {"undone_by": "功能验证用户"}
     result = plan_summary(current, previous)
     assert "已撤回" in result
     assert "重新生成" in result

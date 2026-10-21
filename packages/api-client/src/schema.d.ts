@@ -5474,7 +5474,7 @@ export interface operations {
     read_board_api_v1_public_board_today_get: {
         parameters: {
             query?: {
-                /** @description 指定日期，默认取业务时区的今天；便于回看与演示 */
+                /** @description 指定日期，默认取业务时区的今天；便于回看与功能验证 */
                 on_date?: string | null;
                 /** @description 指定餐次；不传时保持原有主餐次选择（午餐优先） */
                 meal_type?: components["schemas"]["MealType"] | null;

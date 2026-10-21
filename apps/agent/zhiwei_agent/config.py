@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     model_name: str = ""
     model_api_key: SecretStr = SecretStr("")
     data_path: Path = ROOT / "data" / "agent-state.sqlite3"
-    data_notice: str = "当前环境数据来源尚未核实，仅用于演示，不代表真实食堂经营结果。"
+    data_notice: str = "数据来源尚未核验，请先核对供餐台账、采购单价与营养来源。"
 
     @model_validator(mode="after")
     def validate_model(self):

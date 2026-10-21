@@ -13,7 +13,7 @@
 
 ## 结论
 
-- **P0 建议直接删除**：解释系统怎么运作、演示/待核实声明、AI 味的操作说明。用户截图中的四处都在这一类。
+- **P0 建议直接删除**：解释系统怎么运作、功能验证/待核实声明、AI 味的操作说明。用户截图中的四处都在这一类。
 - **P1 建议压缩或移入帮助提示**：仍有信息价值，但不适合作为页面正文小字。
 - **P2 建议保留**：合规声明、权限/错误提示、确认弹窗、空状态和数据来源标签；这些不是“AI 味”。
 
@@ -33,10 +33,10 @@
 - `apps/web/src/features/menuplan/components/RecommendedDishes.tsx:85-92` — **P0 删除**
   - 标题：`能量目标尚未核实`
   - 描述来自 `apps/api/app/modules/recommendation/targets.py:147`：
-    `全天能量目标为演示值，待核实：需以《学生餐营养指南》等标准原文替换`
+    `全天能量目标为待核验参考值，待核实：需以《学生餐营养指南》等标准原文替换`
 - `apps/web/src/features/agent/components/ResultPanel.tsx:275-277` — **P0 删除**
   - 展示 `target_basis.scope_notice`，原文在 `apps/api/app/modules/recommendation/targets.py:157`：
-    `当前能量与供能比例用于演示，尚未按服务人群完成标准适配。WS/T 554—2017 适用于6–17岁中小学生，不能直接用于认证大学食堂方案。`
+    `当前能量与供能比例用于功能验证，尚未按服务人群完成标准适配。WS/T 554—2017 适用于6–17岁中小学生，不能直接用于认证大学食堂方案。`
   - 问题：两段都是产品内部的标准适配说明，像开发备注，不像上线产品文案。
 
 ### 3. 每日采集的计划供应提示
@@ -193,7 +193,7 @@
 - `apps/api/app/modules/menuplan/service.py:339-357` — **P1 删除或移入依据**
   - 三餐说明与合并采购说明。
 - `apps/api/app/modules/recommendation/targets.py:147,157` — **P0 删除**
-  - 能量目标演示/待核实说明、WS/T 554 适用范围说明。
+  - 能量目标功能验证/待核实说明、WS/T 554 适用范围说明。
 - `apps/api/app/modules/menuplan/readiness.py:289` — **P1 删除或移入帮助**
   - `仅检查当前数据的结构与计算准备情况，不认证来源真实性、不保证求解有解或营养全部达标……`
 
@@ -303,8 +303,8 @@
   - `注册成为食堂录入员，维护食材并记录每日供餐数据。`
 - `apps/web/src/layouts/AdminLayout.tsx:167` — **P2 保留**
   - `营养核算 · 采购预测 · 决策支持`
-- `apps/web/src/layouts/AdminLayout.tsx:172` — **P2 保留（仅演示模式显示）**
-  - `独立演示 · 合成数据`
+- `apps/web/src/layouts/AdminLayout.tsx:172` — **P2 保留（仅功能验证模式显示）**
+  - `独立开发 · 合成数据`
 
 ---
 

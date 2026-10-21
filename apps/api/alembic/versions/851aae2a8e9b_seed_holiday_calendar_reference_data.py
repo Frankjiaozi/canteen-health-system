@@ -12,16 +12,15 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-
-revision: str = '851aae2a8e9b'
-down_revision: str | None = '73492d83eb7d'
+revision: str = "851aae2a8e9b"
+down_revision: str | None = "73492d83eb7d"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    # 节假日日历是**参考数据**，不是演示数据：任何环境跑完迁移都该有它，
-    # 否则预测会静默地不做节假日修正。放在演示种子脚本里会漏掉正式部署。
+    # 节假日日历是**参考数据**，不是初始化样本数据：任何环境跑完迁移都该有它，
+    # 否则预测会静默地不做节假日修正。放在初始化种子脚本里会漏掉正式部署。
     #
     # 这里只放七个法定节日的公历日期（农历节日的公历日期由历法决定，可以确定）。
     # 放假区间与调休上班日由国务院办公厅通知决定，**没有可靠来源，因此不编造**——

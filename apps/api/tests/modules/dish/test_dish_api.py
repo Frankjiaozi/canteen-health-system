@@ -91,7 +91,7 @@ def test_create_with_recipe_computes_nutrition(as_recorder: TestClient) -> None:
     assert body["recipe_version"] == 1
     # 大米 80 克、无调味料 → 0.8 × 352.06；种子里的米饭是同一个配方，两个值必须一致
     rice = as_recorder.get(BASE, params={"keyword": "米饭"}).json()["items"][0]
-    assert rice["nutrition"]["date"] is not None, "米饭在演示历史里供应过，读的是落库快照"
+    assert rice["nutrition"]["date"] is not None, "米饭在功能验证历史里供应过，读的是落库快照"
     assert body["nutrition"]["energy_kcal"] == rice["nutrition"]["energy_kcal"] == "281.65"
     # 现算的预览不属于任何一天，所以没有日期——它只用于列表摘要，不是可追溯的正式结果
     assert body["nutrition"]["date"] is None

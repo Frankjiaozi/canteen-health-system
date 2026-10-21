@@ -289,11 +289,6 @@
   .zw-admin-actions {
     gap: 6px !important;
   }
-  .zw-admin-demo-badge {
-    order: 3;
-    margin-left: 0;
-    font-size: 10px;
-  }
   .zw-admin-user {
     padding: 0;
     border: 0;

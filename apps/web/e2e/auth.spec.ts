@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 const DEMO_PASSWORD = 'canteen@2026';
 
-test('登录页只展示居中表单，不展示侧栏图片或演示账号', async ({ page }, testInfo) => {
+test('登录页只展示居中表单，不展示侧栏图片或初始化账号', async ({ page }, testInfo) => {
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/login');
@@ -10,7 +10,7 @@ test('登录页只展示居中表单，不展示侧栏图片或演示账号', as
     await expect(
       page.locator('.zw-login-brand, .zw-login-food, .zw-login-mobile-photo'),
     ).toHaveCount(0);
-    await expect(page.getByText(/演示账号|canteen@2026/)).toHaveCount(0);
+    await expect(page.getByText(/初始化账号|canteen@2026/)).toHaveCount(0);
     const form = await page.locator('.zw-login-form-wrap').boundingBox();
     expect(form).not.toBeNull();
     expect(Math.abs(form!.x + form!.width / 2 - width / 2)).toBeLessThan(2);

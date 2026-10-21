@@ -1,4 +1,4 @@
-"""人工执行的独立演示联调；真实模型可能计费，禁止指向正式业务环境。"""
+"""人工执行的独立开发联调；真实模型可能计费，禁止指向正式业务环境。"""
 
 import argparse
 import asyncio
@@ -43,7 +43,7 @@ class LiveCheck:
         self.login(self.client, "recorder")
         status = self.get(AGENT + "/status")
         assert status["mode"] == "model", "本轮要求真实模型模式"
-        assert "独立演示" in status["data_notice"], "Agent 未指向明确标记的隔离演示环境"
+        assert "独立开发" in status["data_notice"], "Agent 未指向明确标记的隔离开发环境"
         self.state["model_name"] = status["model_name"]
 
     @staticmethod
@@ -51,7 +51,7 @@ class LiveCheck:
         response = client.post(
             API + "/auth/login", json={"username": username, "password": "canteen@2026"}
         )
-        assert response.status_code == 200, "独立演示账号登录失败；不会重置账号"
+        assert response.status_code == 200, "独立开发账号登录失败；不会重置账号"
         return response.json()
 
     def get(self, url, **kwargs):
@@ -143,7 +143,7 @@ class LiveCheck:
                 if not sheet["saved"] and not sheet["menu_confirmed"]:
                     self.state["on_date"] = candidate
                     break
-            assert self.state.get("on_date"), "没有空闲演示餐次，拒绝覆盖已有菜单"
+            assert self.state.get("on_date"), "没有空闲功能验证餐次，拒绝覆盖已有菜单"
         on_date = self.state["on_date"]
         if not conversation["plans"]:
             forecast = self.get(
@@ -364,7 +364,7 @@ class LiveCheck:
         sheet_url = API + f"/collection/logs/{on_date}"
         before = self.get(sheet_url, params={"meal_type": "LUNCH"})
         assert not before["saved"] and not before["menu_confirmed"], (
-            "发布验收仅允许原本没有菜单的演示餐次"
+            "发布验收仅允许原本没有菜单的功能验证餐次"
         )
         competitor_id = None
         agent_published = False
@@ -437,7 +437,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run", action="store_true")
     parser.add_argument(
-        "--publish-demo", action="store_true", help="在隔离演示库执行发布冲突、发布及撤回验收"
+        "--publish-demo", action="store_true", help="在隔离开发库执行发布冲突、发布及撤回验收"
     )
     parser.add_argument(
         "--resume", action="store_true", help="沿用本次验收保存的方案，避免重复模型调用"
@@ -452,7 +452,7 @@ def main():
     if not args.run:
         parser.error("需显式传入 --run；真实模型可能计费")
     if args.stage == "publication" and not args.publish_demo:
-        parser.error("发布验收还需要 --publish-demo，且只允许已确认的隔离演示环境")
+        parser.error("发布验收还需要 --publish-demo，且只允许已确认的隔离开发环境")
     run = LiveCheck(args.output, args.resume)
     try:
         if args.stage in {"dialogue", "all"}:

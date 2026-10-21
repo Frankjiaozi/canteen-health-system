@@ -78,7 +78,7 @@
     "oyster_sauce": {
       "keyword": null,
       "food_id": null,
-      "note": "平台没有蚝油条目。保留人工维护的演示值，来源单独标注为待核对，不冒充权威出处。"
+      "note": "平台没有蚝油条目。保留人工维护的待核验参考值，来源单独标注为待核对，不冒充权威出处。"
     },
     "corn_starch": {"keyword": "玉米淀粉", "food_id": 320},
     "bean_paste": {"keyword": "豆瓣酱", "food_id": 1523},

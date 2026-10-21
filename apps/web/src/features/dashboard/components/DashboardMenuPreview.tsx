@@ -8,7 +8,6 @@ import { DishImage } from '@/features/dish/components/DishImage';
 import { SoftCard } from '@/shared/components/SoftCard';
 import { useMenuOverview } from '../hooks/useDashboard';
 import '@/features/dish/dish.css';
-import './menu-samples.css';
 
 export function DashboardMenuPreview() {
   const navigate = useNavigate();
@@ -67,39 +66,6 @@ export function DashboardMenuPreview() {
               </div>
             ))}
           </Carousel>
-        ) : !isError && import.meta.env.VITE_DEMO_MODE === 'true' ? (
-          <div className="zw-menu-samples">
-            <div className="zw-sample-grid">
-              {[
-                { name: '番茄炒蛋', tags: ['家常菜', '蛋类'], position: '0%' },
-                { name: '清蒸鱼', tags: ['鱼类', '清蒸'], position: '50%' },
-                { name: '香菇青菜', tags: ['时令蔬菜', '菌菇'], position: '100%' },
-              ].map((dish) => (
-                <article className="zw-sample-dish" key={dish.name}>
-                  <div
-                    className="zw-sample-photo"
-                    role="img"
-                    aria-label={`${dish.name}示例图片`}
-                    style={{ backgroundPosition: `${dish.position} center` }}
-                  />
-                  <div className="zw-sample-copy">
-                    <h3>{dish.name}</h3>
-                    <div>
-                      {dish.tags.map((tag) => (
-                        <span key={tag}>{tag}</span>
-                      ))}
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-            <footer>
-              <span>示例菜品 · AI 图片，尚未安排为菜单</span>
-              <Link to="/admin/menu-plan">
-                {canWrite ? '安排这一餐' : '查看菜单'} <ArrowRightOutlined />
-              </Link>
-            </footer>
-          </div>
         ) : (
           <div className="zw-preview-empty">
             <CalendarOutlined />

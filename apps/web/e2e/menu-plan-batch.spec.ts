@@ -61,7 +61,7 @@ test('批量排一段菜单并采纳同步当日菜单', async ({ page }) => {
   }
 
   // 免登录大屏也看得到这几天（挑第一天看页面，其余用接口对账）
-  await page.goto(`/display?date=${dates[0]}`);
+  await page.goto(`/display?date=${dates[0]}&meal=LUNCH`);
   await expect(page.getByTestId('dish-card').first()).toBeVisible();
 
   const menus: string[][] = [];

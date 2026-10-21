@@ -17,7 +17,7 @@ cp infra/.env.example infra/.env
 # 2) 构建并启动
 pnpm docker:up           # 等价于 docker compose -f infra/docker-compose.yml up -d --build
 
-# 3) 首次部署灌入演示数据（生产环境需要显式允许）
+# 3) 首次部署灌入初始化样本数据（生产环境需要显式允许）
 docker compose -f infra/docker-compose.yml exec -e ALLOW_DEMO_SEED=true api python -m app.db.seed
 docker compose -f infra/docker-compose.yml exec api python -m app.modules.nutrition.compute
 ```
@@ -93,7 +93,7 @@ COOKIE_SECURE=true
 ```dotenv
 # infra/.env
 # false = 关闭自助注册，账号一律由管理员开通（内网正式部署用这个）
-# true  = 开放注册，访客可自行注册「食堂录入员」账号（演示用）
+# true  = 开放注册，访客可自行注册「食堂录入员」账号（功能验证用）
 ALLOW_OPEN_REGISTRATION=false
 ```
 
@@ -101,7 +101,7 @@ ALLOW_OPEN_REGISTRATION=false
 
 **为什么默认关。** 自助注册出来的账号角色是「食堂录入员」，而这个角色能写食材库、菜品配方、调味料库，还能批量导入 Excel。也就是说，只要拿到网址，任何人都能给自己开一个能改**配方库**的账号——而配方库是全系统最需要人工投入、也最不能出错的数据。所以这一项的默认值是 `false`（fail-closed）：忘了配，也不会把写权限敞出去。
 
-**演示时怎么开。** 把上面那个值改成 `true`，或者启动时直接给容器传环境变量：
+**功能验证时怎么开。** 把上面那个值改成 `true`，或者启动时直接给容器传环境变量：
 
 ```bash
 ALLOW_OPEN_REGISTRATION=true docker compose -f infra/docker-compose.yml up -d
@@ -129,9 +129,9 @@ for volume in canteen-pg agent-state; do
 done
 ```
 
-## 七、演示环境与生产环境的差异
+## 七、开发环境与生产环境的差异
 
-| 项 | 演示 | 生产 |
+| 项 | 功能验证 | 生产 |
 | --- | --- | --- |
 | `APP_ENV` | `development` | `production` |
 | `DEBUG` | `true`（打印 SQL 与详细日志） | `false` |
@@ -142,8 +142,8 @@ done
 | `AGENT_MODEL_*` / `AGENT_MODE`（知味膳食助手） | 可以留空（规则模式，数据不出校） | 用云端端点也行；按学校要求选提供方，并把数据流向告知使用者 |
 | 种子脚本 | 可直接执行 | 需要 `ALLOW_DEMO_SEED=true` 显式放行 |
 
-种子脚本会写入口令已知的演示账号，因此生产环境默认拒绝执行；
-内网首次部署确实需要初始化演示数据时，按上面的命令显式放行一次即可。
+种子脚本会写入口令已知的初始化账号，因此生产环境默认拒绝执行；
+内网首次部署确实需要初始化初始化样本数据时，按上面的命令显式放行一次即可。
 
 ### 营养数据的来源
 

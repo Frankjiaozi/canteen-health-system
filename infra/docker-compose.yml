@@ -3,7 +3,7 @@
 #   cp infra/.env.example infra/.env      # 改掉 JWT_SECRET 与数据库口令
 #   docker compose -f infra/docker-compose.yml up -d --build
 #
-# 首次部署后再灌入演示数据（生产环境需要显式允许）：
+# 首次部署后再灌入初始化样本数据（生产环境需要显式允许）：
 #   docker compose -f infra/docker-compose.yml exec -e ALLOW_DEMO_SEED=true api python -m app.db.seed
 #   docker compose -f infra/docker-compose.yml exec api python -m app.modules.nutrition.compute
 name: canteen
@@ -88,7 +88,7 @@ services:
       AGENT_MODEL_BASE_URL: ${AGENT_MODEL_BASE_URL:-}
       AGENT_MODEL_NAME: ${AGENT_MODEL_NAME:-}
       AGENT_MODEL_API_KEY: ${AGENT_MODEL_API_KEY:-}
-      AGENT_DATA_NOTICE: ${AGENT_DATA_NOTICE:-数据来源尚未核实，仅用于功能演示，不代表真实食堂经营结果。}
+      AGENT_DATA_NOTICE: ${AGENT_DATA_NOTICE:-数据来源尚未核验，请先核对供餐台账、采购单价与营养来源。}
     volumes:
       - agent-state:/app/data
     healthcheck:

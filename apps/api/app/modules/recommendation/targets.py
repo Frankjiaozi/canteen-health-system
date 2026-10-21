@@ -144,7 +144,7 @@ def build_targets(
         "meal_share": str(meal_share(meal_type)),
         "energy_target_kcal": settings.nutrition_energy_target_kcal,
         "energy_target_min_kcal": settings.nutrition_energy_target_min_kcal,
-        "energy_source": ("全天能量目标为演示值，待核实：需以《学生餐营养指南》等标准原文替换"),
+        "energy_source": ("全天能量目标待核实，需结合《学生餐营养指南》等标准原文及供餐人群确认"),
         "energy_verified": False,
         "macro_source": (
             "由能量目标 × 供能比 ÷ 每克产能反推；供能比取《中国居民膳食指南（2022）》"
@@ -154,7 +154,7 @@ def build_targets(
             "当前求解的油盐糖上限采用配置的每日值，未按餐次折算；差距分析另按餐次占比展示。"
             "一餐的结果不能证明全天符合建议，应结合其他餐次与实际摄入核对。"
         ),
-        "scope_notice": "当前能量与供能比例用于演示，尚未按服务人群完成标准适配。WS/T 554—2017 适用于6–17岁中小学生，不能直接用于认证大学食堂方案。",
+        "scope_notice": "当前能量与供能比例尚未按服务人群完成标准适配。WS/T 554—2017 适用于6–17岁中小学生，不能直接用于认证大学食堂方案。",
         "scope_reference": "https://www.nhc.gov.cn/ewebeditor/uploadfile/2018/06/20180613135619237.pdf",
     }
     return targets, explanation

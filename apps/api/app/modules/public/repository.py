@@ -26,7 +26,7 @@ def load_menu_day(
 ) -> MenuDay | None:
     """取当天的主餐次菜单。
 
-    展示按餐次优先：午餐 → 晚餐 → 早餐。演示场景与多数学校都以午餐为主。
+    展示按餐次优先：午餐 → 晚餐 → 早餐。日常使用与多数学校都以午餐为主。
     指定 meal_type 时只读取该餐次，供公开大屏的早/午/晚切换使用。
     """
     statement = select(MenuDay).where(MenuDay.date == on_date)

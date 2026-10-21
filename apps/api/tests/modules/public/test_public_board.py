@@ -170,7 +170,7 @@ def test_dishes_without_nutrition_are_hidden(client: TestClient, db_session: Ses
     shown = {card["name"] for card in client.get(BASE).json()["dishes"]}
 
     assert shown <= served
-    assert shown == served, "演示数据下每道菜都应当有营养结果"
+    assert shown == served, "初始化样本数据下每道菜都应当有营养结果"
 
 
 def test_standards_compare_against_daily_targets(client: TestClient) -> None:

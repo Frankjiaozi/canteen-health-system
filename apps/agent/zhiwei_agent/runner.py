@@ -104,7 +104,7 @@ async def run(
             elif settings.effective_mode == "rules":
                 name = rules.intent(task_content)
                 if name == "help":
-                    content = "当前为规则模式，支持安排菜单、调整人数和每人预算、按完整菜名排除菜品、查看方案依据，以及核查近 7 天记录。请在任务条件里设置参数，或点击示例任务。自由问答需要负责人配置模型服务。"
+                    content = "当前为规则模式，支持安排菜单、调整人数和每人预算、按完整菜名排除菜品、查看方案依据，以及核查近 7 天记录。请在任务条件里设置参数，或点击常用任务。自由问答需要负责人配置模型服务。"
                 else:
                     arguments = {}
                     if name in {"generate_menu_plan", "check_data_readiness"}:

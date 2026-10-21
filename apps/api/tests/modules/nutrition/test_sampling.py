@@ -41,7 +41,7 @@ COMPARISON = "/api/v1/calibration/comparison"
 DAILY_CLOSURE = "/api/v1/calibration/daily-closure"
 CANDIDATES = "/api/v1/calibration/candidates"
 
-#: 演示种子里配方较完整、含四类调味料的一道菜
+#: 初始化种子里配方较完整、含四类调味料的一道菜
 DISH = "土豆炖牛肉"
 
 #: 用来验证「抽样不影响更早的日子」的菜。刻意选一个与 DISH 烹饪方式不同的，
@@ -52,7 +52,7 @@ LEAK_PROBE_DISH = "宫保鸡丁"
 
 def _dish(session: Session, name: str) -> Dish:
     dish = session.scalar(select(Dish).where(Dish.name == name))
-    assert dish is not None, f"演示种子里应当有「{name}」"
+    assert dish is not None, f"初始化种子里应当有「{name}」"
     return dish
 
 
@@ -72,7 +72,7 @@ def _served_day(session: Session, dish_name: str) -> MenuDay:
         .order_by(MenuDay.date.desc())
         .limit(1)
     )
-    assert menu_day is not None, f"演示历史里应当有供应过「{dish_name}」的日子"
+    assert menu_day is not None, f"功能验证历史里应当有供应过「{dish_name}」的日子"
     return menu_day
 
 

@@ -99,6 +99,59 @@ beforeEach(() => {
   vi.mocked(sendMessage).mockResolvedValue(empty);
 });
 
+it('处理中的任务不会提前显示完成，生成方案后明确等待确认', async () => {
+  let complete!: (value: Conversation) => void;
+  vi.mocked(sendMessage).mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        complete = resolve;
+      }),
+  );
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <App>
+        <MemoryRouter initialEntries={['/admin/agent']}>
+          <AgentPage />
+        </MemoryRouter>
+      </App>
+    </QueryClientProvider>,
+  );
+  await waitFor(() =>
+    expect(screen.getByRole('status', { name: '任务进度' })).toHaveTextContent('可以开始'),
+  );
+  fireEvent.click(screen.getByRole('button', { name: '发送测试任务' }));
+  await waitFor(() =>
+    expect(screen.getByRole('status', { name: '任务进度' })).toHaveTextContent('正在处理'),
+  );
+  expect(screen.getByRole('status', { name: '任务进度' })).not.toHaveTextContent('已完成');
+  await waitFor(() => expect(complete).toBeTypeOf('function'));
+  await act(async () => complete(existing));
+  await waitFor(() =>
+    expect(screen.getByRole('status', { name: '任务进度' })).toHaveTextContent('等待确认'),
+  );
+  client.clear();
+});
+
+it('服务连接失败时显示不可用和重试提示', async () => {
+  vi.mocked(agentApi.status).mockRejectedValue(new Error('连接失败'));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <App>
+        <MemoryRouter initialEntries={['/admin/agent']}>
+          <AgentPage />
+        </MemoryRouter>
+      </App>
+    </QueryClientProvider>,
+  );
+  await waitFor(() =>
+    expect(screen.getByRole('status', { name: '任务进度' })).toHaveTextContent('暂不可用'),
+  );
+  expect(screen.getByRole('button', { name: /^重\s*试$/ })).toBeInTheDocument();
+  client.clear();
+});
+
 it('新建任务不会因路由过渡重新带入旧会话的餐次、人数、预算和排除条件', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
@@ -134,7 +187,7 @@ it('模型接入状态收进顶部标题栏，数据来源提示不再占据工�
   vi.mocked(agentApi.status).mockResolvedValue({
     mode: 'model',
     model_name: 'deepseek-v4-pro',
-    data_notice: '数据来源尚未核实，仅用于功能演示。',
+    data_notice: '数据来源尚未核实，仅用于功能验证。',
     can_plan: true,
     capabilities: [],
   });
@@ -151,7 +204,7 @@ it('模型接入状态收进顶部标题栏，数据来源提示不再占据工�
   );
   expect(await screen.findByText('已接入 DeepSeek V4 Pro')).toBeInTheDocument();
   expect(screen.getAllByRole('heading', { name: '知味膳食助手' })).toHaveLength(1);
-  expect(screen.queryByText('数据来源尚未核实，仅用于功能演示。')).not.toBeInTheDocument();
+  expect(screen.queryByText('数据来源尚未核实，仅用于功能验证。')).not.toBeInTheDocument();
   client.clear();
 });
 

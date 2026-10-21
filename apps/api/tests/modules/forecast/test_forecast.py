@@ -83,7 +83,7 @@ def test_makeup_workday_uses_a_workday_baseline() -> None:
     for day_offset in range(70):
         day = start + timedelta(days=day_offset)
         if day.weekday() >= 5:
-            continue  # 只放工作日的历史：工作日 900，与演示数据里周末低、工作日高一致
+            continue  # 只放工作日的历史：工作日 900，与初始化样本数据里周末低、工作日高一致
         history.append(strategy.HistoryPoint(day, Decimal("900")))
     # 星期六一向只有工作日的一半
     profile = {index: (Decimal("1") if index < 5 else Decimal("0.5")) for index in range(7)}
@@ -162,7 +162,7 @@ def test_diner_forecast_applies_holiday_and_makeup_workday_context() -> None:
 def test_fallback_uses_weekday_profile() -> None:
     """同星期样本不足时，用「全期平均 × 星期几规律」退化，而不是直接放弃。
 
-    少了星期几那一步，周末会被高估一倍以上——种子演示数据里周末只有工作日的 45%。
+    少了星期几那一步，周末会被高估一倍以上——种子初始化样本数据里周末只有工作日的 45%。
     """
     start = date(2026, 9, 7)  # 周一
     history: list[strategy.HistoryPoint] = []
@@ -223,7 +223,7 @@ def test_run_writes_forecasts_and_purchase_list(
         f"{BASE}/run", params={"on_date": target.isoformat(), "meal_type": "LUNCH"}
     ).json()
 
-    assert body["dishes"], "演示数据下应当能预测出菜品"
+    assert body["dishes"], "初始化样本数据下应当能预测出菜品"
     assert body["model_version"] == strategy.MODEL_VERSION
     assert all(Decimal(dish["predicted_servings"]) > 0 for dish in body["dishes"])
     # 区间必须真的包住预测值，否则展示出来自相矛盾
