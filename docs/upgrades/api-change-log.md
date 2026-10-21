@@ -6,6 +6,8 @@
   `package_codes/package_labels`。
 - `MenuPlanResponse` 新增 `packages`、`package_shares`；`MenuPlanDish` 新增
   `package_codes/package_labels/is_shared`，同时保留扁平 `dishes` 供旧调用方读取。
+- 后续采购口径修正：`MenuPlanResponse.package_shares` 已移除。`predicted_servings` 与
+  `planned_servings` 对每道菜都是该菜自己的同星期销量预测，不再乘 A/B 占比。
 - `MenuOverviewDish`、`LoggedDish`、`PublicDishCard` 新增套餐归属字段。
 - 扁平 `dishes` 中同一道共用主食只出现一次；套餐视图通过 `dish_ids` 引用它。
 - 采购份数以 `planned_servings` 为准；`predicted_servings` 仍是该菜在整餐的预测总份数。

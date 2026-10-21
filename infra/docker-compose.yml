@@ -48,6 +48,7 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       # 内网正式部署默认关闭自助注册，账号由管理员开通
       ALLOW_OPEN_REGISTRATION: ${ALLOW_OPEN_REGISTRATION:-false}
+      # 仅用于套餐成本估算；采购量按逐菜同星期销量预测，不乘这个比例
       PACKAGE_SHARE_A: ${PACKAGE_SHARE_A:-0.5}
       PACKAGE_SHARE_B: ${PACKAGE_SHARE_B:-0.5}
     # 先跑迁移再起服务：单机自部署场景下，这样最不容易漏步骤

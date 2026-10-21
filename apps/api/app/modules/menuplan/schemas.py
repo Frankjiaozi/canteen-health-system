@@ -62,7 +62,6 @@ class MenuPlanResponse(BaseModel):
     #: 扁平清单，同一道共用主食只出现一次，供采购聚合使用。
     dishes: list[MenuPlanDish]
     packages: list[MenuPlanPackage] = Field(default_factory=list)
-    package_shares: dict[str, str] = Field(default_factory=dict)
     gaps: list[NutrientGap]
     reasons: list[SuggestionReason]
     requirements: list[IngredientRequirement]

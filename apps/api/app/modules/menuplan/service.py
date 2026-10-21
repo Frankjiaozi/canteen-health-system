@@ -22,10 +22,8 @@ from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any
 from uuid import UUID
 
-from app.core.config import get_settings
 from app.core.errors import AppError, BusinessRuleError, ConflictError
 from app.core.logging import get_logger
 from app.modules.auth import repository as auth_repository
@@ -119,7 +117,6 @@ def build_menu_plan(
     usage_counts: dict[UUID, int] | None = None,
 ) -> MenuPlanResponse:
     """生成明天的菜单与采购建议。"""
-    settings = get_settings()
     candidate_ids = recommendation_service.candidate_dish_ids(
         session, on_date=on_date, meal_type=meal_type
     )
@@ -204,27 +201,6 @@ def build_menu_plan(
     )
     session.commit()
 
-    package_shares = {
-        PackageCode.A: Decimal(
-            suggestion.package_shares.get(PackageCode.A.value, settings.package_share_a)
-        ),
-        PackageCode.B: Decimal(
-            suggestion.package_shares.get(PackageCode.B.value, settings.package_share_b)
-        ),
-    }
-
-    def allocated_servings(dish: Any) -> Decimal:
-        dish_id = UUID(str(dish.dish_id))
-        total = servings_by_dish[dish_id]
-        codes = list(getattr(dish, "package_codes", [PackageCode.COMMON]))
-        if not codes or PackageCode.COMMON in codes:
-            return total
-        share = sum(
-            (package_shares[code] for code in codes if code in package_shares),
-            Decimal("0"),
-        )
-        return (total * share).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
     dishes = [
         MenuPlanDish(
             dish_id=dish.dish_id,
@@ -248,7 +224,9 @@ def build_menu_plan(
                 None,
             ),
             prediction_fallback=UUID(dish.dish_id) not in prediction.servings,
-            planned_servings=str(allocated_servings(dish)),
+            # 采购份数就是这道菜按同星期历史算出的独立预测值。A/B 只描述套餐归属，
+            # 不再把一道菜的销量预测按套餐比例二次缩小。
+            planned_servings=str(servings_by_dish[UUID(dish.dish_id)]),
         )
         for dish in suggestion.dishes
     ]
@@ -280,7 +258,7 @@ def build_menu_plan(
     if meal_type is MealType.BREAKFAST:
         notes = [
             "早餐按固定组合供应：上哪几道菜由菜品库的「早餐固定供应」决定，不参与每日选菜。",
-            "早餐主食由 A/B 两份套餐共用；其它菜不重复，采购按配置的套餐占比分摊。",
+            "早餐主食由 A/B 两份套餐共用；其它菜不重复。",
         ]
     else:
         notes = [
@@ -303,6 +281,11 @@ def build_menu_plan(
         notes.append(
             "这几道菜历史不足、预测不出份数，采购量按「每人一份」估算：" + "、".join(fallback_names)
         )
+    if total_cost is not None and Decimal(total_cost) > Decimal(suggestion.budget):
+        notes.append(
+            f"逐菜销量预测得到的采购金额 {total_cost} 元高于套餐约束预算 "
+            f"{suggestion.budget} 元；菜单仍可确认，但采购下单前应复核预测与价格。"
+        )
     if scale_note:
         notes.append(scale_note)
     logger.info(
@@ -321,10 +304,6 @@ def build_menu_plan(
         suggestion_id=suggestion.id,
         dishes=dishes,
         packages=packages,
-        package_shares={
-            PackageCode.A.value: str(package_shares[PackageCode.A]),
-            PackageCode.B.value: str(package_shares[PackageCode.B]),
-        },
         gaps=suggestion.gaps,
         reasons=suggestion.reasons,
         requirements=requirements,
@@ -336,10 +315,9 @@ def build_menu_plan(
         calendar_notes=[prediction.calendar_note] if prediction.calendar_note else [],
         skipped_predictions=prediction.skipped,
         servings_note=(
-            f"采购量按 A/B 占比 {package_shares[PackageCode.A]:.0%}/"
-            f"{package_shares[PackageCode.B]:.0%} 分摊：非主食只计入所属套餐，"
-            "共用主食只计一次；预测份数来自逐菜预测，预测不出来时"
-            "退回「每人一份」估算并逐行标注。"
+            "采购量 = 每道入选菜按同星期历史得到的独立预测份数 × 该菜单份配方用量，"
+            "相同食材和调味料再汇总；不乘 A/B 套餐占比。共用主食只计一次；"
+            "预测不出来时退回「每人一份」估算并逐行标注。"
         ),
         notes=notes,
         budget_per_person=str(Decimal(suggestion.budget) / Decimal(diners)),

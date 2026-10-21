@@ -208,10 +208,10 @@ def test_the_three_meals_of_a_day_do_not_share_dishes(as_recorder: TestClient) -
     assert names(lunch) != names(dinner)
 
 
-def test_purchase_list_uses_package_allocated_planned_servings(
+def test_purchase_list_uses_independent_same_weekday_servings_per_dish(
     as_recorder: TestClient, db_session: Session
 ) -> None:
-    """采购量 = 套餐分摊后的计划份数，共用主食只计一次。"""
+    """采购量 = 每道菜自己的同星期销量预测，共用主食只计一次。"""
     target = today_local() + timedelta(days=1)
 
     body = as_recorder.post(
@@ -243,14 +243,16 @@ def test_purchase_list_uses_package_allocated_planned_servings(
     ).quantize(Decimal("0.01"))
 
 
-def test_ab_packages_split_non_staples_and_share_the_staple(as_recorder: TestClient) -> None:
+def test_ab_packages_keep_grouping_but_do_not_scale_purchase_by_package_share(
+    as_recorder: TestClient,
+) -> None:
     target = _fresh_date() + timedelta(days=1)
     body = as_recorder.post(
         f"{BASE}/generate",
         params={"on_date": target.isoformat(), "meal_type": "LUNCH", "diner_count": 800},
     ).json()
 
-    assert body["package_shares"] == {"A": "0.5", "B": "0.5"}
+    assert "package_shares" not in body
     assert [package["code"] for package in body["packages"]] == ["A", "B"]
     package_names = {
         package["code"]: {
@@ -271,8 +273,9 @@ def test_ab_packages_split_non_staples_and_share_the_staple(as_recorder: TestCli
     assert len(shared) == 1 and shared[0]["category_label"] == "主食"
 
     for dish in body["dishes"]:
-        total = Decimal(dish["predicted_servings"]) if dish["predicted_servings"] else Decimal(800)
-        expected = total if dish["is_shared"] else total * Decimal("0.5")
+        expected = (
+            Decimal(dish["predicted_servings"]) if dish["predicted_servings"] else Decimal(800)
+        )
         assert abs(Decimal(dish["planned_servings"]) - expected) <= Decimal("0.01")
 
 

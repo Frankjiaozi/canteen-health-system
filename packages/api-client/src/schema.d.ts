@@ -2435,10 +2435,6 @@ export interface components {
             dishes: components["schemas"]["MenuPlanDish"][];
             /** Packages */
             packages?: components["schemas"]["MenuPlanPackage"][];
-            /** Package Shares */
-            package_shares?: {
-                [key: string]: string;
-            };
             /** Gaps */
             gaps: components["schemas"]["NutrientGap"][];
             /** Reasons */

@@ -218,8 +218,6 @@ def publish(
     ids = [UUID(row.dish_id) for row in plan.dishes]
     if catalog_tokens(session, ids, lock=True) != snapshot.get("catalog_tokens"):
         raise ConflictError("配方、原料营养或单价已经变化，请重新生成并核对后发布")
-    if plan.total_cost is not None and Decimal(plan.total_cost) > Decimal(plan.budget):
-        raise BusinessRuleError("采购金额超出本次预算，请调整条件后重新生成")
     dishes = list(session.scalars(select(Dish).where(Dish.id.in_(ids))).all())
     if len(dishes) != len(ids) or any(
         not row.is_active or row.recipe_version != snapshot["recipe_versions"].get(str(row.id))
