@@ -109,6 +109,50 @@
   height: 100%;
 }
 
+.ink-loading {
+  position: absolute;
+  top: calc(50% + min(18vw, 150px) + 72px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  color: #4c6054;
+  pointer-events: none;
+}
+
+.ink-loading-number {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: clamp(28px, 4vw, 38px);
+  font-variant-numeric: lining-nums tabular-nums;
+  line-height: 1;
+}
+
+.ink-loading-unit {
+  font-size: 13px;
+  color: #7b8375;
+}
+
+.ink-loading-caption {
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  padding-left: 0.24em;
+  color: #7b8375;
+}
+
+@media (max-height: 540px) {
+  .ink-loading {
+    top: auto;
+    bottom: 20px;
+    left: auto;
+    right: 24px;
+    transform: none;
+  }
+}
+
 .ink-load-error {
   color: #777;
   text-align: center;

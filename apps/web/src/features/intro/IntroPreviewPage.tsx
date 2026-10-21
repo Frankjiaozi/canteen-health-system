@@ -96,6 +96,9 @@ export function IntroPreviewPage({ onComplete }: { onComplete?: () => void }) {
             ? '正在落下朱红印章'
             : '知味书写完成，朱红印章已落下';
   const sealScale = 1.08 - settle(clamp(seal / 0.68)) * 0.08;
+  // 数字表示完整入场进度，包含书写和落印，不把动画时间冒充接口下载进度。
+  const entranceProgress = ready ? clamp(elapsed / DURATION) : 0;
+  const percentage = Math.floor(entranceProgress * 100);
   return (
     <main
       className={`ink-preview${onComplete && ready && elapsed >= DURATION ? ' ink-preview-finished' : ''}`}
@@ -241,7 +244,25 @@ export function IntroPreviewPage({ onComplete }: { onComplete?: () => void }) {
           )}
         </svg>
       )}
-      {ready && !failed && <InkProgressStroke progress={progress} art={ART} />}
+      {ready && !failed && <InkProgressStroke progress={entranceProgress} art={ART} />}
+      {!failed && (
+        <div
+          className="ink-loading"
+          role="progressbar"
+          aria-label="入场进度"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={percentage}
+        >
+          <span className="ink-loading-number">
+            {String(percentage).padStart(2, '0')}
+            <span className="ink-loading-unit">%</span>
+          </span>
+          <span className="ink-loading-caption">
+            {percentage === 100 ? '准备就绪' : '正在进入'}
+          </span>
+        </div>
+      )}
     </main>
   );
 }
