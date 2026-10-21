@@ -1,7 +1,6 @@
 import { AccountProfile, UserAvatar } from '@/features/auth/components/AccountProfile';
 import { canWriteBusinessData } from '@/features/auth/lib/permissions';
 import {
-  AppstoreOutlined,
   BarChartOutlined,
   BulbOutlined,
   ClockCircleOutlined,
@@ -13,6 +12,8 @@ import {
   LogoutOutlined,
   MenuOutlined,
   ReloadOutlined,
+  ExperimentOutlined,
+  SlidersOutlined,
 } from '@ant-design/icons';
 import { useIsMutating, useQueryClient } from '@tanstack/react-query';
 import { App, Button, Drawer, Grid, Layout, Menu, Space, Tag, Tooltip } from 'antd';
@@ -31,8 +32,6 @@ import './AdminLayout.css';
 import './sidebar.css';
 
 const { Header, Sider, Content } = Layout;
-
-const MORE_PATHS = ['/admin/seasonings', '/admin/calibration'];
 
 export function AdminLayout() {
   const { message } = App.useApp();
@@ -56,20 +55,6 @@ export function AdminLayout() {
   // 待同步的采集单挂在应用外壳上补交：录入员停在任何管理页都会自动补上
   useSyncOfflineQueue();
   const pendingCount = usePendingCount();
-
-  const [menuState, setMenuState] = useState(() => ({
-    pathname: location.pathname,
-    openKeys: MORE_PATHS.includes(location.pathname) ? ['more'] : [],
-  }));
-  // 切到子项（包括浏览器后退）时展开所在组；其余时候保留用户的展开/折叠选择。
-  if (menuState.pathname !== location.pathname) {
-    setMenuState({
-      pathname: location.pathname,
-      openKeys: MORE_PATHS.includes(location.pathname)
-        ? Array.from(new Set([...menuState.openKeys, 'more']))
-        : menuState.openKeys,
-    });
-  }
 
   const handleLogout = async () => {
     try {
@@ -99,24 +84,15 @@ export function AdminLayout() {
           { key: '/admin/agent', icon: <CommentOutlined />, label: '膳食助手' },
           { key: '/admin/dishes', icon: <CoffeeOutlined />, label: '菜品与配方' },
           { key: '/admin/ingredients', icon: <DatabaseOutlined />, label: '食材库' },
+          { key: '/admin/seasonings', icon: <ExperimentOutlined aria-hidden />, label: '调味料库' },
           { key: '/admin/menu-plan', icon: <BulbOutlined />, label: '菜单与采购' },
           {
             key: '/admin/collection',
             icon: <FormOutlined />,
             label: canWriteBusinessData(user) ? '每日采集' : '供餐记录',
           },
-          {
-            key: 'more',
-            icon: <AppstoreOutlined />,
-            label: '更多工具',
-            children: [
-              { key: '/admin/seasonings', label: '调味料库' },
-              { key: '/admin/calibration', label: '抽样纠偏' },
-            ],
-          },
+          { key: '/admin/calibration', icon: <SlidersOutlined aria-hidden />, label: '抽样纠偏' },
         ]}
-        openKeys={menuState.openKeys}
-        onOpenChange={(openKeys) => setMenuState({ pathname: location.pathname, openKeys })}
         onClick={({ key }) => {
           setMenuOpen(false);
           if (key !== location.pathname) void navigate(key);

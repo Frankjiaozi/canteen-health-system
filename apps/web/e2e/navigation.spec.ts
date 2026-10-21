@@ -4,14 +4,25 @@ import { loginAs } from './helpers';
 test('切换业务页面后目录顺序、宽度与品牌位置保持一致', async ({ page }) => {
   await loginAs(page, 'recorder');
   const menu = page.locator('.zw-admin-menu');
-  const labels = ['总览', '膳食助手', '菜品与配方', '食材库', '菜单与采购', '每日采集'];
+  const labels = [
+    '总览',
+    '膳食助手',
+    '菜品与配方',
+    '食材库',
+    '调味料库',
+    '菜单与采购',
+    '每日采集',
+    '抽样纠偏',
+  ];
   const routes = [
     '/admin',
     '/admin/agent',
     '/admin/dishes',
     '/admin/ingredients',
+    '/admin/seasonings',
     '/admin/menu-plan',
     '/admin/collection',
+    '/admin/calibration',
   ];
   const initialBrand = await page.locator('.zw-admin-brand').boundingBox();
   for (let index = 0; index < routes.length; index += 1) {
@@ -24,10 +35,11 @@ test('切换业务页面后目录顺序、宽度与品牌位置保持一致', as
   }
 });
 
-test('更多工具展开状态在页面切换与前进后退时保留', async ({ page }) => {
+test('工具作为一级入口显示，前进后退时选中状态正确', async ({ page }) => {
   await loginAs(page, 'recorder');
   const menu = page.locator('.zw-admin-menu');
-  await menu.getByRole('menuitem', { name: /更多工具/ }).click();
+  await expect(menu.getByText('更多工具')).toHaveCount(0);
+  await expect(menu.locator('.ant-menu-submenu')).toHaveCount(0);
   await menu.getByRole('menuitem', { name: '调味料库', exact: true }).click();
   await expect(page).toHaveURL(/\/admin\/seasonings$/);
   await menu.getByRole('menuitem', { name: '抽样纠偏', exact: true }).click();
@@ -51,13 +63,13 @@ test('旧的菜单推荐与采购预测地址跳到合并后的页面', async ({
   await expect(page.getByRole('heading', { name: '明日菜单与采购', exact: true })).toBeVisible();
 });
 
-test('当前页面所在的分组会自动展开', async ({ page }) => {
+test('直接访问工具页面时一级入口可见且选中', async ({ page }) => {
   await loginAs(page, 'recorder');
 
-  // 直接打开一个分组里的页面，该分组应当已经展开，否则看不出自己在哪
   await page.goto('/admin/calibration');
 
   await expect(page.getByRole('menuitem', { name: '抽样纠偏' })).toBeVisible();
+  await expect(page.locator('.zw-admin-menu .ant-menu-item-selected')).toHaveText('抽样纠偏');
   await expect(page).toHaveURL(/\/admin\/calibration$/);
 });
 
