@@ -102,7 +102,7 @@ try {
     });
     if (check.status !== 0) throw new Error('启动前检查未通过。');
   }
-  console.log(demo ? '正在打开独立演示库，原开发库保持不变。' : '正在启动业务服务、Agent 与前端。');
+  console.log(demo ? '正在打开独立开发库，原开发库保持不变。' : '正在启动业务服务、Agent 与前端。');
   start(
     python,
     demo
@@ -147,7 +147,7 @@ try {
         ? {
             AGENT_DATA_PATH: 'data/agent-demo.sqlite3',
             AGENT_DATA_NOTICE:
-              '独立演示：菜谱、单价与供餐记录为模拟数据；营养参考的出处请查看各条来源字段，不代表真实食堂经营结果。',
+              '数据来源待核验：请核对菜谱、采购单价与供餐台账，营养参考出处见各条来源记录。',
           }
         : {}),
     },
@@ -164,11 +164,11 @@ try {
       '--strictPort',
     ],
     join(root, 'apps/web'),
-    { CANTEEN_API_URL: `http://127.0.0.1:${apiPort}`, VITE_DEMO_MODE: demo ? 'true' : 'false' },
+    { CANTEEN_API_URL: `http://127.0.0.1:${apiPort}` },
   );
   await ready('http://127.0.0.1:5173', '前端');
   console.log(
-    `知味已就绪：http://127.0.0.1:5173/admin/agent${demo ? '（独立演示 / 合成数据）' : ''}`,
+    `知味已就绪：http://127.0.0.1:5173/admin/agent${demo ? '（独立开发 / 合成数据）' : ''}`,
   );
 } catch (error) {
   console.error(error.message);

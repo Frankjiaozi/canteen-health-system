@@ -24,7 +24,7 @@ from app.shared.nutrition_values import VALUE_TYPES, pick_best
 def load_menu_day(session: Session, on_date: date) -> MenuDay | None:
     """取当天的主餐次菜单。
 
-    展示按餐次优先：午餐 → 晚餐 → 早餐。演示场景与多数学校都以午餐为主。
+    展示按餐次优先：午餐 → 晚餐 → 早餐。日常使用与多数学校都以午餐为主。
     """
     menu_days = list(session.scalars(select(MenuDay).where(MenuDay.date == on_date)).all())
     if not menu_days:

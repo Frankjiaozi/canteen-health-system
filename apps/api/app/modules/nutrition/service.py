@@ -160,7 +160,7 @@ def compute_menu_day(session: Session, *, on_date: date, meal_type: MealType) ->
 
 
 def compute_recent_days(session: Session, *, days: int) -> ComputeReport:
-    """计算最近若干天（含今天）的营养结果，用于准备演示数据。"""
+    """计算最近若干天（含今天）的营养结果，用于准备初始化样本数据。"""
     today = datetime.now(get_settings().timezone).date()
     start = today - timedelta(days=days - 1)
 

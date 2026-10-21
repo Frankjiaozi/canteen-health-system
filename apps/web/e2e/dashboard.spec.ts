@@ -35,14 +35,14 @@ test('切换时间范围后数据随之变化', async ({ page }) => {
   await page.getByRole('tab', { name: '营养分析' }).click();
 
   const recordedDays = page.locator('.zw-metric').filter({ hasText: '有记录天数' });
-  // 演示历史是 8 周
+  // 功能验证历史是 8 周
   await expect(recordedDays).toContainText('14');
 
   await page.locator('.ant-segmented-item', { hasText: '近 7 天' }).click();
   await expect(recordedDays).toContainText('7');
 
   await page.locator('.ant-segmented-item', { hasText: '近 30 天' }).click();
-  // 30 天范围内有 30 天记录（演示历史 56 天，够覆盖）
+  // 30 天范围内有 30 天记录（功能验证历史 56 天，够覆盖）
   await expect(recordedDays).toContainText('30');
 });
 

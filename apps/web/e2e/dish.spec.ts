@@ -10,6 +10,15 @@ async function pickOption(page: Page, title: string) {
   await page.locator(`.ant-select-item-option[title="${title}"]`).click();
 }
 
+async function riceEnergy(page: Page, grams: number) {
+  const data = await (
+    await page.request.get('/api/v1/ingredients?keyword=大米&page_size=100')
+  ).json();
+  const rice = data.items.find((item: { name: string }) => item.name === '大米');
+  expect(rice?.energy_kcal).toBeTruthy();
+  return ((Number(rice.energy_kcal) * grams) / 100).toFixed(2);
+}
+
 /** 从界面上新建一道带配方的主食。 */
 async function createDishWithRecipe(page: Page, name: string, riceGrams: string) {
   await page.getByRole('button', { name: '新增菜品' }).click();
@@ -22,6 +31,7 @@ async function createDishWithRecipe(page: Page, name: string, riceGrams: string)
   await page.getByLabel('单锅份数').fill('80');
 
   // 配方：大米 80 克、无调味料 → 0.8 × 352.06（稻米(均值) 条目的能量）= 281.65
+  await page.getByRole('tab', { name: '标准配方', exact: true }).click();
   await page.getByRole('button', { name: '添加一行' }).click();
   await page.getByLabel('配方用料').click();
   await page.getByLabel('配方用料').fill('大米');
@@ -48,7 +58,7 @@ async function closeDishDrawer(page: Page) {
   await page.getByRole('button', { name: '关闭' }).click();
 }
 
-/** 停用测试造的菜品：用例的产物不该堆在演示库里（与食材、调味料的用例同一套收尾）。 */
+/** 停用测试造的菜品：用例的产物不该堆在开发库里（与食材、调味料的用例同一套收尾）。 */
 async function deactivateDish(page: Page, name: string) {
   const row = await findDishRow(page, name);
   await row.getByRole('button', { name: '停用' }).click();
@@ -65,8 +75,9 @@ test('菜品列表可按名称检索，并展示配方算出的单份营养', as
   // 不指望某道菜正好落在第一页：同一个库里跑一次测试就会多出几道自己造的菜，
   // 菜品只增不减，靠翻页找人迟早会失手
   const riceRow = await findDishRow(page, '米饭');
-  // 米饭配方：大米 80 克、无调味料 → 0.8 × 352.06 = 281.65
-  await expect(riceRow).toContainText('281.65');
+  const data = await (await page.request.get('/api/v1/dishes?keyword=米饭')).json();
+  const rice = data.items.find((item: { name: string }) => item.name === '米饭');
+  await expect(riceRow).toContainText(Number(rice.nutrition.energy_kcal).toFixed(2));
 
   await expect(await findDishRow(page, '红烧肉')).toBeVisible();
 });
@@ -81,10 +92,11 @@ test('新增菜品并录入配方后，列表上出现算出来的营养值', as
   const row = await findDishRow(page, name);
   await expect(row).toContainText('配方 v1');
   // 配方刚录完就该看到数值，不必等这道菜第一次被排进菜单
-  await expect(row).toContainText('281.65');
+  await expect(row).toContainText(await riceEnergy(page, 80));
 
   // 点进去看详情，配方行确实写进去了
   await row.getByRole('button', { name: '编辑' }).click();
+  await page.getByRole('tab', { name: '标准配方', exact: true }).click();
   await expect(page.getByLabel('配方用量')).toHaveValue('80.000');
   // AntD 6 把选中值渲染在 .ant-select-content 上，文案在它的 title 属性里；
   // 5.x 的 .ant-select-selection-item 已经不再出现
@@ -106,6 +118,7 @@ test('编辑配方会递增版本并重算营养', async ({ page }) => {
   await expect(row).toContainText('配方 v1');
 
   await row.getByRole('button', { name: '编辑' }).click();
+  await page.getByRole('tab', { name: '标准配方', exact: true }).click();
   // 填一个与现值不同的数：内容没变时服务端不会递增版本，这是刻意的设计
   await page.getByLabel('配方用量').first().fill('90');
   await page.getByRole('button', { name: '保存' }).click();

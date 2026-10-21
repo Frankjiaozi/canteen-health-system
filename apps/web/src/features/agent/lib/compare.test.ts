@@ -14,7 +14,7 @@ function version(cost: string | null, ids: string[], date = '2026-10-17'): PlanV
       excluded_dish_ids: [],
     },
     publication: null,
-    data_notice: '合成演示数据',
+    data_notice: '合成初始化样本数据',
     result: {
       date,
       meal_type: 'LUNCH',

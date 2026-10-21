@@ -27,7 +27,7 @@ from tests.helpers import today_local
 
 BASE = "/api/v1/dashboard"
 
-#: 演示历史覆盖 8 周，接口的 days 参数与用例的统计窗口都取这个长度
+#: 功能验证历史覆盖 8 周，接口的 days 参数与用例的统计窗口都取这个长度
 SEEDED_WINDOW_DAYS = 56
 
 
@@ -86,7 +86,7 @@ def test_summary_average_salt_matches_manual_calculation(
         Decimal("0.01"), rounding=ROUND_HALF_UP
     )
 
-    # 演示历史是 8 周，因此显式按 8 周取，让统计窗口与库里的数据范围一致
+    # 功能验证历史是 8 周，因此显式按 8 周取，让统计窗口与库里的数据范围一致
     body = as_recorder.get(f"{BASE}/summary", params={"days": SEEDED_WINDOW_DAYS}).json()
 
     assert body["avg_salt_per_capita_g"] == str(expected)

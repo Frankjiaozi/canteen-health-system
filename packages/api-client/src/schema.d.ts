@@ -5373,7 +5373,7 @@ export interface operations {
     read_board_api_v1_public_board_today_get: {
         parameters: {
             query?: {
-                /** @description 指定日期，默认取业务时区的今天；便于回看与演示 */
+                /** @description 指定日期，默认取业务时区的今天；便于回看与功能验证 */
                 on_date?: string | null;
             };
             header?: never;

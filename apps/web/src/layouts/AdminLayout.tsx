@@ -183,12 +183,6 @@ export function AdminLayout() {
             />
           )}
 
-          {import.meta.env.VITE_DEMO_MODE === 'true' && (
-            <Tag className="zw-admin-demo-badge" color="gold">
-              独立演示 · 合成数据
-            </Tag>
-          )}
-
           <Space className="zw-admin-actions" size={10} wrap>
             {isAgent && (
               <Tooltip title="刷新结果">

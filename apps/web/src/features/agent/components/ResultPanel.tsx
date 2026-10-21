@@ -182,7 +182,7 @@ export function ResultPanel({
               <span />
               <span />
             </div>
-            <h3>菜单与采购，会在这里展开</h3>
+            <h3>{busy ? '正在准备供餐方案' : '菜单与采购，会在这里展开'}</h3>
             <p>
               先告诉知味供餐安排。
               <br />
@@ -435,7 +435,15 @@ export function ResultPanel({
           <strong>{formatAmount(plan.budget)}</strong>
         </div>
         <Tag color={version.publication ? (version.undone ? 'warning' : 'success') : 'default'}>
-          {version.publication ? (version.undone ? '发布已撤回' : '已确认发布') : '待人工确认'}
+          {publishing
+            ? '正在发布'
+            : busy
+              ? '正在处理新任务'
+              : version.publication
+                ? version.undone
+                  ? '发布已撤回'
+                  : '已确认发布'
+                : '待人工确认'}
         </Tag>
       </div>
       <div className="zw-agent-version-actions">

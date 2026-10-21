@@ -686,7 +686,7 @@ class Tools:
                         **base,
                         "kind": "waste",
                         "title": "剩餐比例需要核对",
-                        "detail": f"记录值 {Decimal(row['waste_ratio']) * 100:.1f}% ≥ 15%（演示核查阈值）",
+                        "detail": f"记录值 {Decimal(row['waste_ratio']) * 100:.1f}% ≥ 15%（业务核查阈值）",
                         "suggestion": "核对出餐份数和剩餐称重，再查看是否存在临时停供等背景。",
                     }
                 )
@@ -700,7 +700,7 @@ class Tools:
                             **base,
                             "kind": "salt",
                             "title": "盐量偏离同餐次历史",
-                            "detail": f"本餐 {amount:.2f} g/人次，同餐次中位数 {baseline:.2f} g/人次，超过 1.5 倍（演示核查阈值）",
+                            "detail": f"本餐 {amount:.2f} g/人次，同餐次中位数 {baseline:.2f} g/人次，超过 1.5 倍（业务核查阈值）",
                             "suggestion": "先核对盐总量和就餐人次；此项不能直接判断健康风险或认定厨师多放盐。",
                         }
                     )
@@ -729,7 +729,7 @@ class Tools:
             "issues": issues,
             "rows": rows,
             "truncated": len(rows) < result["total"],
-            "note": "仅列出需要人工核查的记录，不认定原因。无记录日期可能未营业；15% 与 1.5 倍为演示核查阈值，不是医学或行业合规标准。",
+            "note": "仅列出需要人工核查的记录，不认定原因。无记录日期可能未营业；15% 与 1.5 倍为业务核查阈值，不是医学或行业合规标准。",
             "data_notice": self.data_notice,
         }
         self.conversation.review = ReviewReport.model_validate(review)

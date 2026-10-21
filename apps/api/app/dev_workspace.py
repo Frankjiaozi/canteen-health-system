@@ -1,4 +1,4 @@
-"""本机独立演示/测试库入口。固定库名，不接受任意目标，也不删除数据库。"""
+"""本机独立开发/测试库入口。固定库名，不接受任意目标，也不删除数据库。"""
 
 from __future__ import annotations
 
@@ -69,7 +69,7 @@ def main() -> int:
     if args.serve and args.mode != "demo":
         parser.error("测试库不作为开发服务启动")
     if args.refresh_seed and args.mode != "demo":
-        parser.error("刷新示例数据仅作用于独立演示库")
+        parser.error("刷新示例数据仅作用于独立开发库")
     prepare(args.mode, refresh_seed=args.refresh_seed)
     if args.pytest:
         if args.mode != "test":

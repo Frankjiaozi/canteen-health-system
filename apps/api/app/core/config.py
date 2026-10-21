@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 480
     cookie_name: str = "canteen_token"
     cookie_secure: bool = False
-    #: 自助注册开关。演示环境开着（访客可自行注册录入员账号），
+    #: 自助注册开关。开发环境开着（访客可自行注册录入员账号），
     #: 学校内网正式部署时应当关掉，账号一律由管理员开通。
     #: 默认关（fail-closed）：忘了配也不会把写权限敞给拿到网址的人。
     allow_open_registration: bool = False
@@ -59,10 +59,10 @@ class Settings(BaseSettings):
     cors_origins: list[str] = []
 
     # ---- 菜单推荐的营养目标 ----
-    #: 全天的能量目标（千卡）。**这是一组演示值，待核实**：
+    #: 全天的能量目标（千卡）。**这是一组待核验参考值，待核实**：
     #: 营养配餐领域常引用《学生餐营养指南》卫生行业标准，但需求文档记录
     #: 「未能核实到权威原文」。结构与数值分开处理——结构（供能比）有指南原文，
-    #: 数值先填演示值，界面上标注「待核实」，拿到标准原文后改这里即可。
+    #: 数值先填待核验参考值，界面上标注「待核实」，拿到标准原文后改这里即可。
     nutrition_energy_target_kcal: int = 2000
     #: 全天能量目标的下限；上限由能量目标本身给出
     nutrition_energy_target_min_kcal: int = 1800

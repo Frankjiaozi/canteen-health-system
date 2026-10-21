@@ -26,7 +26,7 @@ router = APIRouter(prefix="/public", tags=["公开大屏（免登录）"])
 def read_board(
     on_date: date | None = Query(
         default=None,
-        description="指定日期，默认取业务时区的今天；便于回看与演示",
+        description="指定日期，默认取业务时区的今天；便于回看与功能验证",
     ),
     session: Session = Depends(get_session),
 ) -> PublicBoard:

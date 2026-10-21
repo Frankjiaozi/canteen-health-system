@@ -271,8 +271,67 @@ export function AgentPage() {
     setParameters(dateOrMealChanged ? { ...value, diner_count: null } : value);
   };
 
+  const latestPlan = conversation?.plans.at(-1);
+  const taskState =
+    status.isError || current.isError
+      ? '暂不可用'
+      : unavailable
+        ? '连接中'
+        : run.isPending
+          ? '正在处理'
+          : publish.isPending
+            ? '正在发布'
+            : undo.isPending
+              ? '正在撤回'
+              : runError
+                ? '需要处理'
+                : conversation?.pending_task
+                  ? '等待补充'
+                  : latestPlan?.publication && !latestPlan.undone
+                    ? '已完成'
+                    : latestPlan && !latestPlan.undone
+                      ? '等待确认'
+                      : conversation?.review || conversation?.readiness
+                        ? '已完成'
+                        : latestPlan?.undone
+                          ? '已撤回'
+                          : '可以开始';
+  const taskHint =
+    status.isError || current.isError
+      ? '请重试，或联系管理员检查服务'
+      : unavailable
+        ? '正在连接膳食服务'
+        : run.isPending
+          ? statusText || '正在按任务条件计算'
+          : publish.isPending
+            ? '正在保存正式菜单，请稍候'
+            : undo.isPending
+              ? '正在撤回已发布的菜单'
+              : runError
+                ? '请查看提示，调整后重试'
+                : conversation?.pending_task
+                  ? '补充对话中的必要信息后继续'
+                  : taskState === '已完成'
+                    ? latestPlan?.publication && !latestPlan.undone
+                      ? '菜单已发布，可查看结果或导出采购单'
+                      : '任务已完成，可在结果区查看明细'
+                    : taskState === '等待确认'
+                      ? canPlan
+                        ? '核对菜品、营养和采购金额后确认发布'
+                        : '方案已生成，等待有权限的人员确认发布'
+                      : '输入需求或选择下方常用任务';
   return (
     <main className="zw-agent">
+      <div
+        className={`zw-agent-task-status${busy ? ' is-busy' : ''}`}
+        role="status"
+        aria-live="polite"
+        aria-label="任务进度"
+      >
+        <span className="zw-agent-status-dot" aria-hidden="true" />
+        <strong>{taskState}</strong>
+        <span>{taskHint}</span>
+      </div>
       {status.isError && (
         <Alert
           type="error"
@@ -284,7 +343,7 @@ export function AgentPage() {
               {status.error instanceof ApiError && status.error.isUnauthorized ? (
                 <Link to="/login">重新登录</Link>
               ) : (
-                '请启动 Agent 与业务服务后重试。'
+                '请稍后重试，或联系管理员检查服务。'
               )}
             </>
           }

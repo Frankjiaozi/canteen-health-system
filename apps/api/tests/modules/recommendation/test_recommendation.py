@@ -341,7 +341,7 @@ def test_energy_target_is_split_by_meal_and_macros_are_derived(
         Decimal(str(get_settings_value("max"))) * Decimal("0.30") / Decimal("9") * share
     ).quantize(Decimal("0.1"))
     assert by_code["fat_g"].upper == expected_fat
-    assert basis["energy_verified"] is False, "能量目标是演示值，必须如实标注待核实"
+    assert basis["energy_verified"] is False, "能量目标是待核验参考值，必须如实标注待核实"
 
 
 def test_seasoning_caps_use_daily_limits_not_meal_scaled(db_session: Session) -> None:

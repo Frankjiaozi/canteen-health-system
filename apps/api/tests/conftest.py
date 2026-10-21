@@ -30,12 +30,12 @@ from sqlalchemy import delete, select
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
-#: 种子脚本内置的演示账号口令
+#: 种子脚本内置的初始化账号口令
 DEMO_PASSWORD = "canteen@2026"
 
 
 def login_as(api_client: TestClient, username: str) -> TestClient:
-    """以指定演示账号登录，失败直接让用例报错。"""
+    """以指定初始化账号登录，失败直接让用例报错。"""
     response = api_client.post(
         "/api/v1/auth/login",
         json={"username": username, "password": DEMO_PASSWORD},

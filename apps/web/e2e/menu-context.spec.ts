@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { loginAs } from './helpers';
 
-// 拦截生成请求，不向演示台账写方案；检查用户切换条件后的页面行为。
+// 拦截生成请求，不向功能验证台账写方案；检查用户切换条件后的页面行为。
 test('生成三餐后切换日期，旧方案不再显示或允许同步', async ({ page }) => {
   await loginAs(page, 'recorder');
   await page.route('**/api/v1/menu-plan/generate-day*', (route) =>

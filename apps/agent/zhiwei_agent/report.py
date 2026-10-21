@@ -10,8 +10,8 @@ from .schemas import PlanVersion
 BOUNDARY = "供给量不等于实际摄入量。当前目标与份数策略仍需按服务人群核实，不能据此认证个人健康、营养全部达标或全天合规。"
 BASIS_LABELS = {
     "meal_share": "本餐占全天份额",
-    "energy_target_kcal": "全天能量演示上限 / 千卡",
-    "energy_target_min_kcal": "全天能量演示下限 / 千卡",
+    "energy_target_kcal": "全天能量参考上限 / 千卡",
+    "energy_target_min_kcal": "全天能量参考下限 / 千卡",
     "energy_source": "能量目标依据",
     "energy_verified": "能量目标是否已核实",
     "macro_source": "营养素换算口径",

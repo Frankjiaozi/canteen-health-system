@@ -17,6 +17,24 @@
 body {
   background: var(--zw-paper);
 }
+
+@media (prefers-reduced-motion: no-preference) {
+  .ant-btn:not(:disabled):active {
+    transform: translateY(1px);
+  }
+  .zw-reference-top-art,
+  .zw-reference-landscape {
+    animation: zw-paper-drift 18s ease-in-out infinite alternate;
+  }
+}
+@keyframes zw-paper-drift {
+  from {
+    transform: translate(0, 0);
+  }
+  to {
+    transform: translate(2px, -3px);
+  }
+}
 button,
 input,
 select,

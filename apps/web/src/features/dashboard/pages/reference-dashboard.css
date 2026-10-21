@@ -24,12 +24,6 @@
 .zw-reference-shell .zw-admin-logout {
   display: none;
 }
-.zw-reference-shell .zw-admin-demo-badge {
-  font-size: 10px;
-  background: #edf0e5;
-  color: #7a886b;
-  border: 0;
-}
 .zw-reference-shell .zw-admin-content {
   padding: 0 22px 25px;
   max-width: none;
@@ -398,9 +392,6 @@
   }
   .zw-reference-shell .zw-admin-page-tagline {
     font-size: 11px;
-  }
-  .zw-reference-shell .zw-admin-demo-badge {
-    display: none;
   }
   .zw-reference-shell .zw-admin-content {
     padding-inline: 12px;

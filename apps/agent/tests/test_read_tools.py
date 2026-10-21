@@ -240,7 +240,7 @@ class BusinessStub:
                         "unit_price": "1.60",
                         "data_source": "中国食物成分表",
                         "source_version": "大白菜(均值)",
-                        "note": "单价为演示值",
+                        "note": "单价为待核验参考值",
                     }
                 ],
             }

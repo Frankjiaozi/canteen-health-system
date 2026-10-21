@@ -21,7 +21,7 @@
 都不会影响系统；而每一条数值都能回溯到具体条目（`source_version`）与换算过程（`note`）。
 
 本文件只维护「我们自己的东西」：业务名、类别、单价。单价平台没有，
-仍是演示值（元/公斤市品），会在备注里单独说明。
+仍是待核验参考值（元/公斤市品），会在备注里单独说明。
 """
 
 from __future__ import annotations
@@ -67,11 +67,11 @@ logger = get_logger("app.seed")
 # 固定命名空间：保证同一自然键在任何机器、任何时间都得到同一个 UUID
 SEED_NAMESPACE = UUID("07b0f0a6-6f2e-4f2b-9a2f-4c2a1b3d5e70")
 
-# 演示账号口令。部署到真实环境前请通过该环境变量覆盖
+# 初始化账号口令。部署到真实环境前请通过该环境变量覆盖
 DEFAULT_DEMO_PASSWORD = "canteen@2026"
 
-# 演示数据的来源标注：明确写成待核对，不伪造权威出处
-DEMO_DATA_SOURCE = "演示占位值，待核对"
+# 初始化样本数据的来源标注：明确写成待核对，不伪造权威出处
+DEMO_DATA_SOURCE = "人工录入参考值，待核对"
 DEMO_SOURCE_VERSION = "未核对"
 
 #: 历史天数。取 8 周（56 天）的理由：同星期移动平均的可靠程度取决于
@@ -106,7 +106,7 @@ def _upsert_by(session: Session, model: Any, natural_key: dict[str, Any], **valu
     """按自然键（例如「菜品 + 食材」）写入。
 
     配方行可能在界面上被整体替换过，那时主键已经换了；只有自然键还靠得住。
-    种子脚本要能把演示库收敛到当前定义，就必须按自然键找行。
+    种子脚本要能把开发库收敛到当前定义，就必须按自然键找行。
     """
     conditions = [getattr(model, field) == value for field, value in natural_key.items()]
     existing = session.scalar(select(model).where(*conditions))
@@ -164,7 +164,7 @@ _ACCOUNTS: list[tuple[str, str, UserRole]] = [
 
 
 def seed_users(session: Session, tally: _Tally) -> dict[str, UUID]:
-    """创建三个可登录角色的演示账号。
+    """创建三个可登录角色的初始化账号。
 
     系统内没有学生账号——需求文档里的「学生端」对应的是免登录的公开大屏。
     """
@@ -199,7 +199,7 @@ def seed_users(session: Session, tally: _Tally) -> dict[str, UUID]:
             is_active=True,
         )
         # 口令哈希每次生成都带新的随机盐，不能用「逐字段比对」判断是否变化；
-        # 只有在演示口令确实对不上时才重置，保证重跑不会产生无意义的 UPDATE
+        # 只有在功能验证口令确实对不上时才重置，保证重跑不会产生无意义的 UPDATE
         if not verify_password(password, existing.password_hash):
             existing.password_hash = hash_password(password)
             action = "updated"
@@ -238,7 +238,7 @@ def _optional_decimal(raw: str | None) -> Decimal | None:
 def _nutrition_values(key: str, *, include_edible_ratio: bool = True) -> dict[str, Any]:
     """把快照里的一条记录转成模型字段。
 
-    平台上没有对应条目的（目前只有蚝油）如实退回「演示占位值，待核对」：
+    平台上没有对应条目的（目前只有蚝油）如实退回「人工录入参考值，待核对」：
     宁可标着待核对，也不编一个看起来权威的出处。
     """
     record = _NUTRITION_ITEMS.get(key)
@@ -246,7 +246,7 @@ def _nutrition_values(key: str, *, include_edible_ratio: bool = True) -> dict[st
         return {
             "data_source": DEMO_DATA_SOURCE,
             "source_version": DEMO_SOURCE_VERSION,
-            "note": "平台无对应条目，保留人工维护的演示值；单价同为演示值（元/公斤市品），待核价",
+            "note": "平台无对应条目，保留人工维护的待核验参考值；单价同为待核验参考值（元/公斤市品），待核价",
         }
 
     note_parts = [f"能量原始值 {record['energy_kj']} kJ（1 kcal = 4.184 kJ 换算）"]
@@ -254,7 +254,7 @@ def _nutrition_values(key: str, *, include_edible_ratio: bool = True) -> dict[st
         listed = "、".join(record["zero_filled"])
         note_parts.append(f"平台未列 {listed}，按该物质不含该成分记 0")
     note_parts.append(f"查询日期 {_NUTRITION_QUERIED_AT}")
-    note_parts.append("单价为演示值（元/公斤市品），待核价")
+    note_parts.append("单价为待核验参考值（元/公斤市品），待核价")
 
     values: dict[str, Any] = {
         "energy_kcal": Decimal(record["energy_kcal"]),
@@ -282,7 +282,7 @@ class _IngredientRow(NamedTuple):
 
 
 # 营养值与可食部不写在这里：统一从 nutrition_reference.json 取，见 _nutrition_values()。
-# 这里只维护「我们自己的东西」——业务名、类别、单价（元/公斤市品，演示值）。
+# 这里只维护「我们自己的东西」——业务名、类别、单价（元/公斤市品，待核验参考值）。
 _INGREDIENTS: list[_IngredientRow] = [
     _IngredientRow("rice", "大米", IngredientCategory.GRAIN, "5.60"),
     _IngredientRow("flour", "小麦粉", IngredientCategory.GRAIN, "4.20"),
@@ -967,11 +967,11 @@ _DINER_FACTOR_BY_MEAL: dict[MealType, float] = {
 #: 各餐次记在菜单日上的轮换名
 _ROTATION_NAME_BY_MEAL: dict[MealType, str] = {
     MealType.BREAKFAST: "早餐固定",
-    MealType.LUNCH: "演示两周轮换",
-    MealType.DINNER: "演示两周轮换",
+    MealType.LUNCH: "两周轮换",
+    MealType.DINNER: "两周轮换",
 }
 
-#: 各餐次的提交时间，只是让演示数据看起来像人录的
+#: 各餐次的提交时间，只是让初始化样本数据看起来像人录的
 _SUBMIT_TIME_BY_MEAL: dict[MealType, time] = {
     MealType.BREAKFAST: time(8, 30),
     MealType.LUNCH: time(13, 30),
@@ -1057,8 +1057,8 @@ def seed_history(
     rng = random.Random(20261014)
     today = datetime.now(settings.timezone).date()
     window_start = today - timedelta(days=days - 1)
-    # 收敛窗口：早于这次的演示行要清掉。窗口是「截至今天的 N 天」，随今天往前挪，
-    # 不清的话库里会一天多留一天——过几天演示历史就变成 60 多天，
+    # 收敛窗口：早于这次的功能验证行要清掉。窗口是「截至今天的 N 天」，随今天往前挪，
+    # 不清的话库里会一天多留一天——过几天功能验证历史就变成 60 多天，
     # 「种子历史恰好 8 周」不再成立，也没人说得清多出来那天算不算数。
     session.execute(delete(MenuDay).where(MenuDay.date < window_start))
     session.execute(delete(DailyLog).where(DailyLog.date < window_start))
@@ -1073,12 +1073,12 @@ def seed_history(
         day = today - timedelta(days=offset)
         # 轮换的「第几天」锚在日历日期上，而不是「窗口内第几天」。
         # 用窗口内序号的话，每过一天整个窗口前移，同一天供应的菜就全变了——
-        # 演示历史每天都在改写，看板与回测的数字跟着漂，谁也说不清哪个是真的。
+        # 功能验证历史每天都在改写，看板与回测的数字跟着漂，谁也说不清哪个是真的。
         day_index = (day - _ROTATION_EPOCH).days
 
         # 节假日当天的在校人数确实会掉下来。种子里必须体现这一点，
         # 否则「历史按普通日子生成、预测却按节假日折减」，回测会平白多出一大截误差——
-        # 那不是模型的错，是演示数据自相矛盾。
+        # 那不是模型的错，是初始化样本数据自相矛盾。
         kind = calendar.get(day)
         holiday_factor = _HOLIDAY_DINER_FACTOR if kind is HolidayKind.HOLIDAY else 1.0
         # 调休上班的周末要按工作日算：那天是要上班的，不能套周末的折减
@@ -1116,7 +1116,7 @@ def seed_history(
                 session, DailyLog, {"date": day, "meal_type": meal_type}
             ) or _stable_id("daily_log", f"{day.isoformat()}:{meal_type.value}")
 
-            # 清掉这一天这一餐不在当前计划内的旧明细。种子脚本要能把演示库**收敛**到当前
+            # 清掉这一天这一餐不在当前计划内的旧明细。种子脚本要能把开发库**收敛**到当前
             # 定义，而不是每改一次菜单就多留一批孤儿行——那些行会悄悄混进人均摄入的
             # 聚合里，让看板上的数字变得无法解释。
             #
@@ -1256,16 +1256,16 @@ def run(session: Session, *, history_days: int = HISTORY_DAYS) -> _Tally:
 def main() -> int:
     configure_logging("INFO")
     settings = get_settings()
-    # 种子脚本会写入带已知口令的演示账号，生产环境默认拒绝执行。
-    # 内网首次部署确实需要初始化演示数据时，显式设置 ALLOW_DEMO_SEED=true 放行。
+    # 种子脚本会写入带已知口令的初始化账号，生产环境默认拒绝执行。
+    # 内网首次部署确实需要初始化初始化样本数据时，显式设置 ALLOW_DEMO_SEED=true 放行。
     if settings.is_production and os.environ.get("ALLOW_DEMO_SEED", "").lower() not in {
         "1",
         "true",
         "yes",
     }:
         logger.error(
-            "生产环境默认拒绝执行种子脚本（它会写入带已知口令的演示账号）。"
-            "确需初始化演示数据，请显式设置 ALLOW_DEMO_SEED=true"
+            "生产环境默认拒绝执行种子脚本（它会写入带已知口令的初始化账号）。"
+            "确需初始化初始化样本数据，请显式设置 ALLOW_DEMO_SEED=true"
         )
         return 1
 

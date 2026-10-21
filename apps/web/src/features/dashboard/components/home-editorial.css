@@ -32,9 +32,6 @@
   color: #344e3b;
   border-bottom: 2px solid #657d5b;
 }
-.zw-editorial-shell .zw-admin-demo-badge {
-  display: none;
-}
 .zw-editorial-shell .zw-admin-user-copy small,
 .zw-editorial-shell .zw-admin-logout-label {
   display: none;

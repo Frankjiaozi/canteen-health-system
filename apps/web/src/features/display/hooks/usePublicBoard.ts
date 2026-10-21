@@ -7,7 +7,7 @@ import { fetchPublicBoard } from '../api/displayApi';
 // 免登录接口，出错时不该把用户往登录页赶。大屏常年挂着运行，
 // 因此定时刷新——食堂当天补录之后，画面会自己跟上。
 //
-// 带 `?date=` 时看的是那一天（回看与演示用），不带就是今天。挂机的大屏不带参数。
+// 带 `?date=` 时看的是那一天（回看与功能验证用），不带就是今天。挂机的大屏不带参数。
 export function usePublicBoard(onDate?: string) {
   const [params] = useSearchParams();
   const target = onDate ?? params.get('date') ?? undefined;

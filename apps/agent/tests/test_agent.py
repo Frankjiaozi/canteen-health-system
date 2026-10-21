@@ -38,7 +38,7 @@ class BusinessFake:
                 200,
                 json={
                     "id": "other" if "other" in token else "owner",
-                    "display_name": "演示用户",
+                    "display_name": "功能验证用户",
                     "role": "SCHOOL_ADMIN" if "school" in token else "RECORDER",
                 },
             )
@@ -100,7 +100,7 @@ class BusinessFake:
                 json={
                     "menu_day_id": "demo-menu",
                     "published_at": "2026-10-16T12:00:00+08:00",
-                    "published_by": "演示用户",
+                    "published_by": "功能验证用户",
                     "already_published": False,
                 },
             )
@@ -113,7 +113,7 @@ class BusinessFake:
                     "meal_type": "LUNCH",
                     "meal_type_label": "午餐",
                     "undone_at": "2026-10-16T12:30:00+08:00",
-                    "undone_by": "演示用户",
+                    "undone_by": "功能验证用户",
                 },
             )
         if request.url.path.endswith("collection/logs"):
@@ -209,7 +209,7 @@ def test_publish_then_undo_marks_the_version_and_refuses_a_second_time(context):
     body = undone.json()["plans"][0]
     # 发布回执保留不动，撤回是另一条记录——「发布过」和「还生效」不能混成一个字段
     assert body["publication"]["menu_day_id"] == "demo-menu"
-    assert body["undone"]["undone_by"] == "演示用户"
+    assert body["undone"]["undone_by"] == "功能验证用户"
     assert any(call.url.path.endswith("/undo") for call in business.calls)
     assert client.post(f"/agent-api/v1/sessions/{sid}/undo").status_code == 409
 

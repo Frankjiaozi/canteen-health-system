@@ -128,7 +128,7 @@ def test_trace_records_recipe_snapshot_and_missing_data(db_session: Session) -> 
     assert {"番茄", "鸡蛋"} <= ingredient_names
     seasoning_names = {item["name"] for item in trace["seasonings"]}
     assert {"大豆油", "食盐", "白砂糖"} <= seasoning_names
-    # 演示数据里成分齐全，不该出现缺失项
+    # 初始化样本数据里成分齐全，不该出现缺失项
     assert rows[0].uncertainty["missing_nutrients"] == []
     # 单份能量 150.62 × 0.85 = 128.027 → 128.03；150.62 × 1.15 = 173.213 → 173.21
     assert rows[0].uncertainty["ranges"]["energy_kcal"]["lower"] == "128.03"
