@@ -54,13 +54,13 @@ describe('正式入口进场动画', () => {
     expect(progress).toHaveAttribute('aria-valuenow', '0');
     expect(progress).toHaveTextContent('00%');
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(1300);
+      await vi.advanceTimersByTimeAsync(900);
     });
     const halfway = Number(progress.getAttribute('aria-valuenow'));
     expect(halfway).toBeGreaterThan(0);
     expect(halfway).toBeLessThan(100);
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(1400);
+      await vi.advanceTimersByTimeAsync(920);
     });
     expect(progress).toHaveAttribute('aria-valuenow', '100');
     expect(progress).toHaveTextContent('100%');

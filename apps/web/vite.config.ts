@@ -28,7 +28,14 @@ export default defineConfig({
           /^\/health/,
           /^\/openapi\.json/,
         ],
-        globPatterns: ['**/*.{js,css,html,svg,woff2}', 'intro/ink-wordmark-cursive.png'],
+        // 水墨背景约 2.3 MB，与书法一起离线可用；不扩大到其他业务图片。
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+        globPatterns: [
+          '**/*.{js,css,html,svg,woff2}',
+          'intro/ink-wordmark-cursive.png',
+          'intro/ink-wash-background.png',
+          'intro/ink-numerals.png',
+        ],
       },
     }),
   ],
