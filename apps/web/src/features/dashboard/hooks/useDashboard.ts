@@ -7,6 +7,7 @@ import {
   fetchTrends,
   fetchWaste,
 } from '../api/dashboardApi';
+import { useMenuDataRevision } from '@/shared/hooks/useMenuDataRevision';
 
 // 看板是服务端聚合结果，时间范围一变就该重新取，不做长缓存
 const COMMON = { staleTime: 60_000 } as const;
@@ -44,9 +45,11 @@ export function useDashboard(days: number) {
 }
 
 export function useMenuOverview() {
+  const revision = useMenuDataRevision();
   return useQuery({
-    queryKey: ['dashboard', 'menus'],
+    queryKey: ['dashboard', 'menus', revision],
     queryFn: fetchMenuOverview,
     staleTime: 30_000,
+    refetchInterval: 60_000,
   });
 }

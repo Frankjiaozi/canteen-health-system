@@ -58,9 +58,12 @@ test('看板可以切到今明菜单，并按三餐展示', async ({ page }) => 
   await expect(page.locator('.zw-menu-day-title').filter({ hasText: '今天' })).toContainText(
     /\d{4}-\d{2}-\d{2}/,
   );
+  await expect(page.getByText('第 1 / 2 页')).toBeVisible();
+  await page.getByRole('button', { name: '下一页' }).click();
   await expect(page.locator('.zw-menu-day-title').filter({ hasText: '明天' })).toContainText(
     /\d{4}-\d{2}-\d{2}/,
   );
+  await expect(page.getByText('第 2 / 2 页')).toBeVisible();
   await expect(
     page.locator('.zw-menu-meal-name h3').filter({ hasText: '早餐' }).first(),
   ).toBeVisible();

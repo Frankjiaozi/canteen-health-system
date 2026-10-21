@@ -199,6 +199,43 @@
   gap: 20px;
 }
 
+.zw-menu-pager {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 38px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 4px;
+}
+
+.zw-menu-pager .ant-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #e5e1d6;
+  background: rgba(255, 252, 246, 0.78);
+  color: #5f705d;
+  box-shadow: 0 6px 18px -16px rgba(54, 65, 44, 0.45);
+}
+
+.zw-menu-pager .ant-btn:not(:disabled):hover {
+  border-color: #aebda7;
+  background: #f3f6ee;
+  color: #405a43;
+}
+
+.zw-menu-page-indicator {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+  color: var(--zw-ink);
+}
+
+.zw-menu-page-indicator small {
+  color: #909589;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
 /* 真实指标、菜单与助手组成有主次的工作台。 */
 .zw-dashboard .zw-summary-card.ant-card {
   border-color: #ffffffb5;
