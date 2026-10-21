@@ -2,6 +2,7 @@ import { ArrowRightOutlined, PlusOutlined } from '@ant-design/icons';
 import { Button, Skeleton } from 'antd';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { resolveDishImageUrl } from '@/features/dish/lib/defaultImage';
 import { useMenuOverview } from '../hooks/useDashboard';
 import './home-editorial.css';
 
@@ -158,32 +159,35 @@ export function HomeEditorial() {
           </div>
         ) : meal?.dishes.length ? (
           <div className="zw-home-dishes">
-            {meal.dishes.slice(0, 3).map((dish) => (
-              <article
-                className={`zw-home-dish${dish.image_url ? ' has-photo' : ''}`}
-                key={dish.dish_id}
-              >
-                {dish.image_url && <img src={dish.image_url} alt={dish.name} />}
-                <div>
-                  <span>
-                    {dish.category_label} / {dish.cooking_method_label}
+            {meal.dishes.slice(0, 3).map((dish) => {
+              const imageUrl = resolveDishImageUrl(dish.name, dish.image_url);
+              return (
+                <article
+                  className={`zw-home-dish${imageUrl ? ' has-photo' : ''}`}
+                  key={dish.dish_id}
+                >
+                  {imageUrl && <img src={imageUrl} alt={dish.name} />}
+                  <div>
+                    <span>
+                      {dish.category_label} / {dish.cooking_method_label}
+                    </span>
+                    <h3>{dish.name}</h3>
+                    <Link to="/admin/dishes">
+                      {imageUrl ? (
+                        '查看菜品'
+                      ) : (
+                        <>
+                          <PlusOutlined /> 添加菜品照片
+                        </>
+                      )}
+                    </Link>
+                  </div>
+                  <span className="zw-dish-watermark" aria-hidden="true">
+                    {dish.category_label.slice(0, 1)}
                   </span>
-                  <h3>{dish.name}</h3>
-                  <Link to="/admin/dishes">
-                    {dish.image_url ? (
-                      '查看菜品'
-                    ) : (
-                      <>
-                        <PlusOutlined /> 添加菜品照片
-                      </>
-                    )}
-                  </Link>
-                </div>
-                <span className="zw-dish-watermark" aria-hidden="true">
-                  {dish.category_label.slice(0, 1)}
-                </span>
-              </article>
-            ))}
+                </article>
+              );
+            })}
           </div>
         ) : (
           <div className="zw-home-empty">

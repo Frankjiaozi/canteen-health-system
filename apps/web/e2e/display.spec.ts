@@ -39,14 +39,18 @@ test('公开大屏展示膳食指南对照条与合规说明', async ({ page }) 
 test('公开大屏可以切换早餐、午餐和晚餐', async ({ page }) => {
   await page.goto('/display?meal=BREAKFAST');
 
-  for (const mealType of ['BREAKFAST', 'LUNCH', 'DINNER']) {
+  for (const [mealType, mealName] of [
+    ['BREAKFAST', '早餐'],
+    ['LUNCH', '午餐'],
+    ['DINNER', '晚餐'],
+  ] as const) {
     const board = await (
       await page.request.get(`/api/v1/public/board/today?meal_type=${mealType}`)
     ).json();
-    await page.getByRole('button', { name: board.meal_label }).click();
+    await page.getByRole('button', { name: mealName, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`meal=${mealType}`));
     await expect(
-      page.getByText(`${board.meal_label} · 就餐 ${board.diner_count ?? '—'} 人次`),
+      page.getByText(`${mealName} · 就餐 ${board.diner_count ?? '—'} 人次`),
     ).toBeVisible();
     if (board.dishes.length > 0) {
       await expect(page.getByText(board.dishes[0].name).first()).toBeVisible();

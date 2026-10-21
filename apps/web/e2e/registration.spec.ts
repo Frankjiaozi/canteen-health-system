@@ -13,15 +13,15 @@ test('注册、刷新、退出并重新登录，保留原访问目标', async ({
   await page.getByLabel('登录名', { exact: true }).fill(username);
   await page.getByLabel('密码', { exact: true }).fill(password);
   await page.getByLabel('确认密码', { exact: true }).fill('Different2026');
-  await page.getByRole('button', { name: '注册并登录' }).click();
+  await page.getByRole('button', { name: '注册并进入工作台' }).click();
   await expect(page.getByText('两次输入的密码不一致')).toBeVisible();
   await page.getByLabel('确认密码', { exact: true }).fill(password);
-  await page.getByRole('button', { name: '注册并登录' }).click();
+  await page.getByRole('button', { name: '注册并进入工作台' }).click();
   await expect(page).toHaveURL(/\/admin\/ingredients$/);
-  await expect(page.getByText('注册流程测试')).toBeVisible();
+  await expect(page.getByText('注册流程测试').first()).toBeVisible();
   await expect(page.getByText('食堂录入员', { exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByText('注册流程测试')).toBeVisible();
+  await expect(page.getByText('注册流程测试').first()).toBeVisible();
   await page.getByRole('button', { name: '退出' }).click();
   await expect(page).toHaveURL(/\/login$/);
   await page.goto('/admin');
@@ -40,7 +40,7 @@ test('用户名冲突显示提示且不切换登录状态', async ({ page }) => 
   await page.getByLabel('登录名', { exact: true }).fill('recorder');
   await page.getByLabel('密码', { exact: true }).fill(password);
   await page.getByLabel('确认密码', { exact: true }).fill(password);
-  await page.getByRole('button', { name: '注册并登录' }).click();
+  await page.getByRole('button', { name: '注册并进入工作台' }).click();
   await expect(page.getByText('该登录名已被使用，请换一个')).toBeVisible();
   await expect(page).toHaveURL(/\/register$/);
   await page.getByRole('link', { name: '返回登录' }).click();

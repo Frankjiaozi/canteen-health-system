@@ -3,6 +3,7 @@ import { App } from 'antd';
 import { forecastKeys } from '@/features/forecast/hooks/useForecast';
 import { recommendationKeys } from '@/features/recommendation/hooks/useRecommendation';
 import { ApiError } from '@/shared/api/errors';
+import { notifyMenuDataChanged } from '@/shared/hooks/useMenuDataRevision';
 import {
   generateDailyMenuPlan,
   generateMenuPlan,
@@ -89,6 +90,7 @@ export function useSyncMenuPlan() {
       await queryClient.invalidateQueries({ queryKey: ['collection'] });
       await queryClient.invalidateQueries({ queryKey: ['public'] });
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      notifyMenuDataChanged();
       void message.success(result.message, 6);
     },
     onError: (error: unknown) => {
@@ -132,6 +134,7 @@ export function useSyncDailyMenuPlan() {
       await queryClient.invalidateQueries({ queryKey: ['collection'] });
       await queryClient.invalidateQueries({ queryKey: ['public'] });
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      if (outcomes.some((row) => row.ok)) notifyMenuDataChanged();
       const ok = outcomes.filter((row) => row.ok).length;
       const failed = outcomes.length - ok;
       const text = `已同步 ${ok} 餐${failed ? `，${failed} 餐未同步` : ''}`;
@@ -162,7 +165,7 @@ export function useGenerateMenuPlanBatch() {
 }
 
 /**
- * 一键导入当日菜单。
+ * 批量采纳并同步当日菜单。
  *
  * 这一步会写菜单日、算营养，所以采集页、大屏、看板都要重新取数——
  * 尤其采集页：不刷新的话，用户切过去看到的还是「还没有确认菜单」的旧数据。
@@ -185,6 +188,7 @@ export function useSyncMenuPlanBatch() {
       await queryClient.invalidateQueries({ queryKey: ['collection'] });
       await queryClient.invalidateQueries({ queryKey: ['public'] });
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      if (result.imported > 0) notifyMenuDataChanged();
       void message.success(result.message, 8);
     },
     onError: (error: unknown) => {

@@ -196,7 +196,44 @@
 .zw-menu-overview {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
+}
+
+.zw-menu-pager {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 38px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 4px;
+}
+
+.zw-menu-pager .ant-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #e5e1d6;
+  background: rgba(255, 252, 246, 0.78);
+  color: #5f705d;
+  box-shadow: 0 6px 18px -16px rgba(54, 65, 44, 0.45);
+}
+
+.zw-menu-pager .ant-btn:not(:disabled):hover {
+  border-color: #aebda7;
+  background: #f3f6ee;
+  color: #405a43;
+}
+
+.zw-menu-page-indicator {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+  color: var(--zw-ink);
+}
+
+.zw-menu-page-indicator small {
+  color: #909589;
+  font-size: 11px;
+  letter-spacing: 0.06em;
 }
 
 /* 真实指标、菜单与助手组成有主次的工作台。 */
@@ -469,58 +506,69 @@
 }
 
 .zw-menu-day.ant-card {
-  border: 1px solid var(--zw-line);
-  background: var(--zw-card);
-  box-shadow: 0 1px 2px rgba(34, 49, 42, 0.03);
+  border: 1px solid #ffffffa8;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(218, 228, 211, 0.28), transparent 28%),
+    rgba(255, 252, 246, 0.94);
+  box-shadow: 0 12px 36px -26px rgba(64, 70, 48, 0.34);
 }
 
 .zw-menu-day.ant-card .ant-card-head {
-  min-height: 50px;
-  padding-inline: 22px;
-  border-bottom: 1px solid var(--zw-line-soft);
+  min-height: 62px;
+  padding-inline: 24px;
+  border-bottom: 1px solid #ece8dc;
+  background: linear-gradient(90deg, rgba(237, 240, 228, 0.58), transparent 42%);
 }
 
 .zw-menu-day.ant-card .ant-card-head-title {
-  padding-block: 13px;
-}
-
-.zw-menu-day.is-today .ant-card-head {
-  background: linear-gradient(90deg, rgba(223, 232, 220, 0.32), transparent 46%);
+  padding-block: 16px;
 }
 
 .zw-menu-day-title {
   display: flex;
-  align-items: baseline;
-  gap: 10px;
+  align-items: center;
+  gap: 12px;
 }
 
 .zw-menu-day-label {
   color: var(--zw-ink);
   font-family: var(--zw-serif);
-  font-size: 18px;
+  font-size: 23px;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
 }
 
 .zw-menu-day-date {
-  color: var(--zw-muted);
-  font-size: 11.5px;
-  letter-spacing: 0.06em;
+  padding: 4px 10px;
+  border: 1px solid #e5e2d7;
+  border-radius: 999px;
+  background: #f7f3e9;
+  color: #7c8376;
+  font-size: 12px;
+  letter-spacing: 0.08em;
   font-variant-numeric: tabular-nums;
 }
 
 .zw-menu-meals {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  padding: 18px;
+  background:
+    linear-gradient(180deg, rgba(244, 239, 228, 0.72), rgba(250, 247, 239, 0.9)),
+    radial-gradient(circle at 85% 100%, rgba(196, 211, 190, 0.18), transparent 34%);
 }
 
 .zw-menu-meal {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
-  padding: 16px 22px 20px;
-}
-
-.zw-menu-meal + .zw-menu-meal {
-  border-left: 1px solid var(--zw-line-soft);
+  padding: 17px 18px 15px;
+  border: 1px solid #ebe7dc;
+  border-radius: 18px;
+  background: rgba(255, 253, 248, 0.88);
+  box-shadow: 0 8px 24px -22px rgba(54, 65, 44, 0.38);
 }
 
 .zw-menu-meal-head {
@@ -528,9 +576,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 4px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--zw-line-soft);
+  margin-bottom: 8px;
+  padding-bottom: 13px;
+  border-bottom: 1px solid #ece8de;
 }
 
 .zw-menu-meal-name {
@@ -544,17 +592,20 @@
   margin: 0;
   color: var(--zw-ink);
   font-family: var(--zw-serif);
-  font-size: 16px;
+  font-size: 19px;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
   white-space: nowrap;
 }
 
 .zw-menu-status {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  color: var(--zw-muted);
+  gap: 7px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #f2efe6;
+  color: #737a6b;
   font-size: 11px;
   letter-spacing: 0.04em;
   white-space: nowrap;
@@ -569,10 +620,12 @@
 
 .zw-menu-status.is-actual {
   color: var(--zw-green);
+  background: #edf2e9;
 }
 
 .zw-menu-status.is-planned {
   color: var(--zw-amber);
+  background: #f6efe2;
 }
 
 .zw-menu-status.is-off i {
@@ -580,10 +633,46 @@
 }
 
 .zw-menu-diner {
-  color: var(--zw-muted);
-  font-size: 11.5px;
+  color: #697469;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.zw-menu-package-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.zw-menu-package-group + .zw-menu-package-group {
+  padding-top: 2px;
+}
+
+.zw-menu-package-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 5px;
+  color: #6d7b65;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.zw-menu-package-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #efebe2;
+}
+
+.zw-menu-package-label small {
+  order: 2;
+  color: #999b90;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0;
 }
 
 .zw-menu-dishes {
@@ -595,12 +684,11 @@
 }
 
 .zw-menu-dish {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 4px 14px;
-  flex-wrap: wrap;
-  padding: 8px 0;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 0;
 }
 
 .zw-menu-dish + .zw-menu-dish {
@@ -609,30 +697,42 @@
 
 .zw-menu-dish-name {
   color: var(--zw-ink);
-  font-size: 13.5px;
+  font-size: 14px;
+  font-weight: 500;
   line-height: 1.5;
 }
 
 .zw-menu-dish-meta {
   display: flex;
-  align-items: baseline;
-  gap: 10px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
   margin-left: auto;
   color: var(--zw-muted);
-  font-size: 11.5px;
+  font-size: 11px;
   line-height: 1.5;
   text-align: right;
   white-space: nowrap;
 }
 
 .zw-menu-dish-servings {
-  color: var(--zw-ink-soft);
+  color: #4f604f;
+  font-size: 12.5px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
+}
+
+.zw-menu-dish .zw-dish-image.is-compact {
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(95, 118, 87, 0.08);
+  border-radius: 12px;
+  background: radial-gradient(ellipse at 35% 20%, #eff2e9, #e5eadf);
 }
 
 .zw-menu-empty {
   margin: 0;
-  padding: 12px 0 6px;
+  padding: 22px 0 10px;
   color: var(--zw-muted);
   font-size: 12px;
   letter-spacing: 0.04em;
@@ -651,13 +751,13 @@
 @media (max-width: 900px) {
   .zw-menu-meals {
     grid-template-columns: 1fr;
+    padding: 14px;
   }
   .zw-menu-meal {
-    padding: 14px 18px 16px;
+    padding: 15px 16px;
   }
   .zw-menu-meal + .zw-menu-meal {
-    border-top: 1px solid var(--zw-line-soft);
-    border-left: 0;
+    border-top: 0;
   }
   .zw-menu-day.ant-card .ant-card-head {
     padding-inline: 18px;

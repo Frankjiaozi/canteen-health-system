@@ -634,7 +634,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 一键导入这几天的当日菜单 */
+        /** 批量采纳并同步这几天的当日菜单 */
         post: operations["batch_sync_api_v1_menu_plan_batch_sync_post"];
         delete?: never;
         options?: never;

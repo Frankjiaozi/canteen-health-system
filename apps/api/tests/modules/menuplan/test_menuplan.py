@@ -875,6 +875,34 @@ def test_batch_sync_imports_every_generated_day(as_recorder: TestClient) -> None
         assert len(planned) == planned_counts[offset], "重复导入不该把菜单越叠越多"
 
 
+def test_batch_import_appears_in_dashboard_menu_overview(as_recorder: TestClient) -> None:
+    """批量生成并采纳后，数据看板的今明菜单必须立即读到同一份菜单。"""
+    target = today_local() + timedelta(days=1)
+
+    generated = _batch_generate(as_recorder, target, target)
+    assert generated.status_code == 200, generated.text
+    row = generated.json()["rows"][0]
+    assert row["status"] == "GENERATED"
+
+    synced = _batch_sync(as_recorder, target, target)
+    assert synced.status_code == 200, synced.text
+    assert synced.json()["rows"][0]["status"] == "IMPORTED"
+
+    overview = as_recorder.get("/api/v1/dashboard/menus")
+    assert overview.status_code == 200, overview.text
+    tomorrow = next(day for day in overview.json()["days"] if day["date"] == target.isoformat())
+    lunch = next(meal for meal in tomorrow["meals"] if meal["meal_type"] == "LUNCH")
+
+    assert lunch["status"] == "PLANNED"
+    assert {dish["name"] for dish in lunch["dishes"]} == set(row["dish_names"])
+
+    board = as_recorder.get(
+        BOARD,
+        params={"on_date": target.isoformat(), "meal_type": "LUNCH"},
+    ).json()
+    assert {dish["name"] for dish in board["dishes"]} == set(row["dish_names"])
+
+
 def test_batch_sync_reports_days_without_a_menu(as_recorder: TestClient) -> None:
     """没生成过的日子要说明白，而不是静默跳过。"""
     start, end = _fresh_range(60, 2)

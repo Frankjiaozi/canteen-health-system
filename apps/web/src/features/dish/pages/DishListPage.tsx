@@ -34,6 +34,7 @@ import '../dish.css';
 import { DishFormDrawer } from '../components/DishFormDrawer';
 import { ImportDrawer } from '../components/ImportDrawer';
 import { useDeactivateDish, useDishDetail, useDishList } from '../hooks/useDishes';
+import { defaultDishImageUrl } from '../lib/defaultImage';
 import { formatNutrient } from '@/features/ingredient/lib/query';
 import type { Dish, DishCategory } from '../types';
 import { DishDetailDrawer } from '../components/DishDetailDrawer';
@@ -304,7 +305,7 @@ export function DishListPage() {
                         icon={<UploadOutlined />}
                         onClick={() => openEdit(dish, 'image')}
                       >
-                        {dish.image_url ? '更换图片' : '上传图片'}
+                        {dish.image_url || defaultDishImageUrl(dish.name) ? '更换图片' : '上传图片'}
                       </Button>
                     )}
                   </div>

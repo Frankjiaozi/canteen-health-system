@@ -716,7 +716,7 @@ def sync_batch(
             MenuPlanBatchDay(
                 date=day,
                 status="IMPORTED",
-                status_label="已导入",
+                status_label="已采纳",
                 suggestion_id=str(suggestion_id),
                 dish_count=result.dish_count,
                 nutrition_rows=result.nutrition_rows,
@@ -727,7 +727,7 @@ def sync_batch(
     skipped = sum(1 for row in rows if row.status == "SKIPPED")
     failed = sum(1 for row in rows if row.status == "FAILED")
     logger.info(
-        "批量导入当日菜单：%s ~ %s %s，导入 %d 天，跳过 %d 天，失败 %d 天",
+        "批量采纳并同步当日菜单：%s ~ %s %s，采纳 %d 天，跳过 %d 天，失败 %d 天",
         start_date,
         end_date,
         meal_type.label,
@@ -746,9 +746,9 @@ def sync_batch(
         failed=failed,
         rows=rows,
         message=(
-            f"{len(rows)} 天里导入 {imported} 天"
+            f"{len(rows)} 天里采纳 {imported} 天"
             + (f"，跳过 {skipped} 天" if skipped else "")
             + (f"，{failed} 天失败" if failed else "")
-            + "。这些天的每日采集已经按菜单勾好，公开大屏也看得到了。"
+            + "。这些天已同步至当日数据，采集页、公开大屏和看板已更新。"
         ),
     )

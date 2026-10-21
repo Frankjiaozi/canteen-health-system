@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
+import { useMenuDataRevision } from '@/shared/hooks/useMenuDataRevision';
 import { fetchPublicBoard } from '../api/displayApi';
 import type { DisplayMeal } from '../lib/meal';
 
@@ -12,11 +13,12 @@ import type { DisplayMeal } from '../lib/meal';
 export function usePublicBoard(onDate?: string, mealType?: DisplayMeal) {
   const [params] = useSearchParams();
   const target = onDate ?? params.get('date') ?? undefined;
+  const revision = useMenuDataRevision();
 
   return useQuery({
-    queryKey: ['public', 'board', target ?? 'today', mealType ?? 'auto'],
+    queryKey: ['public', 'board', target ?? 'today', mealType ?? 'auto', revision],
     queryFn: () => fetchPublicBoard(target, mealType),
     retry: 2,
-    refetchInterval: 5 * 60_000,
+    refetchInterval: 60_000,
   });
 }

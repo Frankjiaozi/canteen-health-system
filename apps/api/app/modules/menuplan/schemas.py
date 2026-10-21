@@ -209,7 +209,7 @@ class MenuPlanBatchDay(BaseModel):
     """批量排菜单里的一天。"""
 
     date: date
-    #: GENERATED 已生成 / IMPORTED 已导入 / SKIPPED 跳过 / FAILED 排不出来
+    #: GENERATED 已生成 / IMPORTED 已采纳 / SKIPPED 跳过 / FAILED 排不出来
     status: str
     status_label: str
     reason: str | None = None

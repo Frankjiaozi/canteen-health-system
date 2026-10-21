@@ -65,7 +65,7 @@ export async function generateMenuPlanBatch(
   );
 }
 
-/** 一键导入：把区间内每一天最近生成的那一版菜单写进当天的当日数据。 */
+/** 批量采纳：把区间内每一天最近生成的那一版菜单写进当天的当日数据。 */
 export async function syncMenuPlanBatch(
   startDate: string,
   endDate: string,

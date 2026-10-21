@@ -181,7 +181,9 @@ def batch_generate(
     )
 
 
-@router.post("/batch/sync", response_model=MenuPlanBatchResult, summary="一键导入这几天的当日菜单")
+@router.post(
+    "/batch/sync", response_model=MenuPlanBatchResult, summary="批量采纳并同步这几天的当日菜单"
+)
 def batch_sync(
     payload: MenuPlanBatchSyncRequest,
     start_date: date = Query(description="开始日期"),

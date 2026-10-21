@@ -3,7 +3,7 @@ import dayjs from 'dayjs';
 import { loginAs, saveCollection } from './helpers';
 
 /**
- * 批量排菜单 + 一键导入当日菜单。
+ * 批量排菜单 + 采纳并同步当日菜单。
  *
  * 日期挑在 +90 天往后：别的用例占着明天、+2、+3、+20、+41 天，
  * 而批量排菜单会一次写好几天，落在别人身上就是互相覆盖。
@@ -14,7 +14,7 @@ const dates = Array.from({ length: DAYS }, (_, index) =>
   start.add(index, 'day').format('YYYY-MM-DD'),
 );
 
-test('批量排一段菜单并一键导入当日菜单', async ({ page }) => {
+test('批量排一段菜单并采纳同步当日菜单', async ({ page }) => {
   await loginAs(page, 'recorder');
   // 把「最近一次采集的人次」铺成与预测份数同一量级，这条用例只验批量与导入
   await saveCollection(page, start.subtract(1, 'day').format('YYYY-MM-DD'));
@@ -42,12 +42,12 @@ test('批量排一段菜单并一键导入当日菜单', async ({ page }) => {
 
   // 导入之前，界面上这几行是「已生成」——生成只算出来，还没写进当日数据
 
-  await page.getByRole('button', { name: '一键导入当日菜单' }).click();
-  await page.getByRole('button', { name: '确认导入' }).click();
+  await page.getByRole('button', { name: '采纳并同步' }).click();
+  await page.getByRole('button', { name: '确认采纳' }).click();
   await expect(
-    page.locator('.ant-alert-title').filter({ hasText: `${DAYS} 天里已导入 ${DAYS} 天` }),
+    page.locator('.ant-alert-title').filter({ hasText: `${DAYS} 天里已采纳 ${DAYS} 天` }),
   ).toBeVisible();
-  await expect(page.getByText('已导入').first()).toBeVisible();
+  await expect(page.getByText('已采纳').first()).toBeVisible();
 
   // 与服务端对账：每一天的采集页都按计划勾好了
   for (const date of dates) {
