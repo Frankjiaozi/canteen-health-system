@@ -403,7 +403,8 @@ def test_calibration_residual_is_written_back_and_cleared(
     这一条把「校准的校验结论」和「预测用不用这天」串起来：用量对不上的日子
     不适合进预测的历史序列，但它的数据仍然保留，等录入员改对之后标记会消失。
     """
-    target = _fresh_date(db_session)
+    # 放到种子历史窗口之外，确保拟合样本只来自本用例构造的匹配历史。
+    target = _fresh_date(db_session) + timedelta(days=60)
     ids = _dish_ids(db_session, "土豆炖牛肉", "醋溜白菜")
     assert len(ids) == 2
     per_serving = _prepare_history(db_session, target=target, dish_ids=ids)

@@ -12,7 +12,7 @@ from app.modules.dish.models import Dish
 from app.modules.menu.models import MenuDay
 from app.modules.nutrition import service
 from app.modules.nutrition.models import DishNutrition
-from app.shared.enums import NutrientCaliber, NutritionValueType
+from app.shared.enums import MealType, NutrientCaliber, NutritionValueType
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -20,7 +20,9 @@ from tests.helpers import today_local
 
 
 def _latest_menu_day(session: Session) -> MenuDay:
-    menu_day = session.scalar(select(MenuDay).where(MenuDay.date == today_local()))
+    menu_day = session.scalar(
+        select(MenuDay).where(MenuDay.date == today_local(), MenuDay.meal_type == MealType.LUNCH)
+    )
     assert menu_day is not None, "需要先执行 pnpm db:seed 准备今天的数据"
     return menu_day
 

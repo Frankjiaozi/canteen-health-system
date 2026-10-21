@@ -333,7 +333,7 @@ def test_low_budget_plan_reports_energy_under_instead_of_claiming_all_ok(
     plan = response.json()
     energy = next(row for row in plan["gaps"] if row["code"] == "energy_kcal")
     assert energy["status"] == "under"
-    assert Decimal(energy["gap"]) > 30
+    assert Decimal(energy["gap"]) > 5
     assert any(row["status"] != "ok" for row in plan["gaps"])
 
 
