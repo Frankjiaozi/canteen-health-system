@@ -61,25 +61,35 @@ def load_menu_items(
 
 def load_waste_rows(
     session: Session, *, start: date, end: date
-) -> list[tuple[date, int, str | None]]:
-    """按天汇总出品重量与剩餐重量。
+) -> list[tuple[date, str, str | None]]:
+    """与采集列表一致：整餐实测剩餐总重 / 各菜份数推算的出品重量。
 
-    出品重量由「出餐份数 × 该菜标准份量」推算，剩餐重量取明细里记录的实测值。
+    先按采集单聚合出品重量再关联总重，避免一餐多道菜把剩餐总重重复累计。
+    任意一餐缺测时该日总重为空，不能把部分采集当成完整日数据。
     """
+    produced = (
+        select(
+            DailyLogItem.daily_log_id.label("log_id"),
+            func.sum(DailyLogItem.servings_produced * Dish.standard_serving_g).label("weight"),
+        )
+        .join(Dish, Dish.id == DailyLogItem.dish_id)
+        .group_by(DailyLogItem.daily_log_id)
+        .subquery()
+    )
     rows = session.execute(
         select(
             DailyLog.date,
-            func.sum(DailyLogItem.servings_produced * Dish.standard_serving_g),
-            func.sum(DailyLogItem.leftover_weight_g),
+            func.sum(produced.c.weight),
+            func.sum(DailyLog.leftover_weight_g),
+            func.count(DailyLog.leftover_weight_g),
+            func.count(DailyLog.id),
         )
-        .select_from(DailyLogItem)
-        .join(DailyLog, DailyLog.id == DailyLogItem.daily_log_id)
-        .join(Dish, Dish.id == DailyLogItem.dish_id)
+        .outerjoin(produced, produced.c.log_id == DailyLog.id)
         .where(DailyLog.date >= start, DailyLog.date <= end)
         .group_by(DailyLog.date)
         .order_by(DailyLog.date)
     ).all()
-    return [(row[0], int(row[1] or 0), None if row[2] is None else str(row[2])) for row in rows]
+    return [(row[0], str(row[1] or 0), str(row[2]) if row[3] == row[4] else None) for row in rows]
 
 
 def load_day_per_capita_totals(

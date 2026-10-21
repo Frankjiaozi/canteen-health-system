@@ -1,0 +1,128 @@
+.zw-account-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: auto 10px 4px;
+  padding: 13px 10px;
+  width: calc(100% - 20px);
+  border: 1px solid #e0e3d3;
+  border-radius: 13px;
+  background: #fbfaf2e6;
+  text-align: left;
+  cursor: pointer;
+  color: #3f5138;
+}
+.zw-account-entry > span:last-child {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.zw-account-entry strong {
+  font-size: 12px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.zw-account-entry small {
+  font-size: 10px;
+  color: #88917d;
+}
+.zw-account-avatar.ant-avatar {
+  background: #dce5d3;
+  color: #556d49;
+  flex-shrink: 0;
+}
+.zw-account-avatar.role-school_admin {
+  background: #e2e6ee;
+  color: #606f8c;
+}
+.zw-account-avatar.role-recorder {
+  background: #ebe2d2;
+  color: #937b54;
+}
+.zw-admin-nav > .zw-account-entry {
+  z-index: 2;
+}
+.zw-admin-nav .zw-admin-nav-foot {
+  display: none;
+}
+.zw-account-profile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0 18px;
+}
+.zw-account-profile h2 {
+  margin: 6px 0 0;
+  font-size: 22px;
+  color: #3c5237;
+}
+.zw-account-profile > span:not(.ant-avatar):not(.ant-tag) {
+  color: #8a9181;
+  font-size: 13px;
+}
+.zw-avatar-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+.zw-account-note {
+  font-size: 11px;
+  color: #969b8c;
+  line-height: 1.8;
+  margin: 15px 0 26px;
+}
+.zw-account-permissions {
+  margin-bottom: 24px;
+}
+.zw-account-permissions h3 {
+  font-size: 15px;
+}
+.zw-account-permissions dl > div {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid #eeeee4;
+  gap: 10px;
+  font-size: 12px;
+}
+.zw-account-permissions dt {
+  color: #7c8771;
+}
+.zw-account-permissions dd {
+  margin: 0;
+  color: #526b45;
+}
+.zw-account-permissions p {
+  font-size: 11px;
+  color: #8e9583;
+  line-height: 1.8;
+}
+.zw-account-heading-button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+  text-align: left;
+}
+.zw-role-notice {
+  font-size: 11px;
+  color: #7c8870;
+  background: #f0f3e9;
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 991px) {
+  .zw-reference-shell .zw-admin-user {
+    display: flex;
+  }
+  .zw-reference-shell .zw-admin-user-copy {
+    display: none;
+  }
+}

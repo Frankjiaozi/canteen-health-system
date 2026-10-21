@@ -34,6 +34,7 @@ async function createDishWithRecipe(page: Page, name: string, riceGrams: string)
 
 /** 按名称检索菜品，返回那一行。 */
 async function findDishRow(page: Page, name: string) {
+  await page.getByText('列表', { exact: true }).click();
   const search = page.getByPlaceholder('按名称搜索');
   await search.fill(name);
   await search.press('Enter');
@@ -59,7 +60,7 @@ test('菜品列表可按名称检索，并展示配方算出的单份营养', as
   await loginAs(page, 'recorder');
   await page.goto('/admin/dishes');
 
-  await expect(page.getByText(/共 \d+ 道/)).toBeVisible();
+  await expect(page.locator('.zw-page-toolbar-meta')).toContainText(/共 \d+ 道/);
 
   // 不指望某道菜正好落在第一页：同一个库里跑一次测试就会多出几道自己造的菜，
   // 菜品只增不减，靠翻页找人迟早会失手

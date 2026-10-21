@@ -14,10 +14,10 @@ export function formatPercent(value: string | null | undefined, digits = 1): str
 }
 
 // 截断到指定小数位后转数字，供图表使用（ECharts 需要数值而不是字符串）
-export function toNumber(value: string | null | undefined, digits = 2): number {
-  if (value === null || value === undefined || value === '') return 0;
+export function toNumber(value: string | null | undefined, digits = 2): number | null {
+  if (value === null || value === undefined || value === '') return null;
   const parsed = Number(value);
-  if (Number.isNaN(parsed)) return 0;
+  if (!Number.isFinite(parsed)) return null;
   return Number(parsed.toFixed(digits));
 }
 

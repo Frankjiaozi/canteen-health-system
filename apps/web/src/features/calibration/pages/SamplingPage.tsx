@@ -1,10 +1,11 @@
-import { Button, Card, DatePicker, Segmented, Space, Table, Tag, Typography } from 'antd';
+import { Button, DatePicker, Segmented, Space, Table, Tag, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useState } from 'react';
 import { canWriteBusinessData } from '@/features/auth/lib/permissions';
 import { useCurrentUser } from '@/features/auth/hooks/useAuth';
 import { useEnumOptions } from '@/shared/hooks/useEnumOptions';
 import { useDateMealSelection } from '@/shared/hooks/useDateMealSelection';
+import { PagePanel } from '@/shared/components/PagePanel';
 import { SampleDrawer } from '../components/SampleDrawer';
 import { useRunDailyClosure, useSamplingCandidates } from '../hooks/useCalibration';
 import { NUTRIENT_ROWS, formatNumber, hasThreeValues } from '../lib/compare';
@@ -24,10 +25,9 @@ export function SamplingPage() {
   const sampledCount = dishes.filter((dish) => dish.sampled !== null).length;
 
   return (
-    <Card
-      title="抽样纠偏"
-      extra={
-        <Space>
+    <PagePanel
+      filters={
+        <>
           <DatePicker
             value={dayjs(onDate)}
             allowClear={false}
@@ -41,20 +41,22 @@ export function SamplingPage() {
               label: option.label,
             }))}
           />
-          {canWrite ? (
-            <Button
-              loading={closureMutation.isPending}
-              onClick={() => closureMutation.mutate(mealType)}
-            >
-              重跑当日校准
-            </Button>
-          ) : null}
-        </Space>
+        </>
+      }
+      actions={
+        canWrite ? (
+          <Button
+            loading={closureMutation.isPending}
+            onClick={() => closureMutation.mutate(mealType)}
+          >
+            重跑当日校准
+          </Button>
+        ) : undefined
       }
     >
-      <Typography.Paragraph type="secondary">
-        每周挑三到五道菜称重实测。实测只修正**调味料的贡献**，食材部分来自配方、保持不变；
-        三个值（理论 / 校准 / 实测）并存，便于对照与回溯。
+      <Typography.Paragraph className="zw-page-intro" type="secondary">
+        每周挑三到五道菜称重实测。实测只修正调味料的贡献，食材部分来自配方、保持不变； 三个值（理论
+        / 校准 / 实测）并存，便于对照与回溯。
         {candidatesQuery.data && candidatesQuery.data.recent_corrections.length > 0 ? (
           <> 当前已有 {sampledCount} 道菜记过实测，最近一次修正见下表。</>
         ) : null}
@@ -139,6 +141,6 @@ export function SamplingPage() {
           onClose={() => setSampling(null)}
         />
       ) : null}
-    </Card>
+    </PagePanel>
   );
 }

@@ -13,8 +13,13 @@ test('公开大屏不需要登录就能看到今日菜单与营养', async ({ pa
   const board = await (await page.request.get('/api/v1/public/board/today?meal_type=LUNCH')).json();
   expect(board.dishes.length).toBeGreaterThan(0);
   const first = board.dishes[0];
+  const firstValue = Number(first.nutrients[0].value);
+  const displayedValue =
+    first.nutrients[0].unit === '毫克'
+      ? firstValue.toFixed(0)
+      : firstValue.toFixed(1).replace(/\.0$/, '');
   await expect(page.getByText(first.name).first()).toBeVisible();
-  await expect(page.getByText(first.nutrients[0].value).first()).toBeVisible();
+  await expect(page.getByText(displayedValue).first()).toBeVisible();
   // 数值来自哪一层必须写在卡面上：抽样实测和配方推算在大屏上长得一样，
   // 但两者的说服力完全不同，不标出来等于把口径藏起来了
   expect(first.value_type_label).toBeTruthy();

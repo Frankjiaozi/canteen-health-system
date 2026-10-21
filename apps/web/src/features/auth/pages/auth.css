@@ -1,0 +1,96 @@
+.zw-login.zw-login-panel {
+  box-sizing: border-box;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  background: #fffcf6;
+}
+
+.zw-login-form-wrap {
+  width: 100%;
+  max-width: 440px;
+  margin: auto;
+}
+
+.zw-login-form-wrap h2 {
+  margin: 14px 0 8px;
+  color: var(--zw-ink);
+  font-family: var(--zw-serif);
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.zw-login-lead {
+  margin: 0 0 30px;
+  color: var(--zw-muted);
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.zw-login-form-wrap .ant-form-item {
+  margin-bottom: 18px;
+}
+
+.zw-register-form .ant-form-item {
+  margin-bottom: 14px;
+}
+
+.zw-register-form .ant-form-item-extra {
+  margin-top: 5px;
+  color: var(--zw-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.zw-login-form-wrap .ant-form-item-label > label {
+  color: var(--zw-ink-soft);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.zw-login-form-wrap .ant-input-affix-wrapper {
+  background: #fbf8f0;
+  padding-block: 9px;
+}
+
+.zw-login-form-wrap .ant-input-affix-wrapper input {
+  background: transparent;
+}
+
+.zw-login-submit.ant-btn {
+  height: 44px;
+  margin-top: 4px;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+}
+
+.zw-login-register {
+  margin: 22px 0 0;
+  color: var(--zw-muted);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.zw-login-register a {
+  margin-left: 4px;
+  font-weight: 500;
+}
+.zw-login-form-wrap input:-webkit-autofill,
+.zw-login-form-wrap input:-webkit-autofill:hover,
+.zw-login-form-wrap input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #fbf8f0 inset;
+  -webkit-text-fill-color: var(--zw-ink);
+  caret-color: var(--zw-ink);
+}
+
+@media (max-width: 480px) {
+  .zw-login.zw-login-panel {
+    padding: 40px 24px;
+  }
+  .zw-login-form-wrap h2 {
+    font-size: 30px;
+  }
+}

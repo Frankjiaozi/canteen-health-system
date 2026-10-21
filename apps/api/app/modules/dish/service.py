@@ -17,6 +17,7 @@ from app.core.errors import BusinessRuleError, ConflictError, NotFoundError
 from app.core.logging import get_logger
 from app.modules.audit import service as audit_service
 from app.modules.dish import repository
+from app.modules.dish.images import image_url
 from app.modules.dish.models import Dish
 from app.modules.dish.repository import IngredientLineValues, SeasoningLineValues
 from app.modules.dish.schemas import (
@@ -49,6 +50,7 @@ ENTITY_TYPE = "dish"
 def to_read(dish: Dish, nutrition: NutritionSummary | None = None) -> DishRead:
     return DishRead(
         id=dish.id,
+        image_url=image_url(dish.id),
         name=dish.name,
         category=dish.category,
         category_label=dish.category.label,

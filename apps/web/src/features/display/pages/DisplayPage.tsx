@@ -17,20 +17,20 @@ import {
   PACKAGE_OPTIONS,
   type DisplayPackage,
 } from '../lib/packages';
-import { describeTarget, formatActual } from '../lib/standards';
+import { describeStatus, describeTarget, formatActual } from '../lib/standards';
 import type { NutrientValue, PublicDishCard, StandardComparison } from '../types';
 
 const COLORS = {
-  ink: '#20332d',
-  green: '#315c4c',
-  subtle: '#677a70',
-  muted: '#7a8a7e',
-  line: '#dce5de',
-  card: 'rgba(255, 255, 255, 0.86)',
-  cardBorder: '1px solid rgba(49, 92, 76, 0.14)',
-  cardShadow: '0 14px 38px rgba(49, 92, 76, 0.08)',
-  warning: '#a8711e',
-  error: '#b5473a',
+  ink: '#22312a',
+  green: '#2f5a48',
+  subtle: '#5f7166',
+  muted: '#647268',
+  line: '#e3dfd2',
+  card: 'rgba(255, 253, 248, 0.9)',
+  cardBorder: '1px solid rgba(47, 90, 72, 0.14)',
+  cardShadow: '0 14px 38px rgba(34, 49, 42, 0.07)',
+  warning: '#b07b32',
+  error: '#ad4f3e',
 } as const;
 
 export function DisplayPage() {
@@ -278,15 +278,25 @@ function Header({ date, mealLabel, dinerCount, loading, isToday }: HeaderProps) 
       }}
     >
       <div>
-        <div style={{ fontSize: 30, fontWeight: 600, letterSpacing: 2, color: COLORS.green }}>
+        <div
+          style={{
+            fontFamily: 'var(--zw-brand)',
+            fontSize: 29,
+            fontWeight: 600,
+            letterSpacing: 3,
+            color: COLORS.green,
+          }}
+        >
           知味 · 校园智慧膳食平台
         </div>
         <div
           style={{
-            fontSize: 52,
-            fontWeight: 700,
+            fontSize: 54,
+            fontWeight: 600,
+            fontFamily: 'var(--zw-serif)',
+            letterSpacing: 2,
             marginTop: 8,
-            lineHeight: 1.1,
+            lineHeight: 1.14,
             color: COLORS.ink,
           }}
         >
@@ -294,8 +304,8 @@ function Header({ date, mealLabel, dinerCount, loading, isToday }: HeaderProps) 
         </div>
       </div>
       <div style={{ textAlign: 'right', lineHeight: 1.6 }}>
-        <div style={{ fontSize: 26 }}>{formatted}</div>
-        <div style={{ fontSize: 22, color: COLORS.subtle }}>
+        <div style={{ fontSize: 25, fontVariantNumeric: 'tabular-nums' }}>{formatted}</div>
+        <div style={{ fontSize: 21, color: COLORS.subtle }}>
           {loading ? '读取中…' : `${mealLabel ?? '未安排'} · 就餐 ${dinerCount ?? '—'} 人次`}
         </div>
       </div>
@@ -350,7 +360,9 @@ function DishCard({ dish }: { dish: PublicDishCard }) {
     >
       <div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-          <span style={{ fontSize: 34, fontWeight: 600 }}>{dish.name}</span>
+          <span style={{ fontSize: 34, fontWeight: 600, fontFamily: 'var(--zw-serif)' }}>
+            {dish.name}
+          </span>
           <span style={{ fontSize: 18, color: COLORS.subtle }}>
             {dish.category_label} · {dish.cooking_method_label}
           </span>
@@ -419,7 +431,7 @@ function NutrientRow({ nutrient }: { nutrient: NutrientValue }) {
       <span style={{ fontSize: 22, color: COLORS.subtle }}>{nutrient.label}</span>
       <span style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
         <span style={{ fontSize: 32, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-          {nutrient.value}
+          {formatNutrientValue(nutrient)}
         </span>
         <span style={{ fontSize: 18, color: COLORS.subtle }}>{nutrient.unit}</span>
       </span>
@@ -439,10 +451,8 @@ function StandardBar({ standards }: { standards: StandardComparison[] }) {
       }}
     >
       {standards.map((standard) => {
-        const over = standard.status === 'over';
-        const unknown = standard.status === 'unknown';
-        const statusColor = over ? COLORS.error : unknown ? COLORS.muted : COLORS.subtle;
-        const statusText = over ? '超过每日上限' : unknown ? '暂无数据' : '参考每日基准';
+        const style = describeStatus(standard.status);
+        const isUnknown = standard.status === 'unknown';
         const label = standard.code === 'FOOD_VARIETY' ? '本餐食物种类' : standard.label;
         return (
           <div
@@ -451,7 +461,6 @@ function StandardBar({ standards }: { standards: StandardComparison[] }) {
               background: COLORS.card,
               border: COLORS.cardBorder,
               boxShadow: COLORS.cardShadow,
-              borderLeft: `4px solid ${statusColor}`,
               borderRadius: 12,
               padding: '14px 18px',
             }}
@@ -460,13 +469,35 @@ function StandardBar({ standards }: { standards: StandardComparison[] }) {
               style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}
             >
               <span style={{ fontSize: 20, color: COLORS.subtle }}>{label}</span>
-              <span style={{ fontSize: 16, color: statusColor }}>{statusText}</span>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 7,
+                  fontSize: 18,
+                  color: style.color,
+                }}
+              >
+                <i
+                  aria-hidden="true"
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: '50%',
+                    background: style.color,
+                    opacity: isUnknown ? 0.5 : 1,
+                  }}
+                />
+                {style.text}
+              </span>
             </div>
             <div style={{ marginTop: 8, display: 'flex', alignItems: 'baseline', gap: 8 }}>
               <span style={{ fontSize: 34, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
                 {formatActual(standard)}
               </span>
-              <span style={{ fontSize: 18, color: COLORS.subtle }}>{standard.unit}</span>
+              {isUnknown ? null : (
+                <span style={{ fontSize: 18, color: COLORS.subtle }}>{standard.unit}</span>
+              )}
             </div>
             <div style={{ fontSize: 16, color: COLORS.muted, marginTop: 4 }}>
               {describeTarget(standard)}
@@ -482,4 +513,12 @@ function formatServing(value: string): string {
   const parsed = Number(value);
   if (Number.isNaN(parsed)) return value;
   return Number.isInteger(parsed) ? String(parsed) : parsed.toFixed(1);
+}
+
+// 公示屏只保留读得出来的精度：克保留一位，毫克取整，避免 7.721 克这种冗余小数
+function formatNutrientValue(nutrient: NutrientValue): string {
+  const parsed = Number(nutrient.value);
+  if (Number.isNaN(parsed)) return nutrient.value;
+  const digits = nutrient.unit === '毫克' ? 0 : 1;
+  return parsed.toFixed(digits).replace(/\.0$/, '');
 }

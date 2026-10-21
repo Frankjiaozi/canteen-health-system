@@ -69,6 +69,19 @@ export async function deactivateDish(id: string): Promise<DishDetail> {
   );
 }
 
+export async function saveDishImage(id: string, file: File | null): Promise<DishDetail> {
+  const body = file ? new FormData() : undefined;
+  if (file && body) body.append('file', file);
+  const response = await fetch(`/api/v1/dishes/${encodeURIComponent(id)}/image`, {
+    method: file ? 'PUT' : 'DELETE',
+    body,
+    credentials: 'include',
+  });
+  const payload: unknown = await response.json();
+  if (!response.ok) throw toApiError(response.status, payload);
+  return payload as DishDetail;
+}
+
 /**
  * 上传 Excel。刻意不走生成的客户端：multipart 的请求体在类型上表达不出来，
  * 与生成的类型较劲不如直接用 fetch——同源、带 Cookie，与别处一模一样。

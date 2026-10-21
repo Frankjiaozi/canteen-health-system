@@ -36,6 +36,7 @@ export function useGenerateMenuPlan() {
     onSuccess: async (result) => {
       // 生成会写推荐记录与份数记录，历史列表与回测都要跟着刷新
       await queryClient.invalidateQueries({ queryKey: recommendationKeys.all });
+      await queryClient.invalidateQueries({ queryKey: ['menu-plan'] });
       await queryClient.invalidateQueries({ queryKey: forecastKeys.all });
       void message.success(
         `已排出 ${result.dishes.length} 道菜，采购 ${result.requirements.length} 项`,
@@ -56,6 +57,7 @@ export function useGenerateDailyMenuPlan() {
     mutationFn: (onDate: string) => generateDailyMenuPlan(onDate),
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: recommendationKeys.all });
+      await queryClient.invalidateQueries({ queryKey: ['menu-plan'] });
       await queryClient.invalidateQueries({ queryKey: forecastKeys.all });
       void message.success(
         `已排出早中晚 ${result.meals.length} 餐，合并采购 ${result.requirements.length} 项`,
@@ -82,6 +84,7 @@ export function useSyncMenuPlan() {
       syncMenuPlan(input.onDate, input.mealType, input.suggestionId),
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: recommendationKeys.all });
+      await queryClient.invalidateQueries({ queryKey: ['menu-plan'] });
       await queryClient.invalidateQueries({ queryKey: forecastKeys.all });
       await queryClient.invalidateQueries({ queryKey: ['collection'] });
       await queryClient.invalidateQueries({ queryKey: ['public'] });
@@ -124,6 +127,7 @@ export function useSyncDailyMenuPlan() {
     },
     onSuccess: async (outcomes) => {
       await queryClient.invalidateQueries({ queryKey: recommendationKeys.all });
+      await queryClient.invalidateQueries({ queryKey: ['menu-plan'] });
       await queryClient.invalidateQueries({ queryKey: forecastKeys.all });
       await queryClient.invalidateQueries({ queryKey: ['collection'] });
       await queryClient.invalidateQueries({ queryKey: ['public'] });
@@ -147,6 +151,7 @@ export function useGenerateMenuPlanBatch() {
       generateMenuPlanBatch(input.startDate, input.endDate, input.mealType),
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: recommendationKeys.all });
+      await queryClient.invalidateQueries({ queryKey: ['menu-plan'] });
       await queryClient.invalidateQueries({ queryKey: forecastKeys.all });
       void message.success(result.message, 8);
     },
@@ -167,10 +172,15 @@ export function useSyncMenuPlanBatch() {
   const { message } = App.useApp();
 
   return useMutation({
-    mutationFn: (input: { startDate: string; endDate: string; mealType: MealType }) =>
-      syncMenuPlanBatch(input.startDate, input.endDate, input.mealType),
+    mutationFn: (input: {
+      startDate: string;
+      endDate: string;
+      mealType: MealType;
+      suggestionIds: Record<string, string>;
+    }) => syncMenuPlanBatch(input.startDate, input.endDate, input.mealType, input.suggestionIds),
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: recommendationKeys.all });
+      await queryClient.invalidateQueries({ queryKey: ['menu-plan'] });
       await queryClient.invalidateQueries({ queryKey: forecastKeys.all });
       await queryClient.invalidateQueries({ queryKey: ['collection'] });
       await queryClient.invalidateQueries({ queryKey: ['public'] });

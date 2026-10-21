@@ -1,7 +1,6 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import {
   Button,
-  Card,
   Drawer,
   Form,
   Input,
@@ -21,6 +20,7 @@ import { useCurrentUser } from '@/features/auth/hooks/useAuth';
 import { canWriteBusinessData } from '@/features/auth/lib/permissions';
 import { formatNutrient } from '@/features/ingredient/lib/query';
 import { useEnumOptions } from '@/shared/hooks/useEnumOptions';
+import { PagePanel } from '@/shared/components/PagePanel';
 import {
   useCreateSeasoning,
   useDeactivateSeasoning,
@@ -170,7 +170,7 @@ export function SeasoningListPage() {
     {
       title: '操作',
       key: 'actions',
-      width: 140,
+      width: 160,
       render: (_, record) =>
         canWrite && record.is_active ? (
           <Space size={4}>
@@ -204,11 +204,34 @@ export function SeasoningListPage() {
   ];
 
   return (
-    <Card
-      title="调味料库"
-      extra={
-        <Space>
-          <Typography.Text type="secondary">共 {listQuery.data?.total ?? 0} 种</Typography.Text>
+    <PagePanel
+      filters={
+        <>
+          <Input.Search
+            allowClear
+            placeholder="按名称搜索"
+            style={{ width: 240 }}
+            onSearch={(value) => {
+              setKeyword(value);
+              setPage(1);
+            }}
+          />
+          <Space size={6}>
+            <Switch
+              size="small"
+              checked={includeInactive}
+              onChange={(checked) => {
+                setIncludeInactive(checked);
+                setPage(1);
+              }}
+            />
+            <Typography.Text type="secondary">包含已停用</Typography.Text>
+          </Space>
+        </>
+      }
+      actions={
+        <>
+          <span className="zw-page-toolbar-meta">共 {listQuery.data?.total ?? 0} 种</span>
           {canWrite ? (
             <Button
               type="primary"
@@ -221,39 +244,16 @@ export function SeasoningListPage() {
               新增调味料
             </Button>
           ) : null}
-        </Space>
+        </>
       }
     >
-      <Space wrap style={{ marginBottom: 16 }}>
-        <Input.Search
-          allowClear
-          placeholder="按名称搜索"
-          style={{ width: 240 }}
-          onSearch={(value) => {
-            setKeyword(value);
-            setPage(1);
-          }}
-        />
-        <Space size={6}>
-          <Switch
-            size="small"
-            checked={includeInactive}
-            onChange={(checked) => {
-              setIncludeInactive(checked);
-              setPage(1);
-            }}
-          />
-          <Typography.Text type="secondary">包含已停用</Typography.Text>
-        </Space>
-      </Space>
-
       <Table<Seasoning>
         rowKey="id"
         size="small"
         loading={listQuery.isFetching}
         columns={columns}
         dataSource={listQuery.data?.items ?? []}
-        scroll={{ x: 1146 }}
+        scroll={{ x: 1166 }}
         pagination={{
           current: page,
           pageSize,
@@ -343,6 +343,6 @@ export function SeasoningListPage() {
           </Form.Item>
         </Form>
       </Drawer>
-    </Card>
+    </PagePanel>
   );
 }

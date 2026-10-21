@@ -19,7 +19,9 @@ from app.modules.menuplan import publication, readiness, service
 from app.modules.menuplan.schemas import (
     DailyMenuPlanResponse,
     MenuPlanBatchResult,
+    MenuPlanBatchSyncRequest,
     MenuPlanConstraints,
+    MenuPlanHistoryItem,
     MenuPlanResponse,
     MenuPlanSyncResult,
     PlanReadiness,
@@ -35,6 +37,17 @@ from sqlalchemy.orm import Session
 router = APIRouter(prefix="/menu-plan", tags=["明日菜单与采购"])
 
 WRITE_ROLES = (UserRole.RECORDER, UserRole.CANTEEN_ADMIN)
+
+
+@router.get(
+    "/history", response_model=list[MenuPlanHistoryItem], summary="读取已保存的菜单与采购快照"
+)
+def history(
+    on_date: date,
+    session: Session = Depends(get_session),
+    _: AuthUser = Depends(require_roles(*WRITE_ROLES, UserRole.SCHOOL_ADMIN)),
+) -> list[MenuPlanHistoryItem]:
+    return service.read_history(session, on_date=on_date)
 
 
 @router.get("/readiness", response_model=PlanReadiness, summary="只读检查计划所需数据")
@@ -170,6 +183,7 @@ def batch_generate(
 
 @router.post("/batch/sync", response_model=MenuPlanBatchResult, summary="一键导入这几天的当日菜单")
 def batch_sync(
+    payload: MenuPlanBatchSyncRequest,
     start_date: date = Query(description="开始日期"),
     end_date: date = Query(description="结束日期（含）"),
     meal_type: MealType = Query(default=MealType.LUNCH),
@@ -182,4 +196,5 @@ def batch_sync(
         end_date=end_date,
         meal_type=meal_type,
         actor_id=actor.id,
+        suggestion_ids=payload.suggestion_ids,
     )

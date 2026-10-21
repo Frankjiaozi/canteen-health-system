@@ -41,9 +41,17 @@ const plan = {
 
 beforeEach(() => {
   vi.stubGlobal('matchMedia', () => ({ matches: false }));
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
 });
 
-it('三餐一次展示，并在结果区直接提供同步按钮', () => {
+it('三餐一次展示，同步前确认目标日期，取消不写入', async () => {
   const onSync = vi.fn();
   render(
     <App>
@@ -58,5 +66,10 @@ it('三餐一次展示，并在结果区直接提供同步按钮', () => {
   expect(screen.queryByText('三餐合并采购')).not.toBeInTheDocument();
   expect(screen.queryByText(/按餐次分别校验/)).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: '同步三餐至当日数据' }));
+  expect(onSync).not.toHaveBeenCalled();
+  fireEvent.click(await screen.findByRole('button', { name: '继续核对' }));
+  expect(onSync).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: '同步三餐至当日数据' }));
+  fireEvent.click(await screen.findByRole('button', { name: '确认同步' }));
   expect(onSync).toHaveBeenCalledOnce();
 });

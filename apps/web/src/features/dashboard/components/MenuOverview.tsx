@@ -1,15 +1,17 @@
-import { Card, Col, Empty, Row, Skeleton, Space, Tag, Typography } from 'antd';
+import { Card, Empty, Skeleton } from 'antd';
+import { DishImage } from '@/features/dish/components/DishImage';
+import '@/features/dish/dish.css';
 import { useMenuOverview } from '../hooks/useDashboard';
 import { trimDecimal } from '../lib/format';
 import type { MenuOverviewMeal } from '../types';
 
-const STATUS_COLOR = {
-  ACTUAL: 'green',
-  PLANNED: 'blue',
-  NOT_PLANNED: 'default',
+const STATUS_TONE = {
+  ACTUAL: 'actual',
+  PLANNED: 'planned',
+  NOT_PLANNED: 'off',
 } as const;
 
-function MealCard({ meal }: { meal: MenuOverviewMeal }) {
+function MealColumn({ meal }: { meal: MenuOverviewMeal }) {
   const groups = meal.dishes.reduce<Record<string, MenuOverviewMeal['dishes']>>((result, dish) => {
     const key = dish.package_labels?.join(' / ') || '当前套餐';
     (result[key] ??= []).push(dish);
@@ -17,55 +19,50 @@ function MealCard({ meal }: { meal: MenuOverviewMeal }) {
   }, {});
 
   return (
-    <Card
-      size="small"
-      title={
-        <Space size={6}>
-          <span>{meal.meal_type_label}</span>
-          <Tag color={STATUS_COLOR[meal.status]}>{meal.status_label}</Tag>
-        </Space>
-      }
-      extra={
-        meal.diner_count != null ? (
-          <Typography.Text type="secondary">{meal.diner_count} 人次</Typography.Text>
-        ) : null
-      }
-    >
+    <section className="zw-menu-meal">
+      <header className="zw-menu-meal-head">
+        <div className="zw-menu-meal-name">
+          <h3>{meal.meal_type_label}</h3>
+          <span className={`zw-menu-status is-${STATUS_TONE[meal.status]}`}>
+            <i aria-hidden="true" />
+            {meal.status_label}
+          </span>
+        </div>
+        {meal.diner_count != null ? (
+          <span className="zw-menu-diner">{meal.diner_count} 人次</span>
+        ) : null}
+      </header>
+
       {meal.dishes.length ? (
-        <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+        <div className="zw-menu-package-groups">
           {Object.entries(groups).map(([label, dishes]) => (
-            <div key={label}>
-              <Tag
-                color={label === '套餐 B' ? 'geekblue' : label === 'A/B 共用' ? 'gold' : 'green'}
-              >
-                {label}
-              </Tag>
-              <Space orientation="vertical" size={7} style={{ width: '100%', marginTop: 6 }}>
+            <section className="zw-menu-package-group" key={label}>
+              <div className="zw-menu-package-label">{label}</div>
+              <ul className="zw-menu-dishes">
                 {dishes.map((dish) => (
-                  <div
-                    key={dish.dish_id}
-                    style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}
-                  >
-                    <span>{dish.name}</span>
-                    <Typography.Text type="secondary">
-                      {dish.category_label} · {dish.cooking_method_label} ·{' '}
-                      {dish.planned_servings
-                        ? `${trimDecimal(dish.planned_servings)} 份`
-                        : '份数未填'}
-                    </Typography.Text>
-                  </div>
+                  <li className="zw-menu-dish" key={dish.dish_id}>
+                    <DishImage url={dish.image_url} name={dish.name} compact />
+                    <span className="zw-menu-dish-name">{dish.name}</span>
+                    <span className="zw-menu-dish-meta">
+                      <span>
+                        {dish.category_label} · {dish.cooking_method_label}
+                      </span>
+                      <span className="zw-menu-dish-servings">
+                        {dish.planned_servings
+                          ? `${trimDecimal(dish.planned_servings)} 份`
+                          : '份数未填'}
+                      </span>
+                    </span>
+                  </li>
                 ))}
-              </Space>
-            </div>
+              </ul>
+            </section>
           ))}
-        </Space>
+        </div>
       ) : (
-        <Empty
-          image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description={meal.status === 'NOT_PLANNED' ? '未安排' : '暂无菜品'}
-        />
+        <p className="zw-menu-empty">{meal.status === 'NOT_PLANNED' ? '待安排' : '暂无菜品'}</p>
       )}
-    </Card>
+    </section>
   );
 }
 
@@ -77,22 +74,26 @@ export function MenuOverview() {
   if (!data) return <Empty description="暂无菜单" />;
 
   return (
-    <Space orientation="vertical" size={16} style={{ width: '100%' }}>
-      <Row gutter={[16, 16]}>
-        {data.days.map((day) => (
-          <Col xs={24} key={day.date}>
-            <Card size="small" title={`${day.day_label} · ${day.date}`}>
-              <Row gutter={[12, 12]}>
-                {day.meals.map((meal) => (
-                  <Col xs={24} lg={8} key={meal.meal_type}>
-                    <MealCard meal={meal} />
-                  </Col>
-                ))}
-              </Row>
-            </Card>
-          </Col>
-        ))}
-      </Row>
-    </Space>
+    <div className="zw-menu-overview">
+      {data.days.map((day) => (
+        <Card
+          className={`zw-menu-day${day.date === data.today ? ' is-today' : ''}`}
+          key={day.date}
+          styles={{ body: { padding: 0 } }}
+          title={
+            <div className="zw-menu-day-title">
+              <span className="zw-menu-day-label">{day.day_label}</span>
+              <span className="zw-menu-day-date">{day.date}</span>
+            </div>
+          }
+        >
+          <div className="zw-menu-meals">
+            {day.meals.map((meal) => (
+              <MealColumn key={meal.meal_type} meal={meal} />
+            ))}
+          </div>
+        </Card>
+      ))}
+    </div>
   );
 }

@@ -44,6 +44,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 登录页面可用功能 */
+        get: operations["options_api_v1_auth_options_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/register": {
         parameters: {
             query?: never;
@@ -257,6 +274,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/dishes/{dish_id}/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 读取用户上传的菜品图片 */
+        get: operations["get_dish_image_api_v1_dishes__dish_id__image_get"];
+        /** 上传或更换菜品图片 */
+        put: operations["upload_dish_image_api_v1_dishes__dish_id__image_put"];
+        post?: never;
+        /** 移除菜品图片 */
+        delete: operations["remove_dish_image_api_v1_dishes__dish_id__image_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/import/template": {
         parameters: {
             query?: never;
@@ -441,6 +477,23 @@ export interface paths {
         put?: never;
         /** 采纳或否决 */
         post: operations["decide_api_v1_recommendation__suggestion_id__decide_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/menu-plan/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 读取已保存的菜单与采购快照 */
+        get: operations["history_api_v1_menu_plan_history_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -853,6 +906,11 @@ export interface components {
             /** System */
             system: boolean;
         };
+        /** AuthOptions */
+        AuthOptions: {
+            /** Registration Enabled */
+            registration_enabled: boolean;
+        };
         /**
          * AuthUser
          * @description 对外暴露的当前用户。
@@ -921,6 +979,11 @@ export interface components {
              * File
              * @description 按模板填写的 .xlsx 文件
              */
+            file: string;
+        };
+        /** Body_upload_dish_image_api_v1_dishes__dish_id__image_put */
+        Body_upload_dish_image_api_v1_dishes__dish_id__image_put: {
+            /** File */
             file: string;
         };
         /**
@@ -1086,7 +1149,7 @@ export interface components {
             /** Total */
             total: number;
             /** Rate */
-            rate: string;
+            rate: string | null;
             /** Items */
             items: components["schemas"]["StandardComparison"][];
         };
@@ -1478,6 +1541,11 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Image Url
+             * @description 用户上传的菜品图片；未上传时为空
+             */
+            image_url?: string | null;
             /** Recipe Version */
             recipe_version: number;
             /** Is Active */
@@ -1579,6 +1647,11 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Image Url
+             * @description 用户上传的菜品图片；未上传时为空
+             */
+            image_url?: string | null;
             /** Recipe Version */
             recipe_version: number;
             /** Is Active */
@@ -2181,6 +2254,8 @@ export interface components {
         MenuOverviewDish: {
             /** Dish Id */
             dish_id: string;
+            /** Image Url */
+            image_url?: string | null;
             /** Name */
             name: string;
             /** Package Codes */
@@ -2347,6 +2422,16 @@ export interface components {
             /** Message */
             message: string;
         };
+        /** MenuPlanBatchSyncRequest */
+        MenuPlanBatchSyncRequest: {
+            /**
+             * Suggestion Ids
+             * @description 用户已核对的逐日方案 ID；没有选定方案的日期跳过
+             */
+            suggestion_ids: {
+                [key: string]: string;
+            };
+        };
         /** MenuPlanConstraints */
         MenuPlanConstraints: {
             /** Excluded Dish Ids */
@@ -2395,6 +2480,17 @@ export interface components {
             prediction_fallback: boolean;
             /** Planned Servings */
             planned_servings?: string | null;
+        };
+        /** MenuPlanHistoryItem */
+        MenuPlanHistoryItem: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Status Label */
+            status_label: string;
+            plan: components["schemas"]["MenuPlanResponse"];
         };
         /**
          * MenuPlanPackage
@@ -3630,9 +3726,9 @@ export interface components {
             /** Produced Weight G */
             produced_weight_g: string;
             /** Leftover Weight G */
-            leftover_weight_g: string;
+            leftover_weight_g: string | null;
             /** Waste Ratio */
-            waste_ratio: string;
+            waste_ratio: string | null;
         };
         /** WasteResponse */
         WasteResponse: {
@@ -3662,10 +3758,12 @@ export interface components {
 }
 export type SchemaAnomalyFlag = components['schemas']['AnomalyFlag'];
 export type SchemaAnomalyRead = components['schemas']['AnomalyRead'];
+export type SchemaAuthOptions = components['schemas']['AuthOptions'];
 export type SchemaAuthUser = components['schemas']['AuthUser'];
 export type SchemaBacktestPoint = components['schemas']['BacktestPoint'];
 export type SchemaBacktestResult = components['schemas']['BacktestResult'];
 export type SchemaBodyImportDishesApiV1ImportDishesPost = components['schemas']['Body_import_dishes_api_v1_import_dishes_post'];
+export type SchemaBodyUploadDishImageApiV1DishesDishIdImagePut = components['schemas']['Body_upload_dish_image_api_v1_dishes__dish_id__image_put'];
 export type SchemaCalibrationFactorRead = components['schemas']['CalibrationFactorRead'];
 export type SchemaCalibrationSource = components['schemas']['CalibrationSource'];
 export type SchemaClosureCheckRead = components['schemas']['ClosureCheckRead'];
@@ -3723,8 +3821,10 @@ export type SchemaMenuOverviewResponse = components['schemas']['MenuOverviewResp
 export type SchemaMenuPackageRead = components['schemas']['MenuPackageRead'];
 export type SchemaMenuPlanBatchDay = components['schemas']['MenuPlanBatchDay'];
 export type SchemaMenuPlanBatchResult = components['schemas']['MenuPlanBatchResult'];
+export type SchemaMenuPlanBatchSyncRequest = components['schemas']['MenuPlanBatchSyncRequest'];
 export type SchemaMenuPlanConstraints = components['schemas']['MenuPlanConstraints'];
 export type SchemaMenuPlanDish = components['schemas']['MenuPlanDish'];
+export type SchemaMenuPlanHistoryItem = components['schemas']['MenuPlanHistoryItem'];
 export type SchemaMenuPlanPackage = components['schemas']['MenuPlanPackage'];
 export type SchemaMenuPlanResponse = components['schemas']['MenuPlanResponse'];
 export type SchemaMenuPlanSyncResult = components['schemas']['MenuPlanSyncResult'];
@@ -3820,6 +3920,26 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    options_api_v1_auth_options_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthOptions"];
+                };
             };
         };
     };
@@ -4488,6 +4608,101 @@ export interface operations {
             };
         };
     };
+    get_dish_image_api_v1_dishes__dish_id__image_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dish_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_dish_image_api_v1_dishes__dish_id__image_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dish_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_dish_image_api_v1_dishes__dish_id__image_put"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DishDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_dish_image_api_v1_dishes__dish_id__image_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dish_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DishDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     download_template_api_v1_import_template_get: {
         parameters: {
             query?: never;
@@ -4840,6 +5055,37 @@ export interface operations {
             };
         };
     };
+    history_api_v1_menu_plan_history_get: {
+        parameters: {
+            query: {
+                on_date: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuPlanHistoryItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     inspect_readiness_api_v1_menu_plan_readiness_get: {
         parameters: {
             query: {
@@ -5095,7 +5341,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MenuPlanBatchSyncRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

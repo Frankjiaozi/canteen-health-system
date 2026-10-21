@@ -20,6 +20,7 @@ dependencies = [
     "pyjwt>=2.15.1",
     "pwdlib[bcrypt]>=0.3.1",
     "python-multipart>=0.0.32",
+    "pillow>=11.3.0",
     # Excel 批量导入（20 道菜的配方靠界面逐条敲要几个小时）
     "openpyxl>=3.1.5",
     # 菜单推荐的整数规划。**上界卡在 3 以下**：PuLP 4.x 不再自带求解器

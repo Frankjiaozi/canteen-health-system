@@ -1,10 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchCurrentUser, login, logout, register } from '../api/authApi';
+import { fetchAuthOptions, fetchCurrentUser, login, logout, register } from '../api/authApi';
 import type { AuthUser, LoginPayload, RegisterPayload } from '../types';
 
 export const authKeys = {
   me: ['auth', 'me'] as const,
 };
+
+export function useAuthOptions() {
+  return useQuery({
+    queryKey: ['auth', 'options'],
+    queryFn: fetchAuthOptions,
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
 
 // 当前登录用户。
 //

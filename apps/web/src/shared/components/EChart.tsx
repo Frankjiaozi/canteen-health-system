@@ -47,9 +47,13 @@ export function EChart({ option, height = 320, ariaLabel }: EChartProps) {
 
     const handleResize = () => chart.resize();
     window.addEventListener('resize', handleResize);
+    const observer =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(handleResize);
+    observer?.observe(container);
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      observer?.disconnect();
       chart.dispose();
       chartRef.current = null;
     };

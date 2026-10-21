@@ -7,6 +7,8 @@ export interface SheetRow {
   selected: boolean;
   servings: number | null;
   leftoverRatio: number | null;
+  /** 当前表格未提供逐菜重量编辑，提交时仍需保留接口返回的原值。 */
+  leftoverWeightG?: string | null;
   isSubstituted: boolean;
   substitutionNote: string | null;
 }
@@ -29,6 +31,7 @@ export function initialRows(sheet: DailyLogSheet): SheetRow[] {
     selected: dish.selected,
     servings: toNumber(dish.servings_produced),
     leftoverRatio: toNumber(dish.leftover_ratio),
+    leftoverWeightG: dish.leftover_weight_g,
     isSubstituted: dish.is_substituted,
     substitutionNote: dish.substitution_note ?? null,
   }));
@@ -110,7 +113,7 @@ export function buildSavePayload(values: SheetFormValues, rows: SheetRow[]): Dai
         dish_id: row.dishId,
         servings_produced: String(row.servings ?? 0),
         leftover_ratio: row.leftoverRatio === null ? null : String(row.leftoverRatio),
-        leftover_weight_g: null,
+        leftover_weight_g: row.leftoverWeightG ?? null,
         is_substituted: row.isSubstituted,
         substitution_note: row.substitutionNote,
         note: null,

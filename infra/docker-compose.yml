@@ -51,13 +51,20 @@ services:
       # 仅用于套餐成本估算；采购量按逐菜同星期销量预测，不乘这个比例
       PACKAGE_SHARE_A: ${PACKAGE_SHARE_A:-0.5}
       PACKAGE_SHARE_B: ${PACKAGE_SHARE_B:-0.5}
+      DISH_IMAGE_DIR: /app/data/dish-images
+    volumes:
+      - dish-images:/app/data/dish-images
     # 先跑迁移再起服务：单机自部署场景下，这样最不容易漏步骤
     command:
       - sh
       - -c
       - python -m alembic upgrade head && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
     healthcheck:
-      test: ['CMD-SHELL', 'python -c "import urllib.request;urllib.request.urlopen(\"http://127.0.0.1:8000/health\")"']
+      test:
+        [
+          'CMD-SHELL',
+          'python -c "import urllib.request;urllib.request.urlopen(\"http://127.0.0.1:8000/health\")"',
+        ]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -85,7 +92,11 @@ services:
     volumes:
       - agent-state:/app/data
     healthcheck:
-      test: ['CMD-SHELL', 'python -c "import urllib.request;urllib.request.urlopen(\"http://127.0.0.1:8001/health\")"']
+      test:
+        [
+          'CMD-SHELL',
+          'python -c "import urllib.request;urllib.request.urlopen(\"http://127.0.0.1:8001/health\")"',
+        ]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -110,3 +121,4 @@ services:
 volumes:
   canteen-pg:
   agent-state:
+  dish-images:

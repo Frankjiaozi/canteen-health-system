@@ -1,0 +1,340 @@
+/* 暖纸与灰绿承接原有水墨开场；所有业务页面共享这一层材质。 */
+:root {
+  --zw-ink: #273a31;
+  --zw-ink-soft: #50604e;
+  --zw-green: #607c5c;
+  --zw-green-deep: #3d5944;
+  --zw-sage: #dfe6d5;
+  --zw-tint: #f0f2e9;
+  --zw-paper: #f5eedf;
+  --zw-paper-deep: #eee8da;
+  --zw-card: #fffcf6;
+  --zw-line: #e6e2d6;
+  --zw-line-soft: #efebe2;
+  --zw-muted: #737a6b;
+  --zw-red: #a7382b;
+}
+body {
+  background: var(--zw-paper);
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+:focus-visible {
+  outline: 2px solid #789074;
+  outline-offset: 4px;
+}
+.zw-brand-mark {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+.zw-brand-mark svg {
+  display: block;
+  width: 138px;
+  height: 73px;
+  mix-blend-mode: multiply;
+}
+.zw-brand-mark > span {
+  color: #737a6b;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  white-space: nowrap;
+}
+.zw-brand-mark.is-compact svg {
+  width: 100px;
+  height: 54px;
+}
+.zw-ink-landscape {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  max-height: 48vh;
+  pointer-events: none;
+  z-index: 0;
+}
+.zw-admin-shell > .ant-layout {
+  background: transparent;
+}
+.zw-admin-shell.ant-layout {
+  background:
+    radial-gradient(ellipse at 94% 2%, #e3e6d5a6, transparent 33%),
+    linear-gradient(115deg, #f3eddf, #faf7ef 52%, #f3efe3);
+}
+.zw-admin-sider.ant-layout-sider {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100dvh;
+  background: #f6f1e6c9 !important;
+  border-right-color: #e4e0d47a;
+}
+.zw-admin-nav {
+  position: relative;
+  overflow: hidden;
+  padding-bottom: 25px;
+}
+.zw-admin-nav > :not(.zw-ink-landscape) {
+  position: relative;
+  z-index: 1;
+}
+.zw-admin-brand {
+  padding: 25px 27px 30px;
+}
+.zw-admin-menu.ant-menu {
+  flex: 0 1 auto;
+  padding-inline: 1px;
+}
+.zw-admin-menu.ant-menu .ant-menu-item-selected {
+  box-shadow: none;
+}
+.zw-admin-menu.ant-menu .ant-menu-submenu-title {
+  letter-spacing: 0.06em;
+  font-size: 11px;
+}
+.zw-admin-menu.ant-menu .ant-menu-item {
+  height: 44px;
+  margin-block: 4px;
+}
+.zw-admin-nav-foot {
+  margin-top: auto;
+  padding-top: 20px;
+  border: 0;
+  font-size: 12px;
+}
+.zw-admin-header.ant-layout-header {
+  background: #faf6ecad;
+  backdrop-filter: blur(16px);
+  border-bottom-color: #e7e2d680;
+  min-height: 105px;
+  padding-inline: 30px;
+}
+.zw-admin-page-mark {
+  display: none;
+}
+.zw-admin-page-title {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.zw-admin-page-tagline {
+  margin-top: 7px;
+  color: #818475;
+  font-size: 12px;
+}
+.zw-admin-user {
+  background: #fffcf69c;
+  border-color: #e6e2d6;
+}
+.zw-admin-user .ant-avatar {
+  background: #dce4d2;
+  color: #40543d;
+}
+.zw-admin-content {
+  padding: 24px 30px 42px;
+  max-width: 1720px;
+}
+.zw-page-panel.ant-card,
+.zw-chart-card.ant-card,
+.zw-menu-day.ant-card {
+  border: 1px solid #ffffff8c;
+  background: #fffcf6eb;
+  border-radius: 20px;
+  box-shadow: 0 8px 32px -20px #544e3430;
+  overflow: hidden;
+}
+.zw-page-toolbar {
+  padding: 22px 24px;
+  border-bottom: 1px solid #ece8dc;
+}
+.zw-page-panel .ant-table-thead > tr > th {
+  background: #f3f1e7;
+}
+.ant-drawer .ant-drawer-content {
+  background: #fffcf8;
+}
+.ant-drawer .ant-drawer-title {
+  font-family: var(--zw-serif);
+  font-size: 24px;
+}
+.ant-drawer .ant-drawer-header,
+.ant-drawer .ant-drawer-footer {
+  border-color: #eeebe2;
+  padding: 24px;
+}
+.ant-drawer .ant-drawer-body {
+  padding: 24px;
+}
+.ant-input-affix-wrapper,
+.ant-input,
+.ant-select-selector,
+.ant-picker {
+  box-shadow: none;
+}
+.ant-tabs-top > .ant-tabs-nav::before {
+  border-color: #e6e2d6;
+}
+.ant-segmented {
+  border: 1px solid #e6e2d685;
+}
+.zw-soft-card.spotlight-card {
+  padding: 23px;
+  border-radius: 20px;
+  background: #fffcf6ed;
+  box-shadow: 0 6px 28px -18px #5c57352b;
+  --spotlight-card-border: #ffffffb8 !important;
+}
+.zw-login {
+  background: var(--zw-paper);
+}
+.zw-login-brand {
+  background: radial-gradient(ellipse at 20% 10%, #e4e8d7a1, transparent 65%), #f1ebdc;
+  position: relative;
+  overflow: hidden;
+}
+.zw-login-brand-top,
+.zw-login-brand-main,
+.zw-login-standards {
+  position: relative;
+  z-index: 1;
+}
+.zw-login-brand-top .zw-brand-mark svg {
+  width: 170px;
+  height: 90px;
+}
+.zw-login-panel {
+  background: #fffcf6e0;
+}
+.zw-login-brand h1 {
+  color: #344a38;
+}
+.zw-login-panel h2 {
+  font-family: var(--zw-serif);
+}
+.zw-login .zw-login-submit {
+  border-radius: 12px;
+}
+.zw-login-plate {
+  opacity: 0.24;
+}
+.zw-plan-empty,
+.zw-plan-empty-copy {
+  color: var(--zw-ink);
+}
+.zw-agent {
+  --zw-ink: #273a31;
+  --zw-green: #607c5c;
+  --zw-subtle: #737a6b;
+  --zw-line: #e6e2d6;
+  --zw-tint: #f0f2e9;
+}
+.zw-agent .zw-agent-workbench {
+  background: #fffcf6eb;
+  border-radius: 22px;
+  border-color: #ffffffa8;
+  box-shadow: 0 8px 35px -23px #4b543132;
+}
+.zw-agent .zw-agent-task {
+  background: #f1efe5ab;
+}
+.zw-agent .zw-agent-conversation {
+  background: transparent;
+}
+.zw-agent .zw-agent-results {
+  background: #fffdf8d9;
+}
+.zw-agent .zw-agent-welcome h2 {
+  font-family: var(--zw-serif);
+  color: #344a38;
+  font-weight: 500;
+}
+.zw-agent .zw-agent-ink-mark {
+  background: #e4e9d9;
+  color: #506448;
+  border-radius: 13px 8px 13px 8px;
+}
+.zw-agent .zw-agent-starters button {
+  border-radius: 13px;
+  background: #fffcf6bf;
+  border-color: #e7e3d7;
+}
+.zw-agent .zw-agent-starters button:hover {
+  background: #edf1e5;
+  border-color: #c0cbb4;
+}
+.zw-agent .zw-agent-composer {
+  border-radius: 22px;
+  background: #fffdf8;
+  box-shadow: 0 6px 24px -16px #42533845;
+}
+.zw-agent .zw-agent-message.is-user .zw-agent-message-content {
+  background: #e5eadb;
+  border-radius: 15px 15px 4px 15px;
+}
+.zw-agent .zw-agent-message.is-assistant .zw-agent-message-content {
+  border-radius: 15px;
+}
+.zw-agent .zw-agent-tabs {
+  border-radius: 10px;
+}
+.zw-agent-execution-steps {
+  padding: 16px 6px 0;
+}
+.zw-agent-execution-steps .ant-steps-item-title {
+  font-size: 12px;
+}
+.zw-agent-execution-steps .ant-steps-item-content {
+  font-size: 11px;
+  color: var(--zw-muted);
+}
+@media (min-width: 1250px) {
+  .zw-agent .zw-agent-workbench {
+    grid-template-columns: 220px minmax(300px, 1fr) minmax(350px, 1.05fr);
+  }
+}
+@media (max-width: 1000px) {
+  .zw-admin-header.ant-layout-header {
+    min-height: 86px;
+    padding-inline: 20px;
+  }
+  .zw-admin-page-title {
+    font-size: 25px;
+  }
+  .zw-admin-content {
+    padding: 20px;
+  }
+}
+@media (max-width: 650px) {
+  .zw-admin-header.ant-layout-header {
+    min-height: 70px;
+    padding: 12px;
+    gap: 8px;
+  }
+  .zw-admin-content {
+    padding: 16px 12px 30px;
+  }
+  .zw-admin-page-title {
+    font-size: 22px;
+  }
+  .zw-page-toolbar {
+    padding: 16px;
+  }
+  .zw-soft-card.spotlight-card {
+    padding: 18px;
+  }
+  .zw-brand-mark svg {
+    width: 120px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+}

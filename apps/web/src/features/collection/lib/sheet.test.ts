@@ -84,6 +84,14 @@ const selectedRow = (overrides: Partial<SheetRow> = {}): SheetRow => ({
 });
 
 describe('采集单的初始状态', () => {
+  it('修改其他字段后重新保存，不清空已有逐菜剩餐重量', () => {
+    const withWeight = {
+      ...sheet,
+      dishes: sheet.dishes.map((dish) => ({ ...dish, leftover_weight_g: '123.45' })),
+    };
+    const payload = buildSavePayload(validValues(), initialRows(withWeight));
+    expect(payload.dishes?.[0].leftover_weight_g).toBe('123.45');
+  });
   it('沿用库里已保存的值，未保存的菜保持未勾选', () => {
     const rows = initialRows(sheet);
 

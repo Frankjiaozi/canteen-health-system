@@ -1,0 +1,379 @@
+.zw-editorial-shell .zw-admin-header {
+  height: 98px;
+  padding: 0 5%;
+  border-bottom: 1px solid #dcded14d;
+  background: transparent;
+  gap: 20px;
+}
+.zw-editorial-shell .zw-admin-content {
+  padding: 0 5% 28px;
+  max-width: 1600px;
+  width: 100%;
+  margin: auto;
+}
+.zw-editorial-shell .zw-admin-header .zw-brand-mark {
+  flex-shrink: 0;
+}
+.zw-home-nav {
+  display: flex;
+  gap: 30px;
+  flex: 1;
+  padding-left: 28px;
+}
+.zw-home-nav button {
+  border: 0;
+  background: none;
+  color: #767c6d;
+  padding: 13px 0;
+  cursor: pointer;
+  font-size: 14px;
+}
+.zw-home-nav button.is-current {
+  color: #344e3b;
+  border-bottom: 2px solid #657d5b;
+}
+.zw-editorial-shell .zw-admin-demo-badge {
+  display: none;
+}
+.zw-editorial-shell .zw-admin-user-copy small,
+.zw-editorial-shell .zw-admin-logout-label {
+  display: none;
+}
+.zw-editorial-shell .zw-dashboard > .ant-tabs > .ant-tabs-nav {
+  margin: 0;
+  min-height: 42px;
+  opacity: 0.8;
+}
+.zw-editorial-shell .zw-dashboard > .ant-tabs > .ant-tabs-nav::before {
+  border: 0;
+}
+.zw-editorial-shell .zw-dashboard > .ant-tabs > .ant-tabs-nav .ant-tabs-tab {
+  font-size: 12px;
+  padding: 10px 0;
+}
+.zw-editorial {
+  max-width: 1280px;
+  margin: auto;
+  color: #354333;
+}
+.zw-home-intro {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 340px;
+  align-items: center;
+  position: relative;
+}
+.zw-home-intro-copy {
+  padding: 22px 0 30px 3%;
+  z-index: 1;
+}
+.zw-home-date {
+  color: #727c69;
+  font-size: 12px;
+  display: flex;
+  gap: 22px;
+}
+.zw-home-date span {
+  border-left: 1px solid #c5ccba;
+  padding-left: 22px;
+}
+.zw-home-intro h1 {
+  font-family: 'STKaiti', 'KaiTi', 'Noto Serif SC', 'Songti SC', serif;
+  font-size: clamp(40px, 4.5vw, 66px);
+  line-height: 1.4;
+  letter-spacing: 0.09em;
+  font-weight: 500;
+  margin: 20px 0 15px;
+  color: #293d2e;
+}
+.zw-home-description {
+  color: #79816f;
+  font-size: 13px;
+  line-height: 2;
+  letter-spacing: 0.1em;
+}
+.zw-home-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 27px;
+  padding: 13px 23px;
+  border-radius: 5px;
+  background: #5e7654;
+  color: #fffaf0;
+  margin-top: 10px;
+  font-size: 13px;
+  box-shadow: 0 7px 20px #526c3d16;
+}
+.zw-home-primary:hover {
+  background: #465f40;
+  color: white;
+}
+.zw-home-art {
+  position: relative;
+  align-self: stretch;
+  display: grid;
+  align-items: center;
+}
+.zw-home-art svg {
+  width: 100%;
+  max-height: 370px;
+}
+.zw-art-poem {
+  position: absolute;
+  right: 4%;
+  top: 16%;
+  writing-mode: vertical-rl;
+  letter-spacing: 0.4em;
+  font-family: 'STKaiti', 'KaiTi', serif;
+  color: #77816a;
+  font-size: 16px;
+}
+.zw-art-seal {
+  position: absolute;
+  right: 5%;
+  bottom: 15%;
+  color: #a75e4f;
+  border: 1px solid #b87665;
+  padding: 3px 5px;
+  font:
+    15px/1.1 'KaiTi',
+    serif;
+  transform: rotate(-5deg);
+}
+.zw-home-menu {
+  border-top: 1px solid #daddcf;
+  padding-top: 24px;
+}
+.zw-home-menu > header {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  margin-bottom: 20px;
+}
+.zw-section-caption {
+  font-size: 10px;
+  color: #939883;
+  letter-spacing: 0.15em;
+}
+.zw-home-menu h2 {
+  font:
+    27px/1.3 'STKaiti',
+    'KaiTi',
+    'Songti SC',
+    serif;
+  margin: 5px 0 0;
+  letter-spacing: 0.1em;
+}
+.zw-home-menu > header > a {
+  margin-left: auto;
+  font-size: 12px;
+  color: #6c7b5f;
+}
+.zw-meal-switch {
+  display: flex;
+  gap: 5px;
+}
+.zw-meal-switch button {
+  border: none;
+  background: transparent;
+  padding: 7px 21px;
+  border-radius: 20px;
+  cursor: pointer;
+  color: #818775;
+  font-size: 12px;
+}
+.zw-meal-switch button[aria-pressed='true'] {
+  background: #dfe6d5;
+  color: #465e3c;
+}
+.zw-home-dishes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+}
+.zw-home-dish {
+  position: relative;
+  min-height: 144px;
+  padding: 23px 25px;
+  background: #fdfbf5b3;
+  border-radius: 3px 24px 3px 3px;
+  overflow: hidden;
+  border-bottom: 2px solid #b8c5a780;
+}
+.zw-home-dish:nth-child(2) {
+  background: #edf0e4b3;
+}
+.zw-home-dish:nth-child(3) {
+  background: #eee9ddb3;
+}
+.zw-home-dish > div {
+  position: relative;
+  z-index: 1;
+}
+.zw-home-dish h3 {
+  font:
+    23px/1.4 'STKaiti',
+    'KaiTi',
+    'Songti SC',
+    serif;
+  margin: 11px 0 15px;
+  letter-spacing: 0.08em;
+}
+.zw-home-dish div > span {
+  font-size: 11px;
+  color: #8b917f;
+}
+.zw-home-dish a {
+  font-size: 11px;
+  color: #829174;
+}
+.zw-dish-watermark {
+  position: absolute;
+  right: 15px;
+  bottom: -22px;
+  font:
+    115px 'STKaiti',
+    'KaiTi',
+    serif;
+  color: #7d926312;
+  pointer-events: none;
+}
+.zw-home-dish.has-photo {
+  display: flex;
+  gap: 18px;
+}
+.zw-home-dish img {
+  width: 100px;
+  height: 110px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+.zw-home-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 25px 4px 10px;
+  gap: 20px;
+}
+.zw-home-bottom > div {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+}
+.zw-mini-seal {
+  color: #8d9f7b;
+  font:
+    27px 'STKaiti',
+    'KaiTi',
+    serif;
+  border: 1px solid #c6ceba;
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+}
+.zw-home-bottom h3 {
+  font-size: 14px;
+  font-weight: 500;
+  margin: 0 0 6px;
+}
+.zw-home-bottom p {
+  font-size: 11px;
+  color: #8b9280;
+  margin: 0;
+}
+.zw-home-bottom > a {
+  padding: 12px 18px;
+  border: 1px solid #cbd3bf;
+  border-radius: 24px;
+  font-size: 12px;
+  color: #627653;
+}
+.zw-home-empty {
+  padding: 20px 28px;
+  background: #fdfbf58a;
+  min-height: 145px;
+}
+.zw-home-empty h3 {
+  font:
+    23px 'KaiTi',
+    serif;
+  margin: 5px 0 12px;
+}
+.zw-home-empty p {
+  color: #7f8874;
+  font-size: 13px;
+}
+@media (max-width: 1100px) {
+  .zw-home-nav {
+    gap: 20px;
+    padding-left: 0;
+  }
+  .zw-editorial-shell .zw-admin-user {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .zw-home-nav {
+    display: none;
+  }
+  .zw-editorial-shell .zw-admin-header {
+    height: 78px;
+    gap: 12px;
+  }
+  .zw-editorial-shell .zw-admin-actions {
+    margin-left: auto;
+  }
+  .zw-home-intro {
+    grid-template-columns: 1fr;
+  }
+  .zw-home-intro-copy {
+    padding: 20px 0 0;
+  }
+  .zw-home-intro h1 {
+    font-size: 44px;
+  }
+  .zw-home-art {
+    height: 190px;
+    margin-top: -30px;
+    margin-left: 25%;
+  }
+  .zw-home-art svg {
+    height: 220px;
+  }
+  .zw-home-date {
+    gap: 12px;
+  }
+  .zw-home-date span {
+    padding-left: 12px;
+  }
+  .zw-home-menu > header {
+    flex-wrap: wrap;
+    gap: 15px;
+  }
+  .zw-meal-switch button {
+    padding: 7px 13px;
+  }
+  .zw-home-dishes {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .zw-home-dish {
+    min-height: 120px;
+  }
+  .zw-home-bottom {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .zw-home-bottom > a {
+    align-self: flex-end;
+  }
+}
+
+@media (max-width: 760px) {
+  .zw-art-poem,
+  .zw-art-seal {
+    display: none;
+  }
+}

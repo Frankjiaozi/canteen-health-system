@@ -17,8 +17,8 @@ describe('看板数值格式化', () => {
   it('字符串转图表用的数值', () => {
     expect(toNumber('276.80')).toBe(276.8);
     expect(toNumber('0.0804', 4)).toBe(0.0804);
-    expect(toNumber(null)).toBe(0);
-    expect(toNumber('不是数字')).toBe(0);
+    expect(toNumber(null)).toBeNull();
+    expect(toNumber('不是数字')).toBeNull();
   });
 
   it('时间范围选项覆盖 7 / 14 / 30 天', () => {

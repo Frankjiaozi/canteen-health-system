@@ -69,7 +69,7 @@ class CompliancePoint(BaseModel):
     date: date
     compliant: int
     total: int
-    rate: str
+    rate: str | None
     items: list[StandardComparison]
 
 
@@ -84,8 +84,8 @@ class ComplianceResponse(BaseModel):
 class WastePoint(BaseModel):
     date: date
     produced_weight_g: str
-    leftover_weight_g: str
-    waste_ratio: str
+    leftover_weight_g: str | None
+    waste_ratio: str | None
 
 
 class WasteResponse(BaseModel):
@@ -112,6 +112,7 @@ class DashboardSummary(BaseModel):
 
 class MenuOverviewDish(BaseModel):
     dish_id: str
+    image_url: str | None = None
     name: str
     package_codes: list[PackageCode] = Field(default_factory=lambda: [PackageCode.COMMON])
     package_labels: list[str] = Field(default_factory=lambda: [PackageCode.COMMON.label])

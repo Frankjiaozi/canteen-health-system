@@ -115,8 +115,16 @@ def _batch_generate(client: TestClient, start: date, end: date):
 
 
 def _batch_sync(client: TestClient, start: date, end: date):
+    selected = {}
+    for offset in range((end - start).days + 1):
+        day = start + timedelta(days=offset)
+        rows = client.get("/api/v1/recommendation", params={"on_date": str(day)}).json()
+        chosen = next((row for row in rows if row["meal_type"] == "LUNCH"), None)
+        if chosen:
+            selected[str(day)] = chosen["id"]
     return client.post(
         f"{BASE}/batch/sync",
+        json={"suggestion_ids": selected},
         params={"start_date": start.isoformat(), "end_date": end.isoformat(), "meal_type": "LUNCH"},
     )
 
@@ -878,7 +886,7 @@ def test_batch_sync_reports_days_without_a_menu(as_recorder: TestClient) -> None
     assert by_status[start.isoformat()]["status"] == "IMPORTED"
     later = by_status[(start + timedelta(days=1)).isoformat()]
     assert later["status"] == "SKIPPED"
-    assert "还没有生成过菜单" in later["reason"]
+    assert "没有选定已核对的菜单方案" in later["reason"]
 
 
 def test_batch_rejects_a_bad_range(as_recorder: TestClient) -> None:

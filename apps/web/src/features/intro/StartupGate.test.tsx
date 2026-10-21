@@ -50,9 +50,20 @@ describe('正式入口进场动画', () => {
     expect(screen.queryByRole('slider')).toBeNull();
     expect(screen.queryByRole('button', { name: /重播|暂停|慢放/ })).toBeNull();
     expect(screen.queryByRole('button', { name: '进入采集' })).toBeNull();
+    const progress = screen.getByRole('progressbar', { name: '入场进度' });
+    expect(progress).toHaveAttribute('aria-valuenow', '0');
+    expect(progress).toHaveTextContent('00%');
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(3000);
+      await vi.advanceTimersByTimeAsync(1300);
     });
+    const halfway = Number(progress.getAttribute('aria-valuenow'));
+    expect(halfway).toBeGreaterThan(0);
+    expect(halfway).toBeLessThan(100);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1400);
+    });
+    expect(progress).toHaveAttribute('aria-valuenow', '100');
+    expect(progress).toHaveTextContent('100%');
     await act(async () => {
       await vi.advanceTimersByTimeAsync(200);
     });

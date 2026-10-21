@@ -1,10 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { App } from 'antd';
+import { authKeys } from '@/features/auth/hooks/useAuth';
+import type { AuthUser } from '@/features/auth/types';
+import { canWriteBusinessData } from '@/features/auth/lib/permissions';
 import { ApiError } from '@/shared/api/errors';
 import { fetchLogs, fetchSheet, saveSheet } from '../api/collectionApi';
 import { describeSaved } from '../lib/sheet';
-import { shouldQueue } from '../lib/offlineQueue';
-import { useOfflineQueueStore } from './useOfflineQueue';
+import { entryId, shouldQueue } from '../lib/offlineQueue';
+import { useOfflineQueueStore, waitForOfflineSync } from './useOfflineQueue';
 import type { DailyLogWrite, MealType } from '../types';
 
 export const collectionKeys = {
@@ -44,22 +47,53 @@ export function useSaveSheet(onDate: string, mealType: MealType) {
   const push = useOfflineQueueStore((state) => state.push);
 
   return useMutation({
-    mutationFn: (payload: DailyLogWrite) => saveSheet(onDate, payload),
+    onMutate: () => {
+      const user = queryClient.getQueryData<AuthUser | null>(authKeys.me);
+      return {
+        ownerId: user?.id,
+        queued: user
+          ? useOfflineQueueStore
+              .getState()
+              .entries.find((entry) => entry.id === entryId(onDate, mealType, user.id))
+          : undefined,
+      };
+    },
+    mutationFn: async (payload: DailyLogWrite) => {
+      const user = queryClient.getQueryData<AuthUser | null>(authKeys.me);
+      await waitForOfflineSync();
+      const current = queryClient.getQueryData<AuthUser | null>(authKeys.me);
+      if (!user || !current || user.id !== current.id || !canWriteBusinessData(current)) {
+        throw new ApiError(403, {
+          code: 'account_changed',
+          message: '账号或权限已变化，请重新登录后提交',
+          details: null,
+        });
+      }
+      return saveSheet(onDate, payload);
+    },
     // 断网时也要真的发出去、真的失败。TanStack Query 默认的 networkMode: 'online'
     // 会把请求**暂停**在内存里，等联网后自动重放——看起来省事，代价是这件事完全不可见：
     // 录入员看不到「有几条没交上去、卡在哪一条」，刷新页面还会把待同步的静默丢掉。
     // 这里改为 always，让失败显式落到本地队列上（持久化、可查看、可放弃）。
     networkMode: 'always',
-    onSuccess: async (result) => {
+    onSuccess: async (result, _payload, context) => {
+      if (
+        context?.queued &&
+        useOfflineQueueStore.getState().entries.find((entry) => entry.id === context.queued?.id) ===
+          context.queued
+      ) {
+        useOfflineQueueStore.getState().drop(context.queued.id);
+      }
       await queryClient.invalidateQueries({ queryKey: collectionKeys.all });
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       await queryClient.invalidateQueries({ queryKey: ['calibration'] });
+      await queryClient.invalidateQueries({ queryKey: ['public'] });
       void message.success(describeSaved(result));
     },
-    onError: (error: unknown, payload: DailyLogWrite) => {
+    onError: (error: unknown, payload: DailyLogWrite, context) => {
       const status = error instanceof ApiError ? error.status : 0;
-      if (shouldQueue(status)) {
-        const { replaced } = push({ onDate, mealType, payload });
+      if (shouldQueue(status) && context?.ownerId) {
+        const { replaced } = push({ ownerId: context.ownerId, onDate, mealType, payload });
         void message.warning(
           replaced
             ? '网络不通，已存入本地队列并覆盖了这一餐先前的待同步记录；联网后会自动补交'

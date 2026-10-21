@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
@@ -239,3 +239,17 @@ class MenuPlanBatchResult(BaseModel):
     failed: int = 0
     rows: list[MenuPlanBatchDay]
     message: str
+
+
+class MenuPlanBatchSyncRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    suggestion_ids: dict[date, UUID] = Field(
+        max_length=31, description="用户已核对的逐日方案 ID；没有选定方案的日期跳过"
+    )
+
+
+class MenuPlanHistoryItem(BaseModel):
+    created_at: datetime
+    status_label: str
+    plan: MenuPlanResponse

@@ -8,13 +8,16 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, File, Query, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
+from app.core.errors import BusinessRuleError, NotFoundError
 from app.db.session import get_session
 from app.modules.auth.dependencies import require_roles
 from app.modules.auth.schemas import AuthUser
-from app.modules.dish import service
+from app.modules.dish import images, service
 from app.modules.dish.schemas import (
     DishCreate,
     DishDetail,
@@ -106,3 +109,51 @@ def deactivate_dish(
     return service.deactivate_dish(
         session, dish_id, actor_id=actor.id, actor_name=actor.display_name
     )
+
+
+@router.get("/{dish_id}/image", response_class=FileResponse, summary="读取用户上传的菜品图片")
+def get_dish_image(
+    dish_id: UUID,
+    session: Session = Depends(get_session),
+    _: AuthUser = Depends(require_roles(*READ_ROLES)),
+) -> FileResponse:
+    service.get_dish(session, dish_id)
+    path = images.image_path(dish_id)
+    if not path.is_file():
+        raise NotFoundError("该菜品尚未上传图片")
+    return FileResponse(
+        path,
+        media_type="image/webp",
+        headers={"Cache-Control": "private, no-cache", "X-Content-Type-Options": "nosniff"},
+    )
+
+
+@router.put("/{dish_id}/image", response_model=DishDetail, summary="上传或更换菜品图片")
+async def upload_dish_image(
+    dish_id: UUID,
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session),
+    _: AuthUser = Depends(require_roles(*WRITE_ROLES)),
+) -> DishDetail:
+    dish = service.get_dish(session, dish_id)
+    if not dish.is_active:
+        raise BusinessRuleError("已停用的菜品不能修改图片")
+    try:
+        content = await file.read(images.MAX_IMAGE_BYTES + 1)
+        await run_in_threadpool(images.save_image, dish_id, content, file.content_type)
+    finally:
+        await file.close()
+    return service.get_dish_detail(session, dish_id)
+
+
+@router.delete("/{dish_id}/image", response_model=DishDetail, summary="移除菜品图片")
+def remove_dish_image(
+    dish_id: UUID,
+    session: Session = Depends(get_session),
+    _: AuthUser = Depends(require_roles(*WRITE_ROLES)),
+) -> DishDetail:
+    dish = service.get_dish(session, dish_id)
+    if not dish.is_active:
+        raise BusinessRuleError("已停用的菜品不能修改图片")
+    images.image_path(dish_id).unlink(missing_ok=True)
+    return service.get_dish_detail(session, dish_id)

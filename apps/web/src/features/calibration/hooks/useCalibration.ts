@@ -29,6 +29,7 @@ function useCalibrationInvalidate() {
     await queryClient.invalidateQueries({ queryKey: calibrationKeys.all });
     await queryClient.invalidateQueries({ queryKey: collectionKeys.all });
     await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    await queryClient.invalidateQueries({ queryKey: ['public'] });
   };
 }
 

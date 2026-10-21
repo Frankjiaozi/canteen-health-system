@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     # 全系统业务日期与时间戳统一使用该时区
     app_timezone: str = "Asia/Shanghai"
     api_prefix: str = "/api/v1"
+    # 菜品图片独立保存，部署时挂载持久卷；不写入配方或营养快照。
+    dish_image_dir: Path = API_DIR / "data" / "dish-images"
 
     # ---- 数据库 ----
     database_url: str = "postgresql+psycopg://canteen:canteen@127.0.0.1:5432/canteen"
