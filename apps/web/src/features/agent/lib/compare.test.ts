@@ -30,6 +30,7 @@ function version(cost: string | null, ids: string[], date = '2026-10-17'): PlanV
         salt_g: '1',
         popularity: '20',
         nutrition_basis: '理论值',
+        is_shared: false,
         predicted_servings: '200',
         prediction_fallback: false,
       })),

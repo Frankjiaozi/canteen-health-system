@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 test('公开大屏不需要登录就能看到今日菜单与营养', async ({ page }) => {
-  await page.goto('/display');
+  await page.goto('/display?meal=LUNCH');
 
   await expect(page.getByText('今日菜单与营养')).toBeVisible();
   await expect(page.getByText('知味 · 校园智慧膳食平台')).toBeVisible();
@@ -10,11 +10,16 @@ test('公开大屏不需要登录就能看到今日菜单与营养', async ({ pa
 
   // 菜单按轮换逐日变化，因此不写死菜名：直接与接口返回的内容比对，
   // 这样既不受轮换影响，又能验证「大屏上的数字就是接口里的数字」
-  const board = await (await page.request.get('/api/v1/public/board/today')).json();
+  const board = await (await page.request.get('/api/v1/public/board/today?meal_type=LUNCH')).json();
   expect(board.dishes.length).toBeGreaterThan(0);
   const first = board.dishes[0];
+  const firstValue = Number(first.nutrients[0].value);
+  const displayedValue =
+    first.nutrients[0].unit === '毫克'
+      ? firstValue.toFixed(0)
+      : firstValue.toFixed(1).replace(/\.0$/, '');
   await expect(page.getByText(first.name).first()).toBeVisible();
-  await expect(page.getByText(first.nutrients[0].value).first()).toBeVisible();
+  await expect(page.getByText(displayedValue).first()).toBeVisible();
   // 数值来自哪一层必须写在卡面上：抽样实测和配方推算在大屏上长得一样，
   // 但两者的说服力完全不同，不标出来等于把口径藏起来了
   expect(first.value_type_label).toBeTruthy();
@@ -22,13 +27,31 @@ test('公开大屏不需要登录就能看到今日菜单与营养', async ({ pa
 });
 
 test('公开大屏展示膳食指南对照条与合规说明', async ({ page }) => {
-  await page.goto('/display');
+  await page.goto('/display?meal=LUNCH');
 
   await expect(page.getByText('食盐').first()).toBeVisible();
   await expect(page.getByText('烹调油').first()).toBeVisible();
   await expect(page.getByText('添加糖').first()).toBeVisible();
   await expect(page.getByText(/中国居民膳食指南/).first()).toBeVisible();
   await expect(page.getByText(/不针对任何个人/)).toBeVisible();
+});
+
+test('公开大屏可以切换早餐、午餐和晚餐', async ({ page }) => {
+  await page.goto('/display?meal=BREAKFAST');
+
+  for (const mealType of ['BREAKFAST', 'LUNCH', 'DINNER']) {
+    const board = await (
+      await page.request.get(`/api/v1/public/board/today?meal_type=${mealType}`)
+    ).json();
+    await page.getByRole('button', { name: board.meal_label }).click();
+    await expect(page).toHaveURL(new RegExp(`meal=${mealType}`));
+    await expect(
+      page.getByText(`${board.meal_label} · 就餐 ${board.diner_count ?? '—'} 人次`),
+    ).toBeVisible();
+    if (board.dishes.length > 0) {
+      await expect(page.getByText(board.dishes[0].name).first()).toBeVisible();
+    }
+  }
 });
 
 for (const viewport of [
@@ -38,7 +61,7 @@ for (const viewport of [
 ]) {
   test(`公开大屏在${viewport.name}下不溢出`, async ({ page }) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
-    await page.goto('/display');
+    await page.goto('/display?meal=LUNCH');
     await expect(page.getByText('今日菜单与营养')).toBeVisible();
 
     const overflow = await page.evaluate(() => ({

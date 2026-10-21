@@ -9,8 +9,7 @@
 | 买多少料 | 由两者相乘得到 | 各食材/调味料的公斤数与金额 |
 
 **份数由预测给，不由推荐算**：份数要看明天是不是放假、这道菜历史卖得怎么样，
-推荐手里没有这些信息。但份数又必须参与营养评估（人均供给 = Σ单份营养 × 份数 ÷ 人次），
-所以它是推荐的**输入**而不是输出。
+推荐手里没有这些信息。营养按每人一份标准套餐评估，预测份数只用于采购与出餐计划。
 
 「同步至当日数据」是这条链路的最后一环（`sync_to_day`）：把这一版菜单写进那一天的**菜单日**，
 每日采集的「当日供应菜品」因此一打开就是勾好的，公开大屏当天早上也能直接显示。
@@ -39,13 +38,14 @@ from app.modules.menuplan.schemas import (
     MenuPlanBatchResult,
     MenuPlanDish,
     MenuPlanHistoryItem,
+    MenuPlanPackage,
     MenuPlanResponse,
     MenuPlanSyncResult,
     PublishPlanRequest,
 )
 from app.modules.recommendation import repository as recommendation_repository
 from app.modules.recommendation import service as recommendation_service
-from app.shared.enums import MealType, SuggestionStatus
+from app.shared.enums import MealType, PackageCode, SuggestionStatus
 from sqlalchemy.orm import Session
 
 logger = get_logger(__name__)
@@ -228,15 +228,13 @@ def build_menu_plan(
     )
     session.commit()
 
-    requirements, total_cost = forecast_service.build_purchase_list(
-        session,
-        servings_by_dish={dish_id: servings_by_dish[dish_id] for dish_id in recommended_ids},
-    )
-
     dishes = [
         MenuPlanDish(
             dish_id=dish.dish_id,
             dish_name=dish.dish_name,
+            package_codes=list(dish.package_codes),
+            package_labels=list(dish.package_labels),
+            is_shared=PackageCode.COMMON in dish.package_codes,
             category_label=dish.category_label,
             cooking_method_label=dish.cooking_method_label,
             energy_kcal=dish.energy_kcal,
@@ -253,21 +251,47 @@ def build_menu_plan(
                 None,
             ),
             prediction_fallback=UUID(dish.dish_id) not in prediction.servings,
+            # 采购份数就是这道菜按同星期历史算出的独立预测值。A/B 只描述套餐归属，
+            # 不再把一道菜的销量预测按套餐比例二次缩小。
             planned_servings=str(servings_by_dish[UUID(dish.dish_id)]),
         )
         for dish in suggestion.dishes
+    ]
+    purchase_servings = {
+        UUID(dish.dish_id): Decimal(dish.planned_servings or "0") for dish in dishes
+    }
+    requirements, total_cost = forecast_service.build_purchase_list(
+        session,
+        servings_by_dish=purchase_servings,
+    )
+    packages = [
+        MenuPlanPackage(
+            code=package.code,
+            label=package.label,
+            dish_ids=[
+                dish.dish_id
+                for dish in dishes
+                if package.code in dish.package_codes or dish.is_shared
+            ],
+            gaps=package.gaps,
+            reasons=package.reasons,
+            cost_estimate=package.cost_estimate,
+            per_capita=package.per_capita,
+        )
+        for package in suggestion.packages
     ]
 
     fallback_names = [dish.dish_name for dish in dishes if dish.prediction_fallback]
     if meal_type is MealType.BREAKFAST:
         notes = [
             "早餐按固定组合供应：上哪几道菜由菜品库的「早餐固定供应」决定，不参与每日选菜。",
-            "份数仍由预测按同星期历史与日历修正给出；采购量按这些份数算。",
+            "早餐主食由 A/B 两份套餐共用；其它菜不重复。",
         ]
     else:
         notes = [
             "菜品由推荐在营养目标下选出；份数由预测按同星期历史与日历修正给出。",
-            "推荐用预测份数评估营养，因此页面上只有一套份数。",
+            "每餐生成 A/B 两份每人套餐；非主食不重复，主食允许共用。",
+            "营养按每份套餐独立评估；预测份数只用于采购，不再反过来改变套餐营养。",
             "同一天的另一餐已经排过的菜不会再选（主食可以重样）。",
         ]
     if diner_count is None:
@@ -283,6 +307,11 @@ def build_menu_plan(
     if fallback_names:
         notes.append(
             "这几道菜历史不足、预测不出份数，采购量按「每人一份」估算：" + "、".join(fallback_names)
+        )
+    if total_cost is not None and Decimal(total_cost) > Decimal(suggestion.budget):
+        notes.append(
+            f"逐菜销量预测得到的采购金额 {total_cost} 元高于套餐约束预算 "
+            f"{suggestion.budget} 元；菜单仍可确认，但采购下单前应复核预测与价格。"
         )
     if scale_note:
         notes.append(scale_note)
@@ -301,6 +330,7 @@ def build_menu_plan(
         diner_count=diners,
         suggestion_id=suggestion.id,
         dishes=dishes,
+        packages=packages,
         gaps=suggestion.gaps,
         reasons=suggestion.reasons,
         requirements=requirements,
@@ -312,7 +342,8 @@ def build_menu_plan(
         calendar_notes=[prediction.calendar_note] if prediction.calendar_note else [],
         skipped_predictions=prediction.skipped,
         servings_note=(
-            "采购量 = 推荐选出的菜 × 该菜明天的预测份数；"
+            "采购量 = 每道入选菜按同星期历史得到的独立预测份数 × 该菜单份配方用量，"
+            "相同食材和调味料再汇总；不乘 A/B 套餐占比。共用主食只计一次；"
             "预测不出来时退回「每人一份」估算并逐行标注。"
         ),
         notes=notes,

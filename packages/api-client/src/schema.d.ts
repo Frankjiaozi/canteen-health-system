@@ -1270,11 +1270,11 @@ export interface components {
             /** Diner Count */
             diner_count: number;
             /** Oil Total G */
-            oil_total_g: string;
+            oil_total_g: string | null;
             /** Salt Total G */
-            salt_total_g: string;
+            salt_total_g: string | null;
             /** Sugar Total G */
-            sugar_total_g: string;
+            sugar_total_g: string | null;
             /** Leftover Weight G */
             leftover_weight_g?: string | null;
             /** Dish Count */
@@ -1297,21 +1297,12 @@ export interface components {
             meal_type: components["schemas"]["MealType"];
             /** Diner Count */
             diner_count: number;
-            /**
-             * Oil Total G
-             * @default 0
-             */
-            oil_total_g: number | string;
-            /**
-             * Salt Total G
-             * @default 0
-             */
-            salt_total_g: number | string;
-            /**
-             * Sugar Total G
-             * @default 0
-             */
-            sugar_total_g: number | string;
+            /** Oil Total G */
+            oil_total_g?: number | string | null;
+            /** Salt Total G */
+            salt_total_g?: number | string | null;
+            /** Sugar Total G */
+            sugar_total_g?: number | string | null;
             /** Leftover Weight G */
             leftover_weight_g?: number | string | null;
             /** Note */
@@ -2157,6 +2148,15 @@ export interface components {
             dish_id: string;
             /** Name */
             name: string;
+            /** Package Codes */
+            package_codes?: components["schemas"]["PackageCode"][];
+            /** Package Labels */
+            package_labels?: string[];
+            /**
+             * Is Shared
+             * @default false
+             */
+            is_shared: boolean;
             /** Category Label */
             category_label: string;
             /** Cooking Method Label */
@@ -2258,6 +2258,15 @@ export interface components {
             image_url?: string | null;
             /** Name */
             name: string;
+            /** Package Codes */
+            package_codes?: components["schemas"]["PackageCode"][];
+            /** Package Labels */
+            package_labels?: string[];
+            /**
+             * Is Shared
+             * @default false
+             */
+            is_shared: boolean;
             /** Category Label */
             category_label: string;
             /** Cooking Method Label */
@@ -2296,6 +2305,33 @@ export interface components {
             tomorrow: string;
             /** Days */
             days: components["schemas"]["MenuOverviewDay"][];
+        };
+        /**
+         * MenuPackageRead
+         * @description 一份每人套餐的菜品、营养差距与依据。
+         */
+        MenuPackageRead: {
+            code: components["schemas"]["PackageCode"];
+            /** Label */
+            label: string;
+            /** Dishes */
+            dishes: components["schemas"]["PlannedDishRead"][];
+            /** Gaps */
+            gaps: components["schemas"]["NutrientGap"][];
+            /** Reasons */
+            reasons: components["schemas"]["SuggestionReason"][];
+            /** Cost Estimate */
+            cost_estimate: string;
+            /** Budget */
+            budget: string;
+            /** Per Capita */
+            per_capita: {
+                [key: string]: string;
+            };
+            /** Binding */
+            binding: string[];
+            /** Solver Status */
+            solver_status: string;
         };
         /**
          * MenuPlanBatchDay
@@ -2412,6 +2448,15 @@ export interface components {
             dish_id: string;
             /** Dish Name */
             dish_name: string;
+            /** Package Codes */
+            package_codes?: components["schemas"]["PackageCode"][];
+            /** Package Labels */
+            package_labels?: string[];
+            /**
+             * Is Shared
+             * @default false
+             */
+            is_shared: boolean;
             /** Category Label */
             category_label: string;
             /** Cooking Method Label */
@@ -2447,6 +2492,27 @@ export interface components {
             status_label: string;
             plan: components["schemas"]["MenuPlanResponse"];
         };
+        /**
+         * MenuPlanPackage
+         * @description 一份标准套餐在菜单计划中的视图。
+         */
+        MenuPlanPackage: {
+            code: components["schemas"]["PackageCode"];
+            /** Label */
+            label: string;
+            /** Dish Ids */
+            dish_ids: string[];
+            /** Gaps */
+            gaps: components["schemas"]["NutrientGap"][];
+            /** Reasons */
+            reasons: components["schemas"]["SuggestionReason"][];
+            /** Cost Estimate */
+            cost_estimate: string;
+            /** Per Capita */
+            per_capita: {
+                [key: string]: string;
+            };
+        };
         /** MenuPlanResponse */
         MenuPlanResponse: {
             /**
@@ -2463,6 +2529,8 @@ export interface components {
             suggestion_id: string;
             /** Dishes */
             dishes: components["schemas"]["MenuPlanDish"][];
+            /** Packages */
+            packages?: components["schemas"]["MenuPlanPackage"][];
             /** Gaps */
             gaps: components["schemas"]["NutrientGap"][];
             /** Reasons */
@@ -2553,6 +2621,12 @@ export interface components {
             status_label: string;
             /** Dishes */
             dishes: components["schemas"]["PlannedDishRead"][];
+            /** Packages */
+            packages?: components["schemas"]["MenuPackageRead"][];
+            /** Package Shares */
+            package_shares?: {
+                [key: string]: string;
+            };
             /** Gaps */
             gaps: components["schemas"]["NutrientGap"][];
             /** Reasons */
@@ -2718,6 +2792,15 @@ export interface components {
             /** Sodium Mg */
             sodium_mg: string;
         };
+        /**
+         * PackageCode
+         * @description 一餐内的套餐归属。
+         *
+         *     主食允许 A/B 共用，用 ``COMMON`` 明确表达。把共用主食分别记成 A 和 B 会在
+         *     采购聚合时被计两次，除非每个下游都记得再做一次去重；用独立代码从源头避免这个坑。
+         * @enum {string}
+         */
+        PackageCode: "A" | "B" | "COMMON";
         /** PerCapitaResponse */
         PerCapitaResponse: {
             /** Days */
@@ -2827,6 +2910,10 @@ export interface components {
             dish_id: string;
             /** Dish Name */
             dish_name: string;
+            /** Package Codes */
+            package_codes?: components["schemas"]["PackageCode"][];
+            /** Package Labels */
+            package_labels?: string[];
             /** Category Label */
             category_label: string;
             /** Cooking Method Label */
@@ -2858,6 +2945,8 @@ export interface components {
              * Format: date
              */
             date: string;
+            /** @description 当前展示餐次 */
+            meal_type?: components["schemas"]["MealType"] | null;
             /**
              * Meal Label
              * @description 餐次中文名
@@ -2895,6 +2984,15 @@ export interface components {
             dish_id: string;
             /** Name */
             name: string;
+            /** Package Codes */
+            package_codes?: components["schemas"]["PackageCode"][];
+            /** Package Labels */
+            package_labels?: string[];
+            /**
+             * Is Shared
+             * @default false
+             */
+            is_shared: boolean;
             /** Category Label */
             category_label: string;
             /** Cooking Method Label */
@@ -3546,11 +3644,11 @@ export interface components {
             /** Diner Count */
             diner_count: number;
             /** Oil Total G */
-            oil_total_g: string;
+            oil_total_g: string | null;
             /** Salt Total G */
-            salt_total_g: string;
+            salt_total_g: string | null;
             /** Sugar Total G */
-            sugar_total_g: string;
+            sugar_total_g: string | null;
             /** Oil Per Capita G */
             oil_per_capita_g: string | null;
             /** Salt Per Capita G */
@@ -3720,12 +3818,14 @@ export type SchemaMenuOverviewDay = components['schemas']['MenuOverviewDay'];
 export type SchemaMenuOverviewDish = components['schemas']['MenuOverviewDish'];
 export type SchemaMenuOverviewMeal = components['schemas']['MenuOverviewMeal'];
 export type SchemaMenuOverviewResponse = components['schemas']['MenuOverviewResponse'];
+export type SchemaMenuPackageRead = components['schemas']['MenuPackageRead'];
 export type SchemaMenuPlanBatchDay = components['schemas']['MenuPlanBatchDay'];
 export type SchemaMenuPlanBatchResult = components['schemas']['MenuPlanBatchResult'];
 export type SchemaMenuPlanBatchSyncRequest = components['schemas']['MenuPlanBatchSyncRequest'];
 export type SchemaMenuPlanConstraints = components['schemas']['MenuPlanConstraints'];
 export type SchemaMenuPlanDish = components['schemas']['MenuPlanDish'];
 export type SchemaMenuPlanHistoryItem = components['schemas']['MenuPlanHistoryItem'];
+export type SchemaMenuPlanPackage = components['schemas']['MenuPlanPackage'];
 export type SchemaMenuPlanResponse = components['schemas']['MenuPlanResponse'];
 export type SchemaMenuPlanSyncResult = components['schemas']['MenuPlanSyncResult'];
 export type SchemaMenuSuggestionRead = components['schemas']['MenuSuggestionRead'];
@@ -3734,6 +3834,7 @@ export type SchemaNutrientGap = components['schemas']['NutrientGap'];
 export type SchemaNutrientValue = components['schemas']['NutrientValue'];
 export type SchemaNutritionComparison = components['schemas']['NutritionComparison'];
 export type SchemaNutritionSummary = components['schemas']['NutritionSummary'];
+export type SchemaPackageCode = components['schemas']['PackageCode'];
 export type SchemaPerCapitaResponse = components['schemas']['PerCapitaResponse'];
 export type SchemaPlanReadiness = components['schemas']['PlanReadiness'];
 export type SchemaPlannedDishRead = components['schemas']['PlannedDishRead'];
@@ -5375,6 +5476,8 @@ export interface operations {
             query?: {
                 /** @description 指定日期，默认取业务时区的今天；便于回看与功能验证 */
                 on_date?: string | null;
+                /** @description 指定餐次；不传时保持原有主餐次选择（午餐优先） */
+                meal_type?: components["schemas"]["MealType"] | null;
             };
             header?: never;
             path?: never;

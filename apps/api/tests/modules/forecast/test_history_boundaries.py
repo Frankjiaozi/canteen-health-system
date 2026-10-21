@@ -80,6 +80,31 @@ def test_unverified_calendar_does_not_change_a_forecast(db_session):
     )
 
 
+def test_dish_history_excludes_verified_holidays(db_session):
+    """单菜份数历史不能拿假日低出餐量当普通日基线。"""
+    today = today_local()
+    known = set(db_session.scalars(select(Holiday.date)).all())
+    day = next(
+        today - timedelta(days=offset)
+        for offset in range(1, 15)
+        if today - timedelta(days=offset) not in known
+    )
+    before = service.repository.load_dish_history(
+        db_session, start=day, end=day, meal_type=MealType.LUNCH
+    )
+    assert before
+
+    db_session.add(
+        Holiday(date=day, name="测试法定假日", kind=HolidayKind.HOLIDAY, is_verified=True)
+    )
+    db_session.flush()
+
+    after = service.repository.load_dish_history(
+        db_session, start=day, end=day, meal_type=MealType.LUNCH
+    )
+    assert after == {}
+
+
 def test_later_extreme_record_cannot_change_earlier_backtest(monkeypatch, db_session):
     end = today_local()
     first = end - timedelta(days=6)

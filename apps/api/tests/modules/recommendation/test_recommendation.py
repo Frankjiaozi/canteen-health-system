@@ -15,7 +15,13 @@ from app.modules.dish.models import Dish
 from app.modules.menu.models import MenuDay, MenuDayItem
 from app.modules.recommendation import repository, solver, targets
 from app.modules.recommendation.models import MenuSuggestion
-from app.shared.enums import CookingMethod, DishCategory, MealType, SuggestionStatus
+from app.shared.enums import (
+    CookingMethod,
+    DishCategory,
+    MealType,
+    PackageCode,
+    SuggestionStatus,
+)
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -139,6 +145,71 @@ def test_fixed_plan_takes_the_servings_it_is_given_and_chooses_nothing() -> None
     assert plan.per_capita["SALT"] == Decimal("0.400")
     # 成本 = 0.4×600 + 0.7×800 = 800 元
     assert plan.cost == Decimal("800.00")
+
+
+def test_standard_package_uses_one_serving_per_dish_not_the_forecast_quantity() -> None:
+    """每人套餐按每道菜一个标准份评估，采购预测份数不能放大营养口径。"""
+    dishes = [
+        _dish("白粥", energy="30", salt="0", oil="0", cost="0.4"),
+        _dish("煮鸡蛋", energy="78", salt="0.1", oil="0", cost="0.7"),
+    ]
+    constraints = _constraints(
+        targets=(
+            solver.PlanTarget("energy_kcal", "能量", "千卡", Decimal("100"), Decimal("120")),
+            solver.PlanTarget("SALT", "食盐", "g", None, Decimal("5")),
+        ),
+        fixed_servings={
+            dishes[0].dish_id: Decimal("600"),
+            dishes[1].dish_id: Decimal("800"),
+        },
+        standard_package=True,
+    )
+
+    plan = solver.fixed_plan(dishes, constraints=constraints)
+
+    assert plan.per_capita["energy_kcal"] == Decimal("108.000")
+    assert plan.per_capita["SALT"] == Decimal("0.100")
+    assert plan.cost == Decimal("220.00")
+    assert all(item.servings == Decimal("1") for item in plan.items)
+
+
+def test_package_pair_shares_one_staple_and_never_repeats_non_staples() -> None:
+    pool = [
+        _dish("米饭", category=DishCategory.STAPLE, method=CookingMethod.STEAM),
+        _dish("馒头", category=DishCategory.STAPLE, method=CookingMethod.STEAM),
+        _dish("炖肉", category=DishCategory.MEAT, method=CookingMethod.STEW),
+        _dish("炒肉", category=DishCategory.HALF_MEAT, method=CookingMethod.STIR_FRY),
+        _dish("清菜", category=DishCategory.VEGETABLE, method=CookingMethod.BOIL),
+        _dish("凉菜", category=DishCategory.VEGETABLE, method=CookingMethod.COLD_DRESS),
+        _dish("热汤", category=DishCategory.SOUP, method=CookingMethod.BOIL),
+    ]
+    constraints = _constraints(
+        standard_package=True,
+        category_max={DishCategory.STAPLE: 1},
+    )
+
+    plans = solver.solve_package_pair(pool, constraints)
+
+    by_id = {dish.dish_id: dish for dish in pool}
+    staple_ids = {
+        code: {
+            item.dish_id
+            for item in plans[code].items
+            if by_id[item.dish_id].category is DishCategory.STAPLE
+        }
+        for code in (PackageCode.A, PackageCode.B)
+    }
+    assert staple_ids[PackageCode.A] == staple_ids[PackageCode.B]
+    assert len(staple_ids[PackageCode.A]) == 1
+    non_staples = {
+        code: {
+            item.dish_id
+            for item in plans[code].items
+            if by_id[item.dish_id].category is not DishCategory.STAPLE
+        }
+        for code in (PackageCode.A, PackageCode.B)
+    }
+    assert not (non_staples[PackageCode.A] & non_staples[PackageCode.B])
 
 
 def test_plan_satisfies_every_hard_constraint() -> None:
@@ -381,7 +452,22 @@ def test_generate_returns_menu_with_gaps_and_reasons(as_recorder: TestClient) ->
 
     assert response.status_code == 200, response.text
     body = response.json()
-    assert 4 <= len(body["dishes"]) <= 6
+    assert len(body["packages"]) == 2
+    assert all(4 <= len(package["dishes"]) <= 6 for package in body["packages"])
+    package_dishes = {
+        package["code"]: {dish["dish_name"] for dish in package["dishes"]}
+        for package in body["packages"]
+    }
+    assert package_dishes["A"] | package_dishes["B"] == {
+        dish["dish_name"] for dish in body["dishes"]
+    }
+    non_staples = {
+        package["code"]: {
+            dish["dish_name"] for dish in package["dishes"] if dish["category_label"] != "主食"
+        }
+        for package in body["packages"]
+    }
+    assert not (non_staples["A"] & non_staples["B"]), "A/B 套餐的非主食不能重复"
     assert body["status"] == "PENDING"
     # 差距分析要给出缺口多大，只给「达标 / 不达标」的标签不算完成
     assert body["gaps"]

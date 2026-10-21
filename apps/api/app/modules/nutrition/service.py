@@ -62,6 +62,42 @@ CLOSURE_ACTUAL_FIELD: dict[SeasoningCategory, str] = {
 }
 
 
+def recipe_snapshots(session: Session, dish_ids: Sequence[UUID]) -> dict[UUID, dict[str, Any]]:
+    """把采集当时的配方冻结成快照，供历史校准使用。
+
+    这是比“只存一个版本号”更直接的追溯方式：即使以后菜品、调味料或配方被修改，
+    这一餐的推算量仍然能从当时的快照重建。
+    """
+    recipes = repository.load_recipes(session, dish_ids)
+    return {
+        dish_id: {
+            "recipe_version": recipe.recipe_version,
+            "cooking_method": recipe.cooking_method.value,
+            "ingredients": [
+                {
+                    "ingredient_id": str(line.ingredient.id),
+                    "quantity_per_serving_g": str(line.quantity_g),
+                    "edible_ratio_override": (
+                        None
+                        if line.edible_ratio_override is None
+                        else str(line.edible_ratio_override)
+                    ),
+                }
+                for line in recipe.ingredients
+            ],
+            "seasonings": [
+                {
+                    "seasoning_id": str(line.seasoning.id),
+                    "category": line.seasoning.category.value,
+                    "quantity_per_serving_g": str(line.quantity_g),
+                }
+                for line in recipe.seasonings
+            ],
+        }
+        for dish_id, recipe in recipes.items()
+    }
+
+
 @dataclass
 class ComputeReport:
     """一次计算的写入统计，供调用方断言与输出。"""
@@ -175,12 +211,15 @@ def compute_recent_days(session: Session, *, days: int) -> ComputeReport:
 
 
 def recompute_dish_nutrition(session: Session, dish_id: UUID) -> ComputeReport:
-    """重算某道菜在**所有供应过它的日子**里的营养结果。
+    """重算某道菜今天及未来供应日，不覆盖已经过去的历史结果。
 
-    配方一改，历史结果不能只改最近一天——公开大屏看的是当天，
-    而看板、抽样对比、预测回测看的都是历史，几处必须一起对齐。
+    历史看板、回测与公开大屏的过去日期必须保持当时的配方口径；要修正历史，
+    应由明确的“数据修复”流程处理，而不是由一次普通配方编辑静默改写。
     """
-    menu_days = repository.list_menu_days_for_dish(session, dish_id)
+    today = datetime.now(get_settings().timezone).date()
+    menu_days = [
+        row for row in repository.list_menu_days_for_dish(session, dish_id) if row.date >= today
+    ]
     total = ComputeReport()
     for menu_day in menu_days:
         total = total.merge(
@@ -306,8 +345,11 @@ def compute_daily_closure(session: Session, *, on_date: date, meal_type: MealTyp
     for recipe in recipes.values():
         implied_today.setdefault(recipe.cooking_method, {})
 
-    window_start = on_date - timedelta(days=engine.CALIBRATION_WINDOW_DAYS - 1)
-    samples = repository.load_calibration_samples(session, start=window_start, end=on_date)
+    # 目标日只用于校验，不进入拟合；否则当天实际用量既当答案又当样本，
+    # 残差会被同一份数据自我解释，失去独立验证意义。
+    window_end = on_date - timedelta(days=1)
+    window_start = on_date - timedelta(days=engine.CALIBRATION_WINDOW_DAYS)
+    samples = repository.load_calibration_samples(session, start=window_start, end=window_end)
     fitted = engine.fit_calibration_coefficients(samples)
 
     rows: list[ClosureFactorRow] = []
@@ -413,7 +455,7 @@ def compute_daily_closure(session: Session, *, on_date: date, meal_type: MealTyp
             days=engine.CALIBRATION_WINDOW_DAYS,
             samples=fitted.samples,
             start=window_start if samples else None,
-            end=on_date,
+            end=window_end,
             residual_mape=fitted.residual_mape,
             ridge=engine.CALIBRATION_RIDGE_RATIO,
             fallback_reason=fitted.fallback_reason,

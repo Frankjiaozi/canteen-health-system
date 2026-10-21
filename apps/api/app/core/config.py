@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Literal
 from zoneinfo import ZoneInfo
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # apps/api 目录（本文件位于 apps/api/app/core/config.py）
@@ -76,6 +76,10 @@ class Settings(BaseSettings):
     nutrition_meal_share_dinner: float = 0.3
     #: 一餐的伙食预算（元 / 人）
     nutrition_meal_budget_per_person: float = 8.0
+    #: A/B 两份标准套餐的就餐人数占比。只影响采购与成本分摊，不影响每份套餐的营养口径。
+    #: 两项之和必须为 1；以后接套餐选择预测时，替换这两个比例即可。
+    package_share_a: float = 0.5
+    package_share_b: float = 0.5
 
     @field_validator("app_timezone")
     @classmethod
@@ -85,6 +89,14 @@ class Settings(BaseSettings):
         except Exception as exc:
             raise ValueError(f"无效的时区：{value}") from exc
         return value
+
+    @model_validator(mode="after")
+    def _validate_package_shares(self) -> Settings:
+        if self.package_share_a < 0 or self.package_share_b < 0:
+            raise ValueError("套餐 A/B 的占比不能为负数")
+        if abs(self.package_share_a + self.package_share_b - 1.0) > 1e-9:
+            raise ValueError("套餐 A/B 的占比之和必须为 1")
+        return self
 
     @property
     def timezone(self) -> ZoneInfo:

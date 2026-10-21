@@ -15,7 +15,7 @@ from uuid import UUID
 
 import pulp
 
-from app.shared.enums import CookingMethod, DishCategory
+from app.shared.enums import CookingMethod, DishCategory, PackageCode
 
 SOLVER_VERSION = "menu-ilp-v1"
 
@@ -116,6 +116,9 @@ class PlanConstraints:
     #: 这一批菜单里每道菜已经排过几次。批量排菜单时用它做均衡：
     #: 排得多的菜在后面几天会被轻微压价，菜单才会真正轮换开。
     usage_counts: dict[UUID, int] = field(default_factory=dict)
+    #: 套餐模式：每道入选菜只代表一个标准份，不把预测份数当作营养求解变量。
+    #: 预测份数仍由采购链路单独使用。
+    standard_package: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,6 +170,10 @@ def solve_menu(
     决策变量是「选不选这道菜」（0/1）与「做多少份」（连续），
     因此「换一道菜」和「同一道菜多做点」在模型里是分开的两件事。
     """
+    if constraints.standard_package:
+        return _solve_standard_package(
+            candidates, constraints, weights=weights, time_limit=time_limit
+        )
     if constraints.diner_count <= 0:
         raise InfeasibleError("输入不完整", ["就餐人次必须大于 0，否则人均供给没有意义"])
 
@@ -321,6 +328,227 @@ def solve_menu(
     )
 
 
+def _solve_standard_package(
+    candidates: list[CandidateDish],
+    constraints: PlanConstraints,
+    *,
+    weights: PlanWeights | None,
+    time_limit: int,
+) -> PlanResult:
+    """兼容单一套餐调用；生产菜单使用 :func:`solve_package_pair`。"""
+    return _solve_standard_packages(
+        candidates,
+        constraints,
+        package_codes=(PackageCode.A,),
+        weights=weights,
+        time_limit=time_limit,
+    )[PackageCode.A]
+
+
+def solve_package_pair(
+    candidates: list[CandidateDish],
+    constraints: PlanConstraints,
+    *,
+    weights: PlanWeights | None = None,
+    time_limit: int = TIME_LIMIT_SECONDS,
+) -> dict[PackageCode, PlanResult]:
+    """联合求解 A/B 两份标准套餐。
+
+    两份套餐放在同一个整数规划里求，而不是“先求 A、再从剩余菜里求 B”。分开求时
+    A 可能拿走 B 唯一能用的汤或素菜，最后把本来有解的问题报成无解；联合求解让
+    求解器提前为两份套餐分配候选菜。非主食互斥，主食允许相同。
+    """
+    return _solve_standard_packages(
+        candidates,
+        constraints,
+        package_codes=(PackageCode.A, PackageCode.B),
+        weights=weights,
+        time_limit=time_limit,
+    )
+
+
+def _solve_standard_packages(
+    candidates: list[CandidateDish],
+    constraints: PlanConstraints,
+    *,
+    package_codes: tuple[PackageCode, ...],
+    weights: PlanWeights | None,
+    time_limit: int,
+) -> dict[PackageCode, PlanResult]:
+    """求解一组「每人一份」的标准套餐。"""
+    if constraints.diner_count <= 0:
+        raise InfeasibleError("输入不完整", ["就餐人次必须大于 0，否则套餐营养没有意义"])
+
+    excluded = set(constraints.excluded_dish_ids)
+    usable = [dish for dish in candidates if dish.dish_id not in excluded]
+    if not usable:
+        raise InfeasibleError("没有可用的候选菜品", ["所有候选都被排除规则排除了"])
+
+    weight = weights or PlanWeights()
+    problem = pulp.LpProblem("meal_packages", pulp.LpMinimize)
+    diners = Decimal(constraints.diner_count)
+    budget_per_person = constraints.budget / diners
+    pick: dict[PackageCode, dict[UUID, pulp.LpVariable]] = {
+        code: {
+            dish.dish_id: pulp.LpVariable(f"pkg_{code.value.lower()}_x_{index}", cat="Binary")
+            for index, dish in enumerate(usable)
+        }
+        for code in package_codes
+    }
+
+    slacks: list[pulp.LpAffineExpression] = []
+    cost_terms: list[pulp.LpAffineExpression] = []
+    popularity_terms: list[pulp.LpAffineExpression] = []
+    repeat_terms: list[pulp.LpAffineExpression] = []
+    max_popularity = max((float(dish.popularity) for dish in usable), default=1.0) or 1.0
+    usage = constraints.usage_counts
+    max_usage = max(usage.values(), default=0) or 1
+
+    for code in package_codes:
+        package_pick = pick[code]
+        prefix = f"pkg_{code.value.lower()}"
+
+        def per_person(
+            field_name: str, package_pick: dict[UUID, pulp.LpVariable] = package_pick
+        ) -> pulp.LpAffineExpression:
+            return pulp.lpSum(
+                float(getattr(dish, field_name)) * package_pick[dish.dish_id] for dish in usable
+            )
+
+        for target in constraints.targets:
+            field_name = FIELD_BY_CODE.get(target.code)
+            if field_name is None:
+                continue
+            expression = per_person(field_name)
+            scale = float(_scale_of(target))
+            if target.hard:
+                if target.lower is not None:
+                    problem += expression >= float(target.lower)
+                if target.upper is not None:
+                    problem += expression <= float(target.upper)
+            else:
+                shortfall = pulp.LpVariable(f"{prefix}_lo_{target.code}", lowBound=0)
+                excess = pulp.LpVariable(f"{prefix}_hi_{target.code}", lowBound=0)
+                if target.lower is not None:
+                    problem += expression + shortfall >= float(target.lower)
+                    slacks.append(shortfall * (float(weight.nutrition) / scale))
+                if target.upper is not None:
+                    problem += expression - excess <= float(target.upper)
+                    slacks.append(excess * (float(weight.nutrition) / scale))
+            midpoint = _midpoint(target)
+            if midpoint is not None:
+                away = pulp.LpVariable(f"{prefix}_mid_{target.code}", lowBound=0)
+                problem += expression - float(midpoint) <= away
+                problem += float(midpoint) - expression <= away
+                slacks.append(away * (float(weight.nutrition) / scale))
+
+        cost_per_person = pulp.lpSum(
+            float(dish.cost_per_serving) * package_pick[dish.dish_id] for dish in usable
+        )
+        problem += cost_per_person <= float(budget_per_person)
+        cost_terms.append(cost_per_person / float(budget_per_person))
+
+        count = pulp.lpSum(package_pick.values())
+        problem += count >= constraints.dish_count_min
+        problem += count <= constraints.dish_count_max
+
+        for category in DishCategory:
+            same_category = pulp.lpSum(
+                package_pick[dish.dish_id] for dish in usable if dish.category is category
+            )
+            minimum = constraints.category_min.get(category, 0)
+            maximum = constraints.category_max.get(category)
+            if minimum:
+                problem += same_category >= minimum
+            if maximum is not None:
+                problem += same_category <= maximum
+
+        for method in CookingMethod:
+            same_method = pulp.lpSum(
+                package_pick[dish.dish_id] for dish in usable if dish.cooking_method is method
+            )
+            problem += same_method <= float(constraints.max_method_ratio) * count
+
+        ingredient_ids = sorted({item for dish in usable for item in dish.ingredient_ids})
+        used = {
+            ingredient_id: pulp.LpVariable(f"{prefix}_y_{index}", cat="Binary")
+            for index, ingredient_id in enumerate(ingredient_ids)
+        }
+        for dish in usable:
+            for ingredient_id in dish.ingredient_ids:
+                problem += used[ingredient_id] >= package_pick[dish.dish_id]
+        if ingredient_ids:
+            problem += pulp.lpSum(used.values()) >= constraints.min_ingredient_kinds
+
+        popularity_terms.append(
+            pulp.lpSum(
+                float(dish.popularity) / max_popularity * package_pick[dish.dish_id]
+                for dish in usable
+            )
+        )
+        repeat_terms.append(
+            pulp.lpSum(
+                float(usage.get(dish.dish_id, 0)) / max_usage * package_pick[dish.dish_id]
+                for dish in usable
+            )
+        )
+
+    if len(package_codes) > 1:
+        for dish in usable:
+            if dish.category is DishCategory.STAPLE:
+                # 一天只做一种主食，A/B 必须共用。若允许两份套餐各拿不同主食，
+                # 批量排菜单到第二天会把整个主食池排除光，这是实际撞到过的无解。
+                for code in package_codes[1:]:
+                    problem += pick[code][dish.dish_id] == pick[package_codes[0]][dish.dish_id]
+            else:
+                problem += pulp.lpSum(pick[code][dish.dish_id] for code in package_codes) <= 1
+
+    problem += (
+        pulp.lpSum(slacks)
+        + float(weight.cost) * pulp.lpSum(cost_terms)
+        - float(weight.popularity)
+        * pulp.lpSum(popularity_terms)
+        / max(constraints.dish_count_max * len(package_codes), 1)
+        + float(weight.variety) * pulp.lpSum(repeat_terms)
+    )
+
+    status = pulp.LpStatus[problem.solve(pulp.PULP_CBC_CMD(msg=False, timeLimit=time_limit))]
+    if status != "Optimal":
+        raise InfeasibleError(status, _diagnose(constraints, usable))
+
+    results: dict[PackageCode, PlanResult] = {}
+    for code in package_codes:
+        chosen = [dish for dish in usable if (pick[code][dish.dish_id].value() or 0) > 0.5]
+        totals = {
+            target.code: (
+                sum(
+                    (Decimal(str(getattr(dish, FIELD_BY_CODE[target.code]))) for dish in chosen),
+                    Decimal("0"),
+                ).quantize(Decimal("0.001"))
+            )
+            for target in constraints.targets
+            if target.code in FIELD_BY_CODE
+        }
+        items = [
+            PlannedDish(
+                dish_id=dish.dish_id,
+                name=dish.name,
+                servings=Decimal("1"),
+                cost=(dish.cost_per_serving * diners).quantize(Decimal("0.01")),
+            )
+            for dish in chosen
+        ]
+        total_cost = sum((dish.cost_per_serving for dish in chosen), Decimal("0")) * diners
+        results[code] = PlanResult(
+            items=items,
+            per_capita=totals,
+            cost=total_cost.quantize(Decimal("0.01")),
+            binding=_binding(constraints, totals),
+            solver_status=status,
+        )
+    return results
+
+
 def fixed_plan(
     dishes: list[CandidateDish],
     *,
@@ -344,6 +572,36 @@ def fixed_plan(
         )
 
     diners = Decimal(constraints.diner_count)
+    if constraints.standard_package:
+        totals = {
+            target.code: (
+                sum(
+                    (Decimal(str(getattr(dish, FIELD_BY_CODE[target.code]))) for dish in dishes),
+                    Decimal("0"),
+                ).quantize(Decimal("0.001"))
+            )
+            for target in constraints.targets
+            if target.code in FIELD_BY_CODE
+        }
+        items = [
+            PlannedDish(
+                dish_id=dish.dish_id,
+                name=dish.name,
+                servings=Decimal("1"),
+                cost=(dish.cost_per_serving * diners).quantize(Decimal("0.01")),
+            )
+            for dish in dishes
+        ]
+        return PlanResult(
+            items=items,
+            per_capita=totals,
+            cost=(sum((dish.cost_per_serving for dish in dishes), Decimal("0")) * diners).quantize(
+                Decimal("0.01")
+            ),
+            binding=_binding(constraints, totals),
+            solver_status="FIXED",
+        )
+
     portions = {
         dish.dish_id: constraints.fixed_servings.get(dish.dish_id, diners) for dish in dishes
     }
@@ -472,10 +730,13 @@ def _lowest_per_capita_total(
         return None
     contributions: list[Decimal] = []
     for dish in usable:
-        servings = constraints.fixed_servings.get(dish.dish_id)
-        if servings is None:
-            servings = diners * constraints.serving_ratio_min
-        contributions.append(Decimal(str(getattr(dish, field_name))) * servings / diners)
+        if constraints.standard_package:
+            contributions.append(Decimal(str(getattr(dish, field_name))))
+        else:
+            servings = constraints.fixed_servings.get(dish.dish_id)
+            if servings is None:
+                servings = diners * constraints.serving_ratio_min
+            contributions.append(Decimal(str(getattr(dish, field_name))) * servings / diners)
     if not contributions:
         return None
     contributions.sort()

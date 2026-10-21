@@ -25,7 +25,6 @@ import type {
   MenuPlanDish,
   MenuPlanResponse,
   MenuSuggestionRead,
-  NutrientGap,
   SuggestionReason,
 } from '../types';
 
@@ -36,6 +35,58 @@ const TONE_COLOR = {
 } as const;
 
 const DECISION_COLOR = { ok: 'green', bad: 'red', pending: 'default' } as const;
+
+function DishTable({ dishes }: { dishes: MenuPlanDish[] }) {
+  return (
+    <Table<MenuPlanDish>
+      rowKey="dish_id"
+      size="small"
+      pagination={false}
+      dataSource={dishes}
+      columns={[
+        {
+          title: '菜品',
+          width: 180,
+          render: (_, row) => (
+            <Space size={6}>
+              <Typography.Text>{row.dish_name}</Typography.Text>
+              {row.is_shared ? <Tag color="gold">A/B 共用</Tag> : null}
+            </Space>
+          ),
+        },
+        { title: '类别', dataIndex: 'category_label', width: 90 },
+        { title: '做法', dataIndex: 'cooking_method_label', width: 80 },
+        {
+          title: '单份能量',
+          dataIndex: 'energy_kcal',
+          width: 110,
+          align: 'right',
+          render: (value: string) => `${Number(value).toFixed(1)} 千卡`,
+        },
+        {
+          title: '单份食盐',
+          dataIndex: 'salt_g',
+          width: 100,
+          align: 'right',
+          render: (value: string) => `${value} 克`,
+        },
+        {
+          title: '受欢迎度',
+          dataIndex: 'popularity',
+          width: 110,
+          align: 'right',
+          render: (value: string) => `${value} 份/次`,
+        },
+        {
+          title: '营养取自',
+          dataIndex: 'nutrition_basis',
+          width: 120,
+          render: (value: string) => <Tag>{value || '—'}</Tag>,
+        },
+      ]}
+    />
+  );
+}
 
 /**
  * ① 明天做哪几道菜。
@@ -64,6 +115,28 @@ export function RecommendedDishes({
   const [reason, setReason] = useState('');
 
   const decision = decisionLabel(suggestion?.status ?? 'PENDING');
+  const packageGroups =
+    plan.packages && plan.packages.length > 0
+      ? plan.packages.map((packageRow) => ({
+          key: packageRow.code,
+          label: packageRow.label,
+          dishes: plan.dishes.filter((dish) => packageRow.dish_ids.includes(dish.dish_id)),
+        }))
+      : [{ key: 'ALL', label: '当前套餐', dishes: plan.dishes }];
+  const gapRows =
+    plan.packages && plan.packages.length > 0
+      ? plan.packages.flatMap((packageRow) =>
+          packageRow.gaps.map((gap) => ({
+            ...gap,
+            rowKey: `${packageRow.code}-${gap.code}`,
+            packageLabel: packageRow.label,
+          })),
+        )
+      : plan.gaps.map((gap) => ({
+          ...gap,
+          rowKey: gap.code,
+          packageLabel: '',
+        }));
 
   return (
     <Card
@@ -80,44 +153,27 @@ export function RecommendedDishes({
         </Typography.Text>
       }
     >
-      <Table<MenuPlanDish>
-        rowKey="dish_id"
-        size="small"
-        pagination={false}
-        dataSource={plan.dishes}
-        columns={[
-          { title: '菜品', dataIndex: 'dish_name', width: 160 },
-          { title: '类别', dataIndex: 'category_label', width: 100 },
-          { title: '做法', dataIndex: 'cooking_method_label', width: 90 },
-          {
-            title: '单份能量',
-            dataIndex: 'energy_kcal',
-            width: 110,
-            align: 'right',
-            render: (value: string) => `${Number(value).toFixed(1)} 千卡`,
-          },
-          {
-            title: '单份食盐',
-            dataIndex: 'salt_g',
-            width: 110,
-            align: 'right',
-            render: (value: string) => `${value} 克`,
-          },
-          {
-            title: '受欢迎度',
-            dataIndex: 'popularity',
-            width: 120,
-            align: 'right',
-            render: (value: string) => `${value} 份/次`,
-          },
-          {
-            title: '营养取自',
-            dataIndex: 'nutrition_basis',
-            width: 130,
-            render: (value: string) => <Tag>{value || '—'}</Tag>,
-          },
-        ]}
-      />
+      <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+        {packageGroups.map((group) => (
+          <Card
+            key={group.key}
+            size="small"
+            type="inner"
+            title={
+              <Space>
+                <Tag
+                  color={group.key === 'B' ? 'geekblue' : group.key === 'A' ? 'green' : 'default'}
+                >
+                  {group.label}
+                </Tag>
+                <Typography.Text type="secondary">{group.dishes.length} 道菜</Typography.Text>
+              </Space>
+            }
+          >
+            <DishTable dishes={group.dishes} />
+          </Card>
+        ))}
+      </Space>
 
       {canWrite ? (
         <Space
@@ -178,15 +234,16 @@ export function RecommendedDishes({
           {
             key: 'gaps',
             label: `与营养目标的差距（${
-              plan.gaps.filter((gap) => gap.status !== 'ok').length
+              gapRows.filter((gap) => gap.status !== 'ok').length
             } 项需关注）`,
             children: (
-              <Table<NutrientGap>
-                rowKey="code"
+              <Table<(typeof gapRows)[number]>
+                rowKey="rowKey"
                 size="small"
                 pagination={false}
-                dataSource={plan.gaps}
+                dataSource={gapRows}
                 columns={[
+                  { title: '套餐', dataIndex: 'packageLabel', width: 90 },
                   { title: '指标', dataIndex: 'label', width: 120 },
                   { title: '目标', dataIndex: 'target_text', width: 180 },
                   { title: '实际', dataIndex: 'actual', width: 110, align: 'right' },

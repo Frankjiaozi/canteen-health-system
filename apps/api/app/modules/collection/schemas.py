@@ -8,7 +8,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.shared.enums import AnomalyFlag, MealType
+from app.shared.enums import AnomalyFlag, MealType, PackageCode
 
 
 class LoggedDish(BaseModel):
@@ -16,6 +16,9 @@ class LoggedDish(BaseModel):
 
     dish_id: str
     name: str
+    package_codes: list[PackageCode] = Field(default_factory=lambda: [PackageCode.COMMON])
+    package_labels: list[str] = Field(default_factory=lambda: [PackageCode.COMMON.label])
+    is_shared: bool = False
     category_label: str
     cooking_method_label: str
     #: 是否已确认为当餐供应的菜。当天还没有菜单时，整份菜品库都会列出来供勾选
@@ -82,10 +85,10 @@ class DailyLogWrite(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     meal_type: MealType = MealType.LUNCH
-    diner_count: int = Field(ge=0)
-    oil_total_g: Decimal = Field(default=Decimal("0"), ge=0)
-    salt_total_g: Decimal = Field(default=Decimal("0"), ge=0)
-    sugar_total_g: Decimal = Field(default=Decimal("0"), ge=0)
+    diner_count: int = Field(gt=0)
+    oil_total_g: Decimal | None = Field(default=None, ge=0)
+    salt_total_g: Decimal | None = Field(default=None, ge=0)
+    sugar_total_g: Decimal | None = Field(default=None, ge=0)
     leftover_weight_g: Decimal | None = Field(default=None, ge=0)
     note: str | None = Field(default=None, max_length=255)
     anomaly_flags: list[AnomalyFlag] = Field(default_factory=list)
@@ -100,9 +103,9 @@ class DailyLogSummary(BaseModel):
     meal_type: MealType
     meal_type_label: str
     diner_count: int
-    oil_total_g: str
-    salt_total_g: str
-    sugar_total_g: str
+    oil_total_g: str | None
+    salt_total_g: str | None
+    sugar_total_g: str | None
     leftover_weight_g: str | None = None
     dish_count: int
     #: 出餐总重估算（份数 × 标准份量），用于算浪费率

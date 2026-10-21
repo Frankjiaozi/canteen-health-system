@@ -11,6 +11,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from app.modules.nutrition.schemas import StandardComparison
+from app.shared.enums import MealType, PackageCode
 
 
 class NutrientValue(BaseModel):
@@ -30,6 +31,9 @@ class PublicDishCard(BaseModel):
 
     dish_id: UUID
     name: str
+    package_codes: list[PackageCode] = Field(default_factory=lambda: [PackageCode.COMMON])
+    package_labels: list[str] = Field(default_factory=lambda: [PackageCode.COMMON.label])
+    is_shared: bool = False
     category_label: str
     cooking_method_label: str
     standard_serving_g: str = Field(description="标准份量（克）")
@@ -49,6 +53,7 @@ class PublicBoard(BaseModel):
     """公开大屏的全部内容。"""
 
     date: date
+    meal_type: MealType | None = Field(default=None, description="当前展示餐次")
     meal_label: str = Field(description="餐次中文名")
     generated_at: datetime
     diner_count: int | None = Field(default=None, description="就餐人次")

@@ -17,6 +17,7 @@ function dish(overrides: Partial<MenuPlanDish> = {}): MenuPlanDish {
     salt_g: '2.1',
     popularity: '320',
     nutrition_basis: '理论值',
+    is_shared: false,
     predicted_servings: '376.32',
     predicted_basis_label: '同星期几平均',
     prediction_fallback: false,

@@ -12,6 +12,12 @@ const STATUS_TONE = {
 } as const;
 
 function MealColumn({ meal }: { meal: MenuOverviewMeal }) {
+  const groups = meal.dishes.reduce<Record<string, MenuOverviewMeal['dishes']>>((result, dish) => {
+    const key = dish.package_labels?.join(' / ') || '当前套餐';
+    (result[key] ??= []).push(dish);
+    return result;
+  }, {});
+
   return (
     <section className="zw-menu-meal">
       <header className="zw-menu-meal-head">
@@ -28,22 +34,31 @@ function MealColumn({ meal }: { meal: MenuOverviewMeal }) {
       </header>
 
       {meal.dishes.length ? (
-        <ul className="zw-menu-dishes">
-          {meal.dishes.map((dish) => (
-            <li className="zw-menu-dish" key={dish.dish_id}>
-              <DishImage url={dish.image_url} name={dish.name} compact />
-              <span className="zw-menu-dish-name">{dish.name}</span>
-              <span className="zw-menu-dish-meta">
-                <span>
-                  {dish.category_label} · {dish.cooking_method_label}
-                </span>
-                <span className="zw-menu-dish-servings">
-                  {dish.planned_servings ? `${trimDecimal(dish.planned_servings)} 份` : '份数未填'}
-                </span>
-              </span>
-            </li>
+        <div className="zw-menu-package-groups">
+          {Object.entries(groups).map(([label, dishes]) => (
+            <section className="zw-menu-package-group" key={label}>
+              <div className="zw-menu-package-label">{label}</div>
+              <ul className="zw-menu-dishes">
+                {dishes.map((dish) => (
+                  <li className="zw-menu-dish" key={dish.dish_id}>
+                    <DishImage url={dish.image_url} name={dish.name} compact />
+                    <span className="zw-menu-dish-name">{dish.name}</span>
+                    <span className="zw-menu-dish-meta">
+                      <span>
+                        {dish.category_label} · {dish.cooking_method_label}
+                      </span>
+                      <span className="zw-menu-dish-servings">
+                        {dish.planned_servings
+                          ? `${trimDecimal(dish.planned_servings)} 份`
+                          : '份数未填'}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
           ))}
-        </ul>
+        </div>
       ) : (
         <p className="zw-menu-empty">{meal.status === 'NOT_PLANNED' ? '待安排' : '暂无菜品'}</p>
       )}

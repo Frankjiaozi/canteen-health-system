@@ -252,6 +252,15 @@ def test_save_confirms_menu_and_recomputes_nutrition(
     assert all(row["servings_produced"] == "140.00" for row in sheet["dishes"] if row["selected"])
 
     db_session.expire_all()
+    item_rows = db_session.scalars(
+        select(DailyLogItem)
+        .join(DailyLog, DailyLog.id == DailyLogItem.daily_log_id)
+        .where(DailyLog.date == target, DailyLog.meal_type == MealType.LUNCH)
+    ).all()
+    assert len(item_rows) == 2
+    assert all(row.recipe_snapshot is not None for row in item_rows)
+    assert all(row.recipe_snapshot["recipe_version"] >= 1 for row in item_rows)
+
     rows = db_session.scalar(
         select(func.count())
         .select_from(DishNutrition)
@@ -302,6 +311,52 @@ def test_diner_count_and_seasoning_totals_reach_the_database(
     assert log.submitted_at is not None, "保存应当记录提交时间"
 
 
+def test_missing_seasoning_is_stored_as_null(as_recorder: TestClient, db_session: Session) -> None:
+    """空值不能被悄悄写成 0：未测量和明确测到零是两种业务事实。"""
+    target = _fresh_date(db_session)
+    ids = _dish_ids(db_session, "米饭")
+
+    response = as_recorder.put(
+        f"{BASE}/logs/{target.isoformat()}",
+        json=_payload(
+            ids,
+            oil_total_g=None,
+            salt_total_g=None,
+            sugar_total_g=None,
+        ),
+    )
+    assert response.status_code == 200, response.text
+
+    db_session.expire_all()
+    log = db_session.scalar(
+        select(DailyLog).where(DailyLog.date == target, DailyLog.meal_type == MealType.LUNCH)
+    )
+    assert log is not None
+    assert log.oil_total_g is None
+    assert log.salt_total_g is None
+    assert log.sugar_total_g is None
+
+    sheet = as_recorder.get(
+        f"{BASE}/logs/{target.isoformat()}", params={"meal_type": "LUNCH"}
+    ).json()
+    assert sheet["oil_total_g"] is None
+    assert sheet["salt_total_g"] is None
+    assert sheet["sugar_total_g"] is None
+
+
+def test_zero_diner_count_is_rejected(as_recorder: TestClient, db_session: Session) -> None:
+    target = _fresh_date(db_session)
+    ids = _dish_ids(db_session, "米饭")
+
+    response = as_recorder.put(
+        f"{BASE}/logs/{target.isoformat()}",
+        json=_payload(ids, diner_count=0),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "validation_error"
+
+
 def test_empty_dish_list_is_rejected(as_recorder: TestClient, db_session: Session) -> None:
     target = _fresh_date(db_session)
 
@@ -348,7 +403,8 @@ def test_calibration_residual_is_written_back_and_cleared(
     这一条把「校准的校验结论」和「预测用不用这天」串起来：用量对不上的日子
     不适合进预测的历史序列，但它的数据仍然保留，等录入员改对之后标记会消失。
     """
-    target = _fresh_date(db_session)
+    # 放到种子历史窗口之外，确保拟合样本只来自本用例构造的匹配历史。
+    target = _fresh_date(db_session) + timedelta(days=60)
     ids = _dish_ids(db_session, "土豆炖牛肉", "醋溜白菜")
     assert len(ids) == 2
     per_serving = _prepare_history(db_session, target=target, dish_ids=ids)

@@ -26,6 +26,7 @@ const overview: MenuOverviewResponse = {
             {
               dish_id: 'breakfast-dish',
               name: '鲜肉包',
+              is_shared: false,
               category_label: '主食',
               cooking_method_label: '蒸',
               planned_servings: '620',
@@ -72,6 +73,9 @@ const overview: MenuOverviewResponse = {
             {
               dish_id: 'lunch-dish',
               name: '清炒西兰花',
+              package_codes: ['A'],
+              package_labels: ['套餐 A'],
+              is_shared: false,
               category_label: '素菜',
               cooking_method_label: '清炒',
               planned_servings: '830',
@@ -118,6 +122,7 @@ it('按今天和明天展示三餐，并区分实际、计划与未安排', () =
   expect(screen.getByText('鲜肉包')).toBeInTheDocument();
   expect(screen.getByText('620 人次')).toBeInTheDocument();
   expect(screen.getByText('清炒西兰花')).toBeInTheDocument();
+  expect(screen.getByText('套餐 A')).toBeInTheDocument();
   expect(screen.getByText(/830 份/)).toBeInTheDocument();
   expect(screen.getAllByText('实际供应')).toHaveLength(3);
   expect(screen.getAllByText('计划供应')).toHaveLength(1);

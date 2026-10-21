@@ -11,7 +11,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.modules.nutrition.schemas import StandardComparison
-from app.shared.enums import MealType
+from app.shared.enums import MealType, PackageCode
 
 
 class StandardTarget(BaseModel):
@@ -29,9 +29,9 @@ class TrendPoint(BaseModel):
 
     date: date
     diner_count: int
-    oil_total_g: str
-    salt_total_g: str
-    sugar_total_g: str
+    oil_total_g: str | None
+    salt_total_g: str | None
+    sugar_total_g: str | None
     oil_per_capita_g: str | None
     salt_per_capita_g: str | None
     sugar_per_capita_g: str | None
@@ -114,6 +114,9 @@ class MenuOverviewDish(BaseModel):
     dish_id: str
     image_url: str | None = None
     name: str
+    package_codes: list[PackageCode] = Field(default_factory=lambda: [PackageCode.COMMON])
+    package_labels: list[str] = Field(default_factory=lambda: [PackageCode.COMMON.label])
+    is_shared: bool = False
     category_label: str
     cooking_method_label: str
     planned_servings: str | None = None

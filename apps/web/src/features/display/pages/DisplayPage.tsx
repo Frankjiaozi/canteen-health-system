@@ -1,8 +1,22 @@
 import { Spin, Typography } from 'antd';
 import dayjs from 'dayjs';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { BaselineStage } from '../components/BaselineStage';
 import { usePublicBoard } from '../hooks/usePublicBoard';
+import {
+  MEAL_OPTIONS,
+  defaultMealForTime,
+  mealLabel,
+  parseDisplayMeal,
+  type DisplayMeal,
+} from '../lib/meal';
+import {
+  availablePackages,
+  dishesForPackage,
+  PACKAGE_OPTIONS,
+  type DisplayPackage,
+} from '../lib/packages';
 import { describeStatus, describeTarget, formatActual } from '../lib/standards';
 import type { NutrientValue, PublicDishCard, StandardComparison } from '../types';
 
@@ -20,12 +34,42 @@ const COLORS = {
 } as const;
 
 export function DisplayPage() {
-  const { data, isPending, isError } = usePublicBoard();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [autoMeal, setAutoMeal] = useState(defaultMealForTime);
+  const mealParam = searchParams.get('meal');
+  const activeMeal = parseDisplayMeal(mealParam) ?? autoMeal;
+  const selectedMealLabel = mealLabel(activeMeal);
+  const { data, isPending, isError } = usePublicBoard(undefined, activeMeal);
+  const packageOptions = availablePackages(data?.dishes);
+  const requestedPackage = searchParams.get('package');
+  const activePackage: DisplayPackage | null =
+    packageOptions.find((option) => option.value === requestedPackage)?.value ??
+    packageOptions[0]?.value ??
+    null;
+  const visibleDishes = dishesForPackage(data?.dishes, activePackage);
+
+  const selectMeal = (meal: DisplayMeal) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('meal', meal);
+    setSearchParams(next, { replace: true });
+  };
+
+  const selectPackage = (packageCode: DisplayPackage) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('package', packageCode);
+    setSearchParams(next, { replace: true });
+  };
 
   useEffect(() => {
     // 公开大屏是纯展示页，禁止误滚动与文本选中
     document.body.classList.add('is-display-mode');
     return () => document.body.classList.remove('is-display-mode');
+  }, []);
+
+  useEffect(() => {
+    // 挂机大屏没有操作时，跨过早餐/午餐/晚餐时间点要自己切换。
+    const timer = window.setInterval(() => setAutoMeal(defaultMealForTime()), 60_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   return (
@@ -44,11 +88,26 @@ export function DisplayPage() {
       >
         <Header
           date={data?.date}
-          mealLabel={data?.meal_label}
+          mealLabel={selectedMealLabel}
           dinerCount={data?.diner_count ?? null}
           loading={isPending}
           isToday={data === undefined || data.date === dayjs().format('YYYY-MM-DD')}
         />
+
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: 18,
+            flexWrap: 'wrap',
+          }}
+        >
+          <MealSwitch value={activeMeal} onChange={selectMeal} />
+          {packageOptions.length > 1 && activePackage ? (
+            <PackageSwitch value={activePackage} onChange={selectPackage} />
+          ) : null}
+        </div>
 
         <div style={{ flex: 1, minHeight: 0 }}>
           {isPending ? (
@@ -61,12 +120,12 @@ export function DisplayPage() {
                 暂时读不到今日数据，请稍后自动重试
               </Typography.Title>
             </Centered>
-          ) : data && data.dishes.length > 0 ? (
-            <DishGrid dishes={data.dishes} />
+          ) : data && visibleDishes.length > 0 ? (
+            <DishGrid dishes={visibleDishes} />
           ) : (
             <Centered>
               <Typography.Title level={3} style={{ color: COLORS.muted, margin: 0 }}>
-                今日暂无已核算的菜品
+                {selectedMealLabel}暂无已核算的菜品
               </Typography.Title>
             </Centered>
           )}
@@ -81,6 +140,109 @@ export function DisplayPage() {
         ) : null}
       </div>
     </BaselineStage>
+  );
+}
+
+function PackageSwitch({
+  value,
+  onChange,
+}: {
+  value: DisplayPackage;
+  onChange: (packageCode: DisplayPackage) => void;
+}) {
+  return (
+    <div
+      data-testid="package-switch"
+      role="group"
+      aria-label="选择套餐"
+      style={{
+        display: 'flex',
+        gap: 4,
+        padding: 4,
+        border: `1px solid ${COLORS.line}`,
+        borderRadius: 999,
+        background: 'rgba(255, 255, 255, 0.56)',
+      }}
+    >
+      {PACKAGE_OPTIONS.map((option) => {
+        const active = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(option.value)}
+            style={{
+              minWidth: 88,
+              height: 32,
+              padding: '0 16px',
+              border: 'none',
+              borderRadius: 999,
+              background: active ? COLORS.ink : 'transparent',
+              color: active ? '#f8fbf6' : COLORS.subtle,
+              cursor: 'pointer',
+              fontSize: 16,
+              fontFamily: 'inherit',
+            }}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function MealSwitch({
+  value,
+  onChange,
+}: {
+  value: DisplayMeal;
+  onChange: (meal: DisplayMeal) => void;
+}) {
+  return (
+    <div
+      data-testid="meal-switch"
+      role="group"
+      aria-label="选择餐次"
+      style={{
+        alignSelf: 'center',
+        display: 'flex',
+        gap: 6,
+        padding: 5,
+        border: `1px solid ${COLORS.line}`,
+        borderRadius: 999,
+        background: 'rgba(255, 255, 255, 0.56)',
+        boxShadow: '0 6px 18px rgba(49, 92, 76, 0.05)',
+      }}
+    >
+      {MEAL_OPTIONS.map((option) => {
+        const active = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(option.value)}
+            style={{
+              minWidth: 88,
+              height: 36,
+              padding: '0 20px',
+              border: 'none',
+              borderRadius: 999,
+              background: active ? COLORS.green : 'transparent',
+              color: active ? '#f8fbf6' : COLORS.subtle,
+              cursor: 'pointer',
+              fontSize: 18,
+              fontFamily: 'inherit',
+              letterSpacing: 2,
+            }}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -204,6 +366,9 @@ function DishCard({ dish }: { dish: PublicDishCard }) {
           <span style={{ fontSize: 18, color: COLORS.subtle }}>
             {dish.category_label} · {dish.cooking_method_label}
           </span>
+          {dish.is_shared ? (
+            <span style={{ fontSize: 16, color: COLORS.warning }}>A/B 共用</span>
+          ) : null}
         </div>
         <div style={{ fontSize: 17, color: COLORS.muted, marginTop: 6 }}>
           每份 {formatServing(dish.standard_serving_g)} 克
@@ -288,6 +453,7 @@ function StandardBar({ standards }: { standards: StandardComparison[] }) {
       {standards.map((standard) => {
         const style = describeStatus(standard.status);
         const isUnknown = standard.status === 'unknown';
+        const label = standard.code === 'FOOD_VARIETY' ? '本餐食物种类' : standard.label;
         return (
           <div
             key={standard.code}
@@ -302,7 +468,7 @@ function StandardBar({ standards }: { standards: StandardComparison[] }) {
             <div
               style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}
             >
-              <span style={{ fontSize: 20, color: COLORS.subtle }}>{standard.label}</span>
+              <span style={{ fontSize: 20, color: COLORS.subtle }}>{label}</span>
               <span
                 style={{
                   display: 'inline-flex',

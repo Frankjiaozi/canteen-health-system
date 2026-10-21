@@ -61,13 +61,13 @@ test('批量排一段菜单并一键导入当日菜单', async ({ page }) => {
   }
 
   // 免登录大屏也看得到这几天（挑第一天看页面，其余用接口对账）
-  await page.goto(`/display?date=${dates[0]}`);
+  await page.goto(`/display?date=${dates[0]}&meal=LUNCH`);
   await expect(page.getByTestId('dish-card').first()).toBeVisible();
 
   const menus: string[][] = [];
   for (const date of dates) {
     const board = await (
-      await page.request.get(`/api/v1/public/board/today?on_date=${date}`)
+      await page.request.get(`/api/v1/public/board/today?on_date=${date}&meal_type=LUNCH`)
     ).json();
     menus.push(board.dishes.map((card: { name: string }) => card.name).sort());
   }

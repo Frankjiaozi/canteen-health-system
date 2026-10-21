@@ -20,7 +20,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.modules.collection.models import DailyLog, DailyLogItem
@@ -227,22 +227,59 @@ def load_calibration_samples(
     rows = session.execute(
         select(
             DailyLogItem.daily_log_id,
-            Dish.cooking_method,
-            Seasoning.category,
-            func.sum(RecipeSeasoning.quantity_per_serving_g * DailyLogItem.servings_produced),
-        )
-        .join(Dish, Dish.id == DailyLogItem.dish_id)
-        .join(RecipeSeasoning, RecipeSeasoning.dish_id == Dish.id)
-        .join(Seasoning, Seasoning.id == RecipeSeasoning.seasoning_id)
-        .where(DailyLogItem.daily_log_id.in_(log_ids))
-        .group_by(DailyLogItem.daily_log_id, Dish.cooking_method, Seasoning.category)
+            DailyLogItem.dish_id,
+            DailyLogItem.servings_produced,
+            DailyLogItem.recipe_snapshot,
+        ).where(DailyLogItem.daily_log_id.in_(log_ids))
     ).all()
+
+    # 迁移前的老采集没有快照。为兼容这些历史行，按当前配方临时补一份；
+    # 迁移会把旧行回填成基线快照，新采集则始终使用冷冻快照。
+    missing_snapshot_ids = {dish_id for _, dish_id, _, snapshot in rows if snapshot is None}
+    fallback: dict[UUID, dict[str, Any]] = {}
+    if missing_snapshot_ids:
+        fallback_rows = session.execute(
+            select(
+                RecipeSeasoning.dish_id,
+                Dish.cooking_method,
+                Seasoning.category,
+                RecipeSeasoning.quantity_per_serving_g,
+            )
+            .join(Dish, Dish.id == RecipeSeasoning.dish_id)
+            .join(Seasoning, Seasoning.id == RecipeSeasoning.seasoning_id)
+            .where(RecipeSeasoning.dish_id.in_(missing_snapshot_ids))
+        ).all()
+        for dish_id, method, category, quantity in fallback_rows:
+            fallback.setdefault(
+                dish_id,
+                {"cooking_method": method.value, "seasonings": []},
+            )["seasonings"].append(
+                {
+                    "category": category.value,
+                    "quantity_per_serving_g": str(quantity),
+                }
+            )
 
     implied: dict[UUID, dict[CookingMethod, dict[SeasoningCategory, Decimal]]] = defaultdict(
         lambda: defaultdict(dict)
     )
-    for log_id, method, category, amount in rows:
-        implied[log_id][method][category] = Decimal(amount or 0)
+    for log_id, dish_id, servings, snapshot in rows:
+        if servings is None or servings <= 0:
+            continue
+        frozen = snapshot or fallback.get(dish_id)
+        if not frozen:
+            continue
+        method = CookingMethod(str(frozen["cooking_method"]))
+        seasonings = frozen.get("seasonings")
+        if not isinstance(seasonings, list):
+            continue
+        for line in seasonings:
+            if not isinstance(line, dict):
+                continue
+            category = SeasoningCategory(str(line["category"]))
+            quantity = Decimal(str(line["quantity_per_serving_g"]))
+            bucket = implied[log_id][method]
+            bucket[category] = bucket.get(category, Decimal("0")) + quantity * servings
 
     samples: list[CalibrationSample] = []
     for log in logs:

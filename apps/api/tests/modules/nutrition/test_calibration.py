@@ -10,12 +10,15 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
 from app.db import seed as seed_module
-from app.modules.dish.models import Dish
+from app.modules.collection.models import DailyLog, DailyLogItem
+from app.modules.dish.models import Dish, RecipeSeasoning
 from app.modules.menu.models import MenuDay, MenuDayItem
 from app.modules.nutrition import engine
+from app.modules.nutrition import repository as nutrition_repository
 from app.modules.nutrition.models import DishNutrition
 from app.shared.enums import (
     CookingMethod,
@@ -87,6 +90,9 @@ def test_closure_runs_and_stores_both_calibers(
     body = response.json()
     assert body["factors"], "当天应当至少有一种烹饪方式被校准"
     assert body["calibrated_rows"] > 0
+    assert body["window"]["end"] == (menu_day.date - timedelta(days=1)).isoformat(), (
+        "目标日只能做校验，不能进入拟合窗口"
+    )
 
     calibers = set(
         db_session.scalars(
@@ -174,6 +180,33 @@ def test_daily_totals_are_a_check_not_a_multiplier(
     # 种子数据是按同一套偏置生成的，预测应当贴得很紧
     assert all(row["status"] == "ok" for row in checks.values()), body["checks"]
     assert Decimal(body["window"]["residual_mape"]) <= Decimal("0.01")
+
+
+def test_calibration_uses_the_recipe_snapshot_frozen_at_collection_time(
+    db_session: Session,
+) -> None:
+    """配方后来改掉，也不能改写这一餐当时用于拟合的推算量。"""
+    day = _latest_menu_day(db_session).date
+    before = nutrition_repository.load_calibration_samples(db_session, start=day, end=day)
+    assert before
+
+    item = db_session.scalar(
+        select(DailyLogItem)
+        .join(DailyLog, DailyLog.id == DailyLogItem.daily_log_id)
+        .join(RecipeSeasoning, RecipeSeasoning.dish_id == DailyLogItem.dish_id)
+        .where(DailyLog.date == day, DailyLogItem.recipe_snapshot.is_not(None))
+        .limit(1)
+    )
+    assert item is not None
+    seasoning = db_session.scalar(
+        select(RecipeSeasoning).where(RecipeSeasoning.dish_id == item.dish_id).limit(1)
+    )
+    assert seasoning is not None
+
+    seasoning.quantity_per_serving_g += Decimal("1")
+    db_session.flush()
+    after = nutrition_repository.load_calibration_samples(db_session, start=day, end=day)
+    assert after == before
 
 
 def test_only_seasoning_contribution_is_scaled(

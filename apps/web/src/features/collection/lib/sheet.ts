@@ -101,9 +101,9 @@ export function buildSavePayload(values: SheetFormValues, rows: SheetRow[]): Dai
   return {
     meal_type: values.mealType,
     diner_count: values.dinerCount ?? 0,
-    oil_total_g: String(values.oilTotalG ?? 0),
-    salt_total_g: String(values.saltTotalG ?? 0),
-    sugar_total_g: String(values.sugarTotalG ?? 0),
+    oil_total_g: values.oilTotalG === null ? null : String(values.oilTotalG),
+    salt_total_g: values.saltTotalG === null ? null : String(values.saltTotalG),
+    sugar_total_g: values.sugarTotalG === null ? null : String(values.sugarTotalG),
     leftover_weight_g: values.leftoverWeightG === null ? null : String(values.leftoverWeightG),
     note: values.note,
     anomaly_flags: values.anomalyFlags as DailyLogWrite['anomaly_flags'],

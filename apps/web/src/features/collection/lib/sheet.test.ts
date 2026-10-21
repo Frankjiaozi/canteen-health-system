@@ -157,6 +157,17 @@ describe('组装提交体', () => {
 
     expect(payload.leftover_weight_g).toBeNull();
   });
+
+  it('没填的油盐糖提交为空，而不是 0', () => {
+    const payload = buildSavePayload(
+      { ...validValues(), oilTotalG: null, saltTotalG: null, sugarTotalG: null },
+      [selectedRow()],
+    );
+
+    expect(payload.oil_total_g).toBeNull();
+    expect(payload.salt_total_g).toBeNull();
+    expect(payload.sugar_total_g).toBeNull();
+  });
 });
 
 it('回执文案把勾了几道菜与重算结果都说清楚', () => {

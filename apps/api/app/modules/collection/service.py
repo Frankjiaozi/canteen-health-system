@@ -33,7 +33,13 @@ from app.modules.collection.schemas import (
 )
 from app.modules.menu import service as menu_service
 from app.modules.nutrition import service as nutrition_service
-from app.shared.enums import MANUAL_ANOMALY_FLAGS, AnomalyFlag, AuditAction, MealType
+from app.shared.enums import (
+    MANUAL_ANOMALY_FLAGS,
+    AnomalyFlag,
+    AuditAction,
+    MealType,
+    PackageCode,
+)
 from app.shared.nutrition_values import VALUE_TYPE_DESCRIPTIONS, pick_best
 
 logger = get_logger(__name__)
@@ -69,10 +75,20 @@ def build_sheet(session: Session, *, on_date: date, meal_type: MealType) -> Dail
         menu_item = served.get(dish.id)
         item = items.get(dish.id)
         nutrition = peek.get(dish.id)
+        package_code = (
+            item.package_code
+            if item is not None
+            else menu_item.package_code
+            if menu_item is not None
+            else PackageCode.COMMON
+        )
         rows.append(
             LoggedDish(
                 dish_id=str(dish.id),
                 name=dish.name,
+                package_codes=[package_code],
+                package_labels=[package_code.label],
+                is_shared=package_code is PackageCode.COMMON,
                 category_label=dish.category.label,
                 cooking_method_label=dish.cooking_method.label,
                 # 采集提交之前，菜单日上写的是「计划供应」，采集提交之后写的是「实际供应」。
@@ -108,9 +124,9 @@ def build_sheet(session: Session, *, on_date: date, meal_type: MealType) -> Dail
         saved=log is not None,
         submitted_at=None if log is None else log.submitted_at,
         diner_count=None if log is None else log.diner_count,
-        oil_total_g=None if log is None else str(log.oil_total_g),
-        salt_total_g=None if log is None else str(log.salt_total_g),
-        sugar_total_g=None if log is None else str(log.sugar_total_g),
+        oil_total_g=None if log is None else _opt_str(log.oil_total_g),
+        salt_total_g=None if log is None else _opt_str(log.salt_total_g),
+        sugar_total_g=None if log is None else _opt_str(log.sugar_total_g),
         leftover_weight_g=None if log is None else _opt_str(log.leftover_weight_g),
         note=None if log is None else log.note,
         anomaly_flags=_flag_rows(None if log is None else log.anomaly_flags),
@@ -184,6 +200,8 @@ def save_sheet(
     """
     if not payload.dishes:
         raise BusinessRuleError("至少要勾选一道当天供应的菜品，否则这一餐没有可核算的内容")
+    if payload.diner_count <= 0:
+        raise BusinessRuleError("就餐人次必须大于 0，否则无法计算人均摄入")
 
     seen: set[UUID] = set()
     for row in payload.dishes:
@@ -191,6 +209,12 @@ def save_sheet(
             raise BusinessRuleError("同一道菜只能出现一次，请检查勾选的菜品")
         seen.add(row.dish_id)
 
+    planned_packages = {
+        item.dish_id: item.package_code
+        for item in repository.load_menu_items(
+            session, on_date=on_date, meal_type=payload.meal_type
+        )
+    }
     menu_service.confirm_menu_day(
         session,
         on_date=on_date,
@@ -200,10 +224,14 @@ def save_sheet(
                 dish_id=row.dish_id,
                 is_substituted=row.is_substituted,
                 note=row.substitution_note,
+                package_code=planned_packages.get(row.dish_id, PackageCode.COMMON),
             )
             for row in payload.dishes
         ],
         created_by=actor_id,
+    )
+    recipe_snapshots = nutrition_service.recipe_snapshots(
+        session, [row.dish_id for row in payload.dishes]
     )
 
     # 系统回写的标记要原样留住：它是校准算出来的结论，不该因为重新保存一次就消失
@@ -235,9 +263,11 @@ def save_sheet(
             {
                 "dish_id": row.dish_id,
                 "servings_produced": row.servings_produced,
+                "recipe_snapshot": recipe_snapshots.get(row.dish_id),
                 "leftover_ratio": row.leftover_ratio,
                 "leftover_weight_g": row.leftover_weight_g,
                 "note": row.note,
+                "package_code": planned_packages.get(row.dish_id, PackageCode.COMMON),
             }
             for row in payload.dishes
         ],
@@ -296,9 +326,9 @@ def list_logs(
                 meal_type=log.meal_type,
                 meal_type_label=log.meal_type.label,
                 diner_count=log.diner_count,
-                oil_total_g=str(log.oil_total_g),
-                salt_total_g=str(log.salt_total_g),
-                sugar_total_g=str(log.sugar_total_g),
+                oil_total_g=_opt_str(log.oil_total_g),
+                salt_total_g=_opt_str(log.salt_total_g),
+                sugar_total_g=_opt_str(log.sugar_total_g),
                 leftover_weight_g=_opt_str(log.leftover_weight_g),
                 dish_count=dish_count,
                 waste_ratio=_waste_ratio(log.leftover_weight_g, produced_g),

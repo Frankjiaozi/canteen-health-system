@@ -1,6 +1,6 @@
 # 数据模型
 
-共 17 张表。表的定义分散在各业务域的 `models.py` 中，由 `app/db/registry.py` 统一注册，
+共 18 张表。表的定义分散在各业务域的 `models.py` 中，由 `app/db/registry.py` 统一注册，
 Alembic 只依据该注册表生成迁移。
 
 ## 一、三条全局约定
@@ -71,8 +71,8 @@ Alembic 只依据该注册表生成迁移。
 
 | 表 | 说明 |
 | --- | --- |
-| `daily_logs` | 每日记录主表，唯一键 `(date, meal_type)`。含就餐人次、油盐糖总用量、剩餐总重、异常标记 |
-| `daily_log_items` | 出品明细：每道菜的出餐份数与剩余比例 |
+| `daily_logs` | 每日记录主表，唯一键 `(date, meal_type)`。含就餐人次、可空油盐糖总用量（`NULL` 表示未测量）、剩餐总重、异常标记 |
+| `daily_log_items` | 每餐菜品明细；`recipe_snapshot` 冻结采集当时的配方版本、烹饪方式与分摊用量 |
 | `feedbacks` | 剩餐与评分反馈，由录入员代录 |
 
 `anomaly_flags` 里的标记有两个来源，界面上必须分开呈现：

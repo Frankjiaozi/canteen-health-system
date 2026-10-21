@@ -14,7 +14,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.modules.menu.models import MenuDay, MenuDayItem
-from app.shared.enums import MealType
+from app.shared.enums import MealType, PackageCode
 
 
 def get_menu_day(session: Session, *, on_date: date, meal_type: MealType) -> MenuDay | None:
@@ -48,7 +48,7 @@ def replace_items(
     session: Session,
     *,
     menu_day_id: UUID,
-    items: list[tuple[UUID, bool, str | None, Decimal | None]],
+    items: list[tuple[UUID, bool, str | None, Decimal | None, PackageCode]],
 ) -> None:
     """整体替换菜单明细。
 
@@ -60,19 +60,21 @@ def replace_items(
     # 计划份数不因为提交实际数据而丢失：它是「前一天排菜单时说好做多少份」，
     # 事后对账（计划 812 份、实际做了 700 份）要靠它。提交上来的清单里没有这一项，
     # 所以从旧明细里按菜取回来。
-    planned = {row.dish_id: row.planned_servings for row in load_items(session, menu_day_id)}
+    previous = {row.dish_id: row for row in load_items(session, menu_day_id)}
     session.execute(delete(MenuDayItem).where(MenuDayItem.menu_day_id == menu_day_id))
-    for dish_id, is_substituted, note, planned_servings in items:
+    for dish_id, is_substituted, note, planned_servings, package_code in items:
+        old = previous.get(dish_id)
         session.add(
             MenuDayItem(
                 menu_day_id=menu_day_id,
                 dish_id=dish_id,
                 # 新勾上的菜本来就没计划过它，取不到计划份数就留空，不编一个数
                 planned_servings=(
-                    planned.get(dish_id) if planned_servings is None else planned_servings
+                    old.planned_servings if planned_servings is None and old else planned_servings
                 ),
                 is_substituted=is_substituted,
                 substitution_note=note,
+                package_code=package_code,
             )
         )
     session.flush()

@@ -157,6 +157,18 @@ class SuggestionStatus(LabelledStrEnum):
     REJECTED = "REJECTED"
 
 
+class PackageCode(LabelledStrEnum):
+    """一餐内的套餐归属。
+
+    主食允许 A/B 共用，用 ``COMMON`` 明确表达。把共用主食分别记成 A 和 B 会在
+    采购聚合时被计两次，除非每个下游都记得再做一次去重；用独立代码从源头避免这个坑。
+    """
+
+    A = "A"
+    B = "B"
+    COMMON = "COMMON"
+
+
 class HolidayKind(LabelledStrEnum):
     """日历上的两种日子。
 
@@ -278,6 +290,10 @@ ENUM_LABELS: dict[tuple[type[LabelledStrEnum], str], str] = {
     (SuggestionStatus, SuggestionStatus.PENDING.value): "待确认",
     (SuggestionStatus, SuggestionStatus.ACCEPTED.value): "已采纳",
     (SuggestionStatus, SuggestionStatus.REJECTED.value): "已否决",
+    # 套餐
+    (PackageCode, PackageCode.A.value): "套餐 A",
+    (PackageCode, PackageCode.B.value): "套餐 B",
+    (PackageCode, PackageCode.COMMON.value): "A/B 共用",
     # 膳食指南基准项
     (StandardCode, StandardCode.ENERGY.value): "能量",
     (StandardCode, StandardCode.PROTEIN.value): "蛋白质",

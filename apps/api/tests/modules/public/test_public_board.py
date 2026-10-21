@@ -6,16 +6,17 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from types import SimpleNamespace
 
-from app.modules.dish.models import Dish
+from app.modules.collection.models import DailyLog
+from app.modules.dish.models import Dish, RecipeItem
 from app.modules.menu.models import MenuDay, MenuDayItem
 from app.modules.nutrition.models import DishNutrition
 from app.shared.enums import MealType, NutrientCaliber, NutritionValueType
 from app.shared.standards import sum_per_capita_across_meals
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from tests.helpers import today_local
@@ -42,6 +43,7 @@ def test_board_is_accessible_without_login(client: TestClient) -> None:
     assert response.status_code == 200, "公开大屏不能要求登录"
     body = response.json()
     assert body["dishes"], "当天应当有可展示的菜品"
+    assert body["meal_type"] in {"BREAKFAST", "LUNCH", "DINNER"}
     assert body["meal_label"]
     assert body["disclaimer"]
 
@@ -182,6 +184,73 @@ def test_standards_compare_against_daily_targets(client: TestClient) -> None:
     assert salt["status"] in {"ok", "over"}
 
 
+def test_board_metrics_belong_to_the_displayed_meal(
+    client: TestClient, db_session: Session
+) -> None:
+    """菜品来自哪一餐，人次、投料和食物种类就只能取哪一餐。"""
+    menu_day = _today_menu(db_session)
+    logs = list(db_session.scalars(select(DailyLog).where(DailyLog.date == menu_day.date)).all())
+    selected = next(log for log in logs if log.meal_type == menu_day.meal_type)
+    body = client.get(BASE, params={"on_date": menu_day.date.isoformat()}).json()
+    standards = {item["code"]: item for item in body["standards"]}
+
+    assert body["diner_count"] == selected.diner_count
+    expected_salt = (selected.salt_total_g / Decimal(selected.diner_count)).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
+    assert Decimal(standards["SALT"]["actual"]) == expected_salt
+
+    expected_variety = db_session.scalar(
+        select(func.count(func.distinct(RecipeItem.ingredient_id)))
+        .select_from(RecipeItem)
+        .join(MenuDayItem, MenuDayItem.dish_id == RecipeItem.dish_id)
+        .where(MenuDayItem.menu_day_id == menu_day.id)
+    )
+    assert Decimal(standards["FOOD_VARIETY"]["actual"]) == Decimal(expected_variety)
+
+    if len(logs) > 1:
+        assert body["diner_count"] != sum(log.diner_count for log in logs)
+
+
+def test_board_can_be_switched_between_breakfast_lunch_and_dinner(
+    client: TestClient, db_session: Session
+) -> None:
+    """三个餐次各自可查，菜品和本餐指标不能串到别的餐次。"""
+    day = today_local()
+    for meal_type in (MealType.BREAKFAST, MealType.LUNCH, MealType.DINNER):
+        body = client.get(
+            BASE,
+            params={"on_date": day.isoformat(), "meal_type": meal_type.value},
+        ).json()
+        menu_day = db_session.scalar(
+            select(MenuDay).where(MenuDay.date == day, MenuDay.meal_type == meal_type)
+        )
+        log = db_session.scalar(
+            select(DailyLog).where(DailyLog.date == day, DailyLog.meal_type == meal_type)
+        )
+
+        assert body["meal_type"] == meal_type.value
+        assert body["meal_label"] == meal_type.label
+        assert body["diner_count"] == (log.diner_count if log else None)
+        if menu_day is None:
+            assert body["dishes"] == []
+        else:
+            served = set(
+                db_session.scalars(
+                    select(Dish.name)
+                    .join(MenuDayItem, MenuDayItem.dish_id == Dish.id)
+                    .where(MenuDayItem.menu_day_id == menu_day.id)
+                )
+            )
+            assert {card["name"] for card in body["dishes"]} <= served
+
+
+def test_invalid_meal_type_is_rejected(client: TestClient) -> None:
+    response = client.get(BASE, params={"meal_type": "BRUNCH"})
+
+    assert response.status_code == 422
+
+
 def test_board_can_be_queried_for_other_dates(client: TestClient) -> None:
     response = client.get(BASE, params={"on_date": "2020-01-01"})
 
@@ -191,6 +260,7 @@ def test_board_can_be_queried_for_other_dates(client: TestClient) -> None:
     # 没安排菜单的日期返回空内容，而不是 500
     assert body["dishes"] == []
     assert body["meal_label"] == "未安排"
+    assert body["diner_count"] is None
 
 
 def test_invalid_date_is_rejected(client: TestClient) -> None:
@@ -219,5 +289,11 @@ def test_per_capita_sums_each_meal_against_its_own_diner_count() -> None:
 
 def test_per_capita_ignores_meals_without_diners() -> None:
     logs = [SimpleNamespace(diner_count=0, salt_total_g=Decimal("100"))]
+
+    assert sum_per_capita_across_meals(logs, "salt_total_g") is None
+
+
+def test_per_capita_does_not_treat_a_missing_measurement_as_zero() -> None:
+    logs = [SimpleNamespace(diner_count=100, salt_total_g=None)]
 
     assert sum_per_capita_across_meals(logs, "salt_total_g") is None

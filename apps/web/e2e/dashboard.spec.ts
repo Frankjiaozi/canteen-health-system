@@ -5,12 +5,13 @@ test('登录后可以看到四类指标', async ({ page }) => {
   await loginAs(page, 'recorder');
   await page.goto('/admin');
   await page.getByRole('tab', { name: '营养分析' }).click();
+  const panel = page.getByRole('tabpanel', { name: '营养分析' });
 
-  await expect(page.getByText('油盐糖用量趋势')).toBeVisible();
+  await expect(panel.getByText('油盐糖用量趋势', { exact: true })).toBeVisible();
   // 精确匹配：图表下方的口径说明里也提到了这个栏目名
-  await expect(page.getByText('人均摄入与推荐值', { exact: true })).toBeVisible();
-  await expect(page.getByText('营养达标率')).toBeVisible();
-  await expect(page.getByText('剩餐量与浪费率')).toBeVisible();
+  await expect(panel.getByText('人均摄入与推荐值', { exact: true })).toBeVisible();
+  await expect(panel.getByText('营养达标率', { exact: true })).toBeVisible();
+  await expect(panel.getByText('剩餐量与浪费率', { exact: true })).toBeVisible();
   // 图表来自真实接口，而不是空壳
   await expect(page.getByRole('img', { name: '油盐糖每日用量趋势图' })).toBeVisible();
   await expect(page.getByRole('img', { name: '每日剩餐量与浪费率图' })).toBeVisible();
@@ -20,29 +21,32 @@ test('人均摄入栏把口径讲清楚，并按基准给出结论', async ({ pa
   await loginAs(page, 'school');
   await page.goto('/admin');
   await page.getByRole('tab', { name: '营养分析' }).click();
+  const panel = page.getByRole('tabpanel', { name: '营养分析' });
 
-  await page.getByText('查看来源与核算口径', { exact: true }).hover();
-  await expect(page.getByText(/理论值/)).toBeVisible();
-  await expect(page.getByText(/实际投料量/)).toBeVisible();
+  await panel.getByText('查看来源与核算口径', { exact: true }).hover();
+  const popover = page.locator('.ant-popover:not(.ant-popover-hidden)');
+  await expect(popover).toContainText(/配方理论值/);
+  await expect(popover).toContainText(/实际投料量/);
   // 四项基准都应当给出结论标签
-  await expect(page.getByText('食盐').first()).toBeVisible();
-  await expect(page.getByText(/达标|超出上限|低于推荐/).first()).toBeVisible();
+  await expect(panel.getByText('食盐', { exact: true }).first()).toBeVisible();
+  await expect(panel.getByText(/达标|超出上限|低于推荐/).first()).toBeVisible();
 });
 
 test('切换时间范围后数据随之变化', async ({ page }) => {
   await loginAs(page, 'recorder');
   await page.goto('/admin');
   await page.getByRole('tab', { name: '营养分析' }).click();
+  const panel = page.getByRole('tabpanel', { name: '营养分析' });
 
-  const recordedDays = page.locator('.zw-metric').filter({ hasText: '有记录天数' });
-  // 功能验证历史是 8 周
+  const recordedDays = panel.locator('.zw-metric').filter({ hasText: '有记录天数' });
+  // 初始化历史是 8 周
   await expect(recordedDays).toContainText('14');
 
-  await page.locator('.ant-segmented-item', { hasText: '近 7 天' }).click();
+  await panel.locator('.ant-segmented-item', { hasText: '近 7 天' }).click();
   await expect(recordedDays).toContainText('7');
 
-  await page.locator('.ant-segmented-item', { hasText: '近 30 天' }).click();
-  // 30 天范围内有 30 天记录（功能验证历史 56 天，够覆盖）
+  await panel.locator('.ant-segmented-item', { hasText: '近 30 天' }).click();
+  // 30 天范围内有 30 天记录（初始化历史 56 天，够覆盖）
   await expect(recordedDays).toContainText('30');
 });
 

@@ -16,6 +16,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from tests.helpers import today_local
+
 BASE = "/api/v1/dishes"
 
 #: 本文件会**改动种子里的这道菜**（把配方整体替换掉）。
@@ -171,16 +173,27 @@ def test_recipe_snapshot_is_recorded_in_audit(as_recorder: TestClient, db_sessio
     assert "v2" in (latest.note or "")
 
 
-def test_recipe_change_recomputes_nutrition_for_historical_dates(
+def test_recipe_change_does_not_rewrite_historical_nutrition(
     as_recorder: TestClient, db_session: Session
 ) -> None:
-    """配方一改，这道菜**所有供应过的日子**的营养结果都要跟着变。
+    """配方一改，过去日期的营养结果保持原样。
 
-    只改最近一天是不够的：大屏看当天，看板、抽样对比与预测回测看的是历史，
-    几处必须一起对齐，否则同一个数值在不同界面上对不上。
+    历史看板、大屏回看与回测都依赖当时的配方口径；普通编辑只能影响今天和未来。
     """
     dish_id = _id_of(as_recorder, BASE, "清炒西兰花")
-    before = _energy(db_session, dish_id)
+    past = db_session.scalar(
+        select(DishNutrition)
+        .where(
+            DishNutrition.dish_id == dish_id,
+            DishNutrition.date < today_local(),
+            DishNutrition.caliber == NutrientCaliber.PER_SERVING,
+            DishNutrition.value_type == NutritionValueType.THEORETICAL,
+        )
+        .order_by(DishNutrition.date.desc())
+        .limit(1)
+    )
+    assert past is not None
+    before = past.energy_kcal
     # 西兰花 110 克 ×0.83 食部、胡萝卜 15 克 ×0.96 食部、大豆油 5 克、食盐 1 克
     # → 32.95 + 5.64 + 44.17 + 0 = 82.76
     assert before == Decimal("82.76")
@@ -199,14 +212,17 @@ def test_recipe_change_recomputes_nutrition_for_historical_dates(
     )
 
     assert result.status_code == 200, result.text
-    assert result.json()["recomputed_rows"] > 0
 
-    after = _energy(db_session, dish_id)
-    # 这次改动去掉了 5 克大豆油，能量必然下降
-    assert after is not None and after < before
+    db_session.expire_all()
+    after = db_session.get(DishNutrition, past.id)
+    assert after is not None
+    assert after.energy_kcal == before
 
 
-def test_both_calibers_are_recomputed(as_recorder: TestClient, db_session: Session) -> None:
+def test_historical_calibers_remain_both_present(
+    as_recorder: TestClient, db_session: Session
+) -> None:
+    """普通配方编辑不删除历史行；单份与人均两种口径都还在。"""
     dish_id = _id_of(as_recorder, BASE, "清炒西兰花")
     as_recorder.put(
         f"{BASE}/{dish_id}/recipe",

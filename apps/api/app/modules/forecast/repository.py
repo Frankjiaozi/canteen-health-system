@@ -53,12 +53,15 @@ def load_dish_history(
 ) -> dict[UUID, list[tuple[date, Decimal]]]:
     """每道菜在区间内的出餐份数，**已经剔除不该进历史序列的日子**。
 
-    三类日子要排除，否则它们会把移动平均带偏：
+    四类日子要排除，否则它们会把移动平均带偏：
 
     1. 采集时标了异常的日子（临时接待、菜品停供、设备故障）；
     2. 菜单上标了临时替换的日子——实际供应的不是计划的那道菜；
-    3. 出餐份数为 0 的记录（停供当天常会留一条 0）。
+    3. 出餐份数为 0 的记录（停供当天常会留一条 0）；
+    4. 法定假日。假日样本已经受低在校人数影响，再进入普通日基线会把预测压低，
+       而假日目标日又会被日历系数折减一次。
     """
+    holidays = load_holidays(session, start=start, end=end)
     # 临时替换的 (菜, 日期) 单独取一次：把它写成 join 条件会变成一条既难读、
     # 又容易写错关联关系的语句，而这里的数据量小到根本不值得省这一次查询。
     substituted = {
@@ -88,7 +91,7 @@ def load_dish_history(
 
     history: dict[UUID, list[tuple[date, Decimal]]] = defaultdict(list)
     for dish_id, day, servings, flags in rows:
-        if flags or (dish_id, day) in substituted:
+        if flags or holidays.get(day) is HolidayKind.HOLIDAY or (dish_id, day) in substituted:
             continue
         if servings is None or servings <= 0:
             continue

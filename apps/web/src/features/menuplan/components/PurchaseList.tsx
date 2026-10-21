@@ -72,23 +72,22 @@ export function PurchaseList({
         </Typography.Text>
       }
     >
-      <Alert
-        type={summary.tone === 'over' ? 'warning' : 'info'}
-        showIcon
-        style={{ marginBottom: 12 }}
-        message={plan.servings_note}
-        description={summary.note || '用料由各菜配方按份数汇总，按金额从大到小排。'}
-      />
+      {summary.note ? (
+        <Alert
+          type={summary.tone === 'over' ? 'warning' : 'error'}
+          showIcon
+          style={{ marginBottom: 12 }}
+          message={summary.tone === 'over' ? '采购金额超出预算' : '部分采购金额无法核算'}
+          description={summary.note}
+        />
+      ) : null}
 
       {fallbackDishes.length > 0 ? (
         <Alert
           type="warning"
           showIcon
           style={{ marginBottom: 12 }}
-          message={`这几道菜历史不足、预测不出份数，采购量按「每人一份」估算：${fallbackDishes
-            .map((dish) => dish.dish_name)
-            .join('、')}`}
-          description="下单前请按经验复核这几道菜的用料量。"
+          message={`份数按每人一份估算：${fallbackDishes.map((dish) => dish.dish_name).join('、')}`}
         />
       ) : null}
 

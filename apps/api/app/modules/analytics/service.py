@@ -30,7 +30,7 @@ from app.modules.collection.models import DailyLog
 from app.modules.dish.images import image_url as dish_service_image_url
 from app.modules.nutrition.models import NutritionStandard
 from app.modules.nutrition.schemas import StandardComparison
-from app.shared.enums import MealType, StandardCode
+from app.shared.enums import MealType, PackageCode, StandardCode
 from app.shared.nutrients import (
     FIELD_TO_NUTRIENT_CODE,
     NUTRIENT_FIELDS,
@@ -104,6 +104,9 @@ def build_menu_overview(session: Session) -> MenuOverviewResponse:
                             dish_id=str(dish.id),
                             image_url=dish_service_image_url(dish.id),
                             name=dish.name,
+                            package_codes=[item.package_code],
+                            package_labels=[item.package_code.label],
+                            is_shared=item.package_code is PackageCode.COMMON,
                             category_label=dish.category.label,
                             cooking_method_label=dish.cooking_method.label,
                             planned_servings=(
@@ -180,13 +183,16 @@ def build_trends(session: Session, *, days: int) -> TrendsResponse:
             code: sum_per_capita_across_meals(day_logs, field)
             for code, field in SEASONING_FIELDS.items()
         }
+        oil_total = _total(day_logs, "oil_total_g")
+        salt_total = _total(day_logs, "salt_total_g")
+        sugar_total = _total(day_logs, "sugar_total_g")
         points.append(
             TrendPoint(
                 date=day,
                 diner_count=sum(log.diner_count for log in day_logs),
-                oil_total_g=str(_total(day_logs, "oil_total_g")),
-                salt_total_g=str(_total(day_logs, "salt_total_g")),
-                sugar_total_g=str(_total(day_logs, "sugar_total_g")),
+                oil_total_g=None if oil_total is None else str(oil_total),
+                salt_total_g=None if salt_total is None else str(salt_total),
+                sugar_total_g=None if sugar_total is None else str(sugar_total),
                 oil_per_capita_g=_optional_str(per_capita[StandardCode.EDIBLE_OIL]),
                 salt_per_capita_g=_optional_str(per_capita[StandardCode.SALT]),
                 sugar_per_capita_g=_optional_str(per_capita[StandardCode.ADDED_SUGAR]),
@@ -331,8 +337,11 @@ def build_summary(session: Session, *, days: int) -> DashboardSummary:
     )
 
 
-def _total(logs: list[DailyLog], field: str) -> Decimal:
-    return quantize(sum((getattr(log, field) for log in logs), Decimal("0")), 2)
+def _total(logs: list[DailyLog], field: str) -> Decimal | None:
+    values = [getattr(log, field) for log in logs]
+    if not values or any(value is None for value in values):
+        return None
+    return quantize(sum(values, Decimal("0")), 2)
 
 
 def _optional_str(value: Decimal | None) -> str | None:

@@ -20,7 +20,10 @@ test('筛选、视图和浏览位置在离开页面与刷新后保留', async ({
   await page.goto('/admin/dishes');
   const categories = page.getByRole('group', { name: '菜品分类导航' });
   await categories.getByRole('button', { name: '半荤', exact: true }).click();
-  await expect(page.locator('.zw-dish-card')).toHaveCount(5);
+  const response = await page.request.get('/api/v1/dishes?category=HALF_MEAT&page_size=12');
+  expect(response.ok()).toBeTruthy();
+  const filtered = await response.json();
+  await expect(page.locator('.zw-dish-card')).toHaveCount(filtered.items.length);
   await page.evaluate(() => window.scrollTo(0, 450));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(300);
   await page

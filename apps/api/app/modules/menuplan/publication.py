@@ -27,11 +27,11 @@ from app.modules.menuplan.schemas import (
 from app.modules.nutrition import service as nutrition_service
 from app.modules.recommendation.models import MenuSuggestion
 from app.modules.seasoning.models import Seasoning
-from app.shared.enums import AuditAction, MealType, SuggestionStatus
+from app.shared.enums import AuditAction, MealType, PackageCode, SuggestionStatus
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-CALCULATION_VERSION = "menu-plan-20261019.1"
+CALCULATION_VERSION = "menu-plan-20261021.1"
 
 
 def digest(value: object) -> str:
@@ -121,6 +121,7 @@ def meal_state(session: Session, *, on_date: date, meal_type: MealType) -> dict[
                 str(row.updated_at),
                 row.is_substituted,
                 row.substitution_note,
+                row.package_code.value,
             )
             for row in items
         ),
@@ -217,8 +218,6 @@ def publish(
     ids = [UUID(row.dish_id) for row in plan.dishes]
     if catalog_tokens(session, ids, lock=True) != snapshot.get("catalog_tokens"):
         raise ConflictError("配方、原料营养或单价已经变化，请重新生成并核对后发布")
-    if plan.total_cost is not None and Decimal(plan.total_cost) > Decimal(plan.budget):
-        raise BusinessRuleError("采购金额超出本次预算，请调整条件后重新生成")
     dishes = list(session.scalars(select(Dish).where(Dish.id.in_(ids))).all())
     if len(dishes) != len(ids) or any(
         not row.is_active or row.recipe_version != snapshot["recipe_versions"].get(str(row.id))
@@ -237,6 +236,7 @@ def publish(
                 menu_day_id=menu.id,
                 dish_id=UUID(row.dish_id),
                 planned_servings=Decimal(quantity),
+                package_code=(PackageCode.COMMON if row.is_shared else row.package_codes[0]),
             )
         )
     menu.note = f"确认发布方案 {suggestion.id}；采购金额以生成时快照为准"
@@ -336,6 +336,7 @@ def restore_menu(
                     planned_servings=None if row[1] == "None" else Decimal(row[1]),
                     is_substituted=row[3],
                     substitution_note=row[4],
+                    package_code=(PackageCode(str(row[5])) if len(row) > 5 else PackageCode.COMMON),
                 )
             )
     if suggestion:

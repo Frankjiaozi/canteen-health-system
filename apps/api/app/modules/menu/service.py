@@ -18,7 +18,7 @@ from app.core.errors import BusinessRuleError
 from app.modules.collection import repository as collection_repository
 from app.modules.menu import repository
 from app.modules.menu.locking import lock_meal
-from app.shared.enums import MealType
+from app.shared.enums import MealType, PackageCode
 
 
 @dataclass
@@ -29,6 +29,7 @@ class ConfirmedDish:
     #: 与计划不一致的临时替换
     is_substituted: bool = False
     note: str | None = None
+    package_code: PackageCode = PackageCode.COMMON
 
 
 @dataclass
@@ -38,6 +39,7 @@ class PlannedDish:
     dish_id: UUID
     #: 计划做多少份。预测不出来时可以是空的——空着比编一个数诚实
     planned_servings: Decimal | None = None
+    package_code: PackageCode = PackageCode.COMMON
 
 
 def confirm_menu_day(
@@ -56,7 +58,9 @@ def confirm_menu_day(
     repository.replace_items(
         session,
         menu_day_id=menu_day.id,
-        items=[(row.dish_id, row.is_substituted, row.note, None) for row in dishes],
+        items=[
+            (row.dish_id, row.is_substituted, row.note, None, row.package_code) for row in dishes
+        ],
     )
     return menu_day.id
 
@@ -90,7 +94,7 @@ def plan_menu_day(
         items=[
             # note 留给「临时替换」用，计划这件事不写进去——计划与实际的分野
             # 是靠「有没有计划份数、有没有当天的采集记录」判断的，往备注里塞标记迟早会串味
-            (row.dish_id, False, None, row.planned_servings)
+            (row.dish_id, False, None, row.planned_servings, row.package_code)
             for row in dishes
         ],
     )

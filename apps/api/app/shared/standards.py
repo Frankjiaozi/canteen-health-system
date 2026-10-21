@@ -33,7 +33,14 @@ def sum_per_capita_across_meals(logs: Iterable[DinerCounted], field: str) -> Dec
     usable = [log for log in logs if log.diner_count > 0]
     if not usable:
         return None
-    total = sum((getattr(log, field) / Decimal(log.diner_count) for log in usable), Decimal("0"))
+    values = [getattr(log, field) for log in usable]
+    # 一餐缺测就不能把其余餐次相加冒充“全天人均”：未知 + 已知仍然是未知。
+    if any(value is None for value in values):
+        return None
+    total = sum(
+        (value / Decimal(log.diner_count) for log, value in zip(usable, values, strict=True)),
+        Decimal("0"),
+    )
     return total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 

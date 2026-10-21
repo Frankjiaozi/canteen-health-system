@@ -49,15 +49,40 @@ export function DailyPlanView({
               extra={<Typography.Text strong>{formatAmount(meal.total_cost)} 元</Typography.Text>}
             >
               <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-                {meal.dishes.map((dish) => (
-                  <div
-                    key={dish.dish_id}
-                    style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}
-                  >
-                    <span>{dish.dish_name}</span>
-                    <Typography.Text type="secondary">
-                      {formatAmount(dish.planned_servings ?? dish.predicted_servings)} 份
-                    </Typography.Text>
+                {(meal.packages?.length
+                  ? meal.packages.map((packageRow) => ({
+                      key: packageRow.code,
+                      label: packageRow.label,
+                      dishes: meal.dishes.filter((dish) =>
+                        packageRow.dish_ids.includes(dish.dish_id),
+                      ),
+                    }))
+                  : [{ key: 'ALL', label: '当前套餐', dishes: meal.dishes }]
+                ).map((group) => (
+                  <div key={group.key}>
+                    <Tag
+                      color={
+                        group.key === 'B' ? 'geekblue' : group.key === 'A' ? 'green' : 'default'
+                      }
+                    >
+                      {group.label}
+                    </Tag>
+                    <Space orientation="vertical" size={6} style={{ width: '100%', marginTop: 6 }}>
+                      {group.dishes.map((dish) => (
+                        <div
+                          key={dish.dish_id}
+                          style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}
+                        >
+                          <span>
+                            {dish.dish_name}
+                            {dish.is_shared ? ' · 共用主食' : ''}
+                          </span>
+                          <Typography.Text type="secondary">
+                            {formatAmount(dish.planned_servings ?? dish.predicted_servings)} 份
+                          </Typography.Text>
+                        </div>
+                      ))}
+                    </Space>
                   </div>
                 ))}
               </Space>

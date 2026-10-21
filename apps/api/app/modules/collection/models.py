@@ -28,7 +28,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.db.types import enum_check, enum_type
-from app.shared.enums import FeedbackSource, MealType
+from app.shared.enums import FeedbackSource, MealType, PackageCode
 
 
 class DailyLog(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -41,16 +41,10 @@ class DailyLog(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     diner_count: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    # 当日油盐糖实际总用量。这是校准模型的关键输入，也是唯一需要精确到克的日常数据。
-    oil_total_g: Mapped[Decimal] = mapped_column(
-        Numeric(10, 2), nullable=False, server_default=text("0")
-    )
-    salt_total_g: Mapped[Decimal] = mapped_column(
-        Numeric(10, 2), nullable=False, server_default=text("0")
-    )
-    sugar_total_g: Mapped[Decimal] = mapped_column(
-        Numeric(10, 2), nullable=False, server_default=text("0")
-    )
+    # 当日油盐糖实际总用量。NULL 表示没有测量，0 表示明确测到零投放。
+    oil_total_g: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    salt_total_g: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    sugar_total_g: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
 
     # 当日剩餐总重（克）
     leftover_weight_g: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
@@ -70,9 +64,11 @@ class DailyLog(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint("date", "meal_type"),
         enum_check("meal_type", MealType),
-        CheckConstraint("diner_count >= 0", name="diner_count_non_negative"),
+        CheckConstraint("diner_count > 0", name="diner_count_positive"),
         CheckConstraint(
-            "oil_total_g >= 0 AND salt_total_g >= 0 AND sugar_total_g >= 0",
+            "(oil_total_g IS NULL OR oil_total_g >= 0) "
+            "AND (salt_total_g IS NULL OR salt_total_g >= 0) "
+            "AND (sugar_total_g IS NULL OR sugar_total_g >= 0)",
             name="seasoning_totals_non_negative",
         ),
     )
@@ -93,13 +89,22 @@ class DailyLogItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("dishes.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     servings_produced: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False)
+    # 这道菜在采集发生时使用的配方快照。历史校准不能再拿今天的配方回算过去。
+    recipe_snapshot: Mapped[dict[str, object] | None] = mapped_column(JSONB)
     # 剩余比例（0~1）。同时服务两个目标：修正实际摄入量、支撑反浪费统计
     leftover_ratio: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
     leftover_weight_g: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     note: Mapped[str | None] = mapped_column(String(255))
+    #: 与菜单计划保持同一套餐归属；共用主食为 COMMON。
+    package_code: Mapped[PackageCode] = mapped_column(
+        enum_type(PackageCode),
+        nullable=False,
+        server_default=PackageCode.COMMON.value,
+    )
 
     __table_args__ = (
         UniqueConstraint("daily_log_id", "dish_id"),
+        enum_check("package_code", PackageCode),
         CheckConstraint("servings_produced >= 0", name="servings_non_negative"),
         CheckConstraint(
             "leftover_ratio IS NULL OR (leftover_ratio >= 0 AND leftover_ratio <= 1)",

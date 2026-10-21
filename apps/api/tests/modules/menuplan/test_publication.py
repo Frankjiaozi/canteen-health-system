@@ -14,7 +14,7 @@ from app.modules.ingredient.models import Ingredient
 from app.modules.menu.models import MenuDay, MenuDayItem
 from app.modules.nutrition import service as nutrition_service
 from app.modules.recommendation.models import MenuSuggestion
-from app.shared.enums import MealType, SuggestionStatus
+from app.shared.enums import MealType, PackageCode, SuggestionStatus
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -69,6 +69,13 @@ def test_publish_writes_menu_nutrition_and_one_audit_idempotently(
     items = db_session.scalars(select(MenuDayItem).where(MenuDayItem.menu_day_id == menu_id)).all()
     assert {str(row.dish_id) for row in items} == {row["dish_id"] for row in plan["dishes"]}
     assert all(row.planned_servings > 0 for row in items)
+    expected_packages = {
+        row["dish_id"]: (
+            PackageCode.COMMON if row["is_shared"] else PackageCode(row["package_codes"][0])
+        )
+        for row in plan["dishes"]
+    }
+    assert {str(row.dish_id): row.package_code for row in items} == expected_packages
     repeated = confirm(as_recorder, plan)
     assert repeated.status_code == 200
     assert repeated.json()["already_published"]
@@ -82,6 +89,10 @@ def test_publish_writes_menu_nutrition_and_one_audit_idempotently(
     assert board.status_code == 200, board.text
     assert {str(row["dish_id"]) for row in board.json()["dishes"]} == {
         row["dish_id"] for row in plan["dishes"]
+    }
+    board_packages = {row["dish_id"]: row["package_codes"][0] for row in board.json()["dishes"]}
+    assert board_packages == {
+        dish_id: package_code.value for dish_id, package_code in expected_packages.items()
     }
 
 
