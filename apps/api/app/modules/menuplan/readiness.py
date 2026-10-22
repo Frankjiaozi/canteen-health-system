@@ -13,7 +13,7 @@ from app.modules.menuplan.schemas import PlanReadiness, ReadinessCategory, Readi
 from app.modules.recommendation import repository
 from app.modules.recommendation import service as recommendation
 from app.modules.seasoning.models import Seasoning
-from app.shared.enums import MealType
+from app.shared.enums import DishCategory, MealType
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -37,7 +37,13 @@ def inspect(
     candidate_ids = set(
         recommendation.candidate_dish_ids(session, on_date=on_date, meal_type=meal_type)
     )
-    previous = repository.load_previous_dishes(session, on_date=on_date, meal_type=meal_type)
+    is_breakfast = meal_type is MealType.BREAKFAST
+    # 固定早餐每天重复供应；不能套午晚餐的前一日轮换排除。
+    previous = (
+        set()
+        if is_breakfast
+        else repository.load_previous_dishes(session, on_date=on_date, meal_type=meal_type)
+    )
     excluded = previous | set(excluded_dish_ids)
     available = candidate_ids - excluded
     start, end = on_date - timedelta(weeks=forecast.HISTORY_WEEKS), on_date - timedelta(days=1)
@@ -76,6 +82,9 @@ def inspect(
             )
         )
 
+    category_minimums = (
+        dict.fromkeys(DishCategory, 0) if is_breakfast else recommendation.CATEGORY_MIN
+    )
     categories = [
         ReadinessCategory(
             code=category.value,
@@ -83,14 +92,24 @@ def inspect(
             available_count=sum(dishes[key].category == category for key in available),
             required_minimum=minimum,
         )
-        for category, minimum in recommendation.CATEGORY_MIN.items()
+        for category, minimum in category_minimums.items()
     ]
-    if len(available) < recommendation.DISH_COUNT_MIN:
+    # 与固定早餐的 A/B 分配一致：主食可共用；没有共用主食时需要两道菜。
+    minimum = recommendation.DISH_COUNT_MIN
+    if is_breakfast:
+        has_common = any(dishes[key].category is DishCategory.STAPLE for key in available)
+        minimum = 1 if has_common else 2
+    if len(available) < minimum:
         add(
             "insufficient_candidates",
             "blocking",
             "可用候选菜不足",
-            f"当前有 {len(available)} 道可用，菜单至少需要 {recommendation.DISH_COUNT_MIN} 道。候选须在用、有配方且有本餐次过去的出餐记录；前一日菜单和主动排除同时生效。",
+            (
+                f"当前有 {len(available)} 道固定早餐可用，不能组成两份非空套餐。"
+                "早餐允许每天重复供应，主动排除仍然生效；候选须在用、有配方且有早餐出餐记录。"
+                if is_breakfast
+                else f"当前有 {len(available)} 道可用，菜单至少需要 {minimum} 道。候选须在用、有配方且有本餐次过去的出餐记录；前一日菜单和主动排除同时生效。"
+            ),
             "补齐配方与真实历史，或减少主动排除；不要伪造历史来凑数。",
             "/admin/dishes",
         )

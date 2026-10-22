@@ -5,6 +5,8 @@ from app.modules.dish.models import Dish, RecipeItem
 from app.modules.forecast.models import Forecast
 from app.modules.ingredient.models import Ingredient
 from app.modules.menuplan import readiness
+from app.modules.menuplan import service as menuplan_service
+from app.modules.recommendation import service as recommendation_service
 from app.modules.recommendation.models import MenuSuggestion
 from app.shared.enums import DishCategory, MealType
 from sqlalchemy import delete, func, select
@@ -117,3 +119,55 @@ def test_readiness_requires_login_and_rejects_bad_exclusions(client):
         ).status_code
         == 422
     )
+
+
+def test_fixed_breakfast_readiness_matches_generation_after_previous_supply(db_session):
+    target = today_local() + timedelta(days=1)
+    report = readiness.inspect(db_session, on_date=target, meal_type=MealType.BREAKFAST)
+    assert report.candidate_count > 0
+    assert report.available_count == report.candidate_count
+    assert report.state != "blocked"
+    plan = menuplan_service.build_menu_plan(
+        db_session, on_date=target, meal_type=MealType.BREAKFAST
+    )
+    assert len(plan.dishes) == report.available_count
+
+
+def test_breakfast_explicit_exclusion_matches_fixed_plan(db_session):
+    target = today_local() + timedelta(days=2)
+    candidates = recommendation_service.candidate_dish_ids(
+        db_session, on_date=target, meal_type=MealType.BREAKFAST
+    )
+    excluded = frozenset(candidates[:1])
+    report = readiness.inspect(
+        db_session, on_date=target, meal_type=MealType.BREAKFAST, excluded_dish_ids=excluded
+    )
+    plan = menuplan_service.build_menu_plan(
+        db_session, on_date=target, meal_type=MealType.BREAKFAST, excluded_dish_ids=excluded
+    )
+    assert not ({str(item) for item in excluded} & {dish.dish_id for dish in plan.dishes})
+    assert len(plan.dishes) == report.available_count
+
+
+def test_breakfast_fixed_set_does_not_require_lunch_categories(db_session):
+    target = today_local() + timedelta(days=2)
+    candidates = recommendation_service.candidate_dish_ids(
+        db_session, on_date=target, meal_type=MealType.BREAKFAST
+    )
+    staple = db_session.scalar(
+        select(Dish.id).where(Dish.id.in_(candidates), Dish.category == DishCategory.STAPLE)
+    )
+    assert staple is not None
+    excluded = frozenset(set(candidates) - {staple})
+    report = readiness.inspect(
+        db_session, on_date=target, meal_type=MealType.BREAKFAST, excluded_dish_ids=excluded
+    )
+    assert report.available_count == 1
+    assert report.state != "blocked"
+    empty = readiness.inspect(
+        db_session,
+        on_date=target,
+        meal_type=MealType.BREAKFAST,
+        excluded_dish_ids=frozenset(candidates),
+    )
+    assert empty.state == "blocked"

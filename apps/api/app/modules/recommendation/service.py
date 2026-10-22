@@ -509,6 +509,8 @@ def _breakfast_package_plans(
     主食同时进入两份套餐，并在采购侧记为共用；其余菜按类别与数量均衡拆分。
     早餐不求解营养目标，但仍沿用标准套餐的营养核算与差距展示。
     """
+    # 固定组合也必须遵守用户的显式排除；fixed_plan 本身只核算，不筛选候选。
+    candidates = [dish for dish in candidates if dish.dish_id not in constraints.excluded_dish_ids]
     common = [dish for dish in candidates if dish.category is DishCategory.STAPLE]
     others = [dish for dish in candidates if dish.category is not DishCategory.STAPLE]
     grouped: dict[DishCategory, list[solver.CandidateDish]] = {

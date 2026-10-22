@@ -11,6 +11,7 @@
     "dev": "node scripts/dev-stack.mjs",
     "dev:demo": "node scripts/dev-stack.mjs --demo",
     "demo:prepare": "cd apps/api && node ../../scripts/py.mjs -m app.dev_workspace demo",
+    "data:repair": "cd apps/api && node ../../scripts/py.mjs -m tools.repair_local_data",
     "dev:check": "cd apps/api && node ../../scripts/py.mjs -m app.preflight",
     "dev:agent": "cd apps/agent && node ../../scripts/py.mjs -m uvicorn zhiwei_agent.main:app --reload --host 127.0.0.1 --port 8001",
     "dev:api": "cd apps/api && node ../../scripts/py.mjs -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000",
