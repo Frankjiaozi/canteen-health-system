@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { DailyMenuPlanResponse } from '../types';
 import { DailyPlanView } from './DailyPlanView';
+import type { DailySyncOutcome } from '../lib/syncDailyPlan';
 
 function meal(mealType: string, label: string) {
   return {
@@ -72,4 +73,36 @@ it('三餐一次展示，同步前确认目标日期，取消不写入', async (
   fireEvent.click(screen.getByRole('button', { name: '同步三餐至当日数据' }));
   fireEvent.click(await screen.findByRole('button', { name: '确认同步' }));
   expect(onSync).toHaveBeenCalledOnce();
+});
+
+it('部分同步时仅确认失败餐次，全部成功后禁止重复提交', async () => {
+  const onSync = vi.fn();
+  const outcomes: DailySyncOutcome[] = plan.meals.map((meal, index) => ({
+    suggestion_id: meal.suggestion_id,
+    meal_type: meal.meal_type,
+    meal_type_label: meal.meal_type_label,
+    ok: index !== 1,
+    message: index === 1 ? '网络中断' : '已同步',
+  }));
+  const view = render(
+    <App>
+      <DailyPlanView plan={plan} canWrite syncing={false} outcomes={outcomes} onSync={onSync} />
+    </App>,
+  );
+  fireEvent.click(screen.getByRole('button', { name: '重试未同步餐次' }));
+  expect(await screen.findByText('重试 2026-10-20 未同步的 1 餐？')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: '确认同步' }));
+  expect(onSync).toHaveBeenCalledOnce();
+  view.rerender(
+    <App>
+      <DailyPlanView
+        plan={plan}
+        canWrite
+        syncing={false}
+        outcomes={outcomes.map((row) => ({ ...row, ok: true }))}
+        onSync={onSync}
+      />
+    </App>,
+  );
+  expect(screen.getByRole('button', { name: '三餐已同步' })).toBeDisabled();
 });

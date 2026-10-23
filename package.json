@@ -17,6 +17,7 @@
     "dev:api": "cd apps/api && node ../../scripts/py.mjs -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000",
     "dev:web": "pnpm --filter @canteen/web dev",
     "build": "pnpm --filter @canteen/web build",
+    "assets:check": "node scripts/py.mjs scripts/check-dish-images.py",
     "db:up": "docker compose -f infra/docker-compose.dev.yml up -d",
     "db:down": "docker compose -f infra/docker-compose.dev.yml down",
     "db:reset": "docker compose -f infra/docker-compose.dev.yml down -v && docker compose -f infra/docker-compose.dev.yml up -d",

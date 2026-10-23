@@ -1,32 +1,18 @@
 {
   "source": "AI-generated with the built-in image_gen tool",
-  "date": "2026-10-21",
+  "date": "2026-10-21 / 2026-10-23",
   "promptTemplate": "Use case: photorealistic-natural. Individual Chinese campus canteen dish photo, landscape 3:2, 55 degree overhead angle, centered whole serving filling 75% frame, off-white ceramic dish, warm ivory table, natural window light, sage and cream editorial aesthetic. Realistic food textures and ingredients. No text, watermark, collage, people or hands.",
   "images": [
-    {
-      "name": "木耳炒肉片",
-      "file": "wood-ear-pork.webp",
-      "subject": "Tender sliced pork stir-fried with dark ruffled wood ear mushrooms and a few green pepper slices; unmistakable Chinese wood ear mushroom and pork stir-fry."
-    },
     {
       "name": "番茄炒蛋",
       "file": "tomato-eggs.webp",
       "subject": "Chinese home-style tomato and scrambled eggs, juicy red tomato wedges and fluffy golden egg curds."
     },
     {
-      "name": "胡萝卜炒鸡蛋",
-      "file": "carrot-eggs.webp",
-      "subject": "Chinese stir-fried thin julienne orange carrots and fluffy golden scrambled eggs, a tiny garnish of scallion."
-    },
-    {
-      "name": "青椒炒肉丝",
-      "file": "pepper-pork.webp",
-      "subject": "Chinese stir-fried slender green bell pepper strips with slender pork strips, authentic qingjiao rousi."
-    },
-    {
-      "name": "麻婆豆腐",
-      "file": "mapo-tofu.webp",
-      "subject": "Authentic mapo tofu: small tender ivory tofu cubes in red chili bean sauce, fine minced pork and chopped green scallions; no exaggerated oil."
+      "name": "清炒西兰花",
+      "file": "stir_broccoli.webp",
+      "seed_key": "stir_broccoli",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
     },
     {
       "name": "土豆炖牛肉",
@@ -34,14 +20,32 @@
       "subject": "Chinese braised beef and potatoes: distinct browned beef chunks with golden potato wedges in a modest rich brown braising sauce."
     },
     {
-      "name": "宫保鸡丁",
-      "file": "kung-pao-chicken.webp",
-      "subject": "Authentic kung pao chicken: diced chicken, roasted peanuts, dried red chilies, scallion sections in glossy reddish-brown sauce."
+      "name": "紫菜蛋花汤",
+      "file": "nori_egg_soup.webp",
+      "seed_key": "nori_egg_soup",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
     },
     {
-      "name": "清蒸鲈鱼",
-      "file": "steamed-bass.webp",
-      "subject": "A whole Chinese steamed sea bass on an oval ivory plate, topped with fine ginger and green scallion shreds, light soy broth, intact realistic fish."
+      "name": "米饭",
+      "file": "steamed_rice.webp",
+      "seed_key": "steamed_rice",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
+    },
+    {
+      "name": "馒头",
+      "file": "steamed_bun.webp",
+      "seed_key": "steamed_bun",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
+    },
+    {
+      "name": "番茄蛋汤",
+      "file": "tomato-egg-soup.webp",
+      "subject": "Chinese tomato egg drop soup: red tomato pieces and delicate pale yellow egg ribbons in clear light broth, a few scallion rings, deep ivory soup bowl."
+    },
+    {
+      "name": "冬瓜排骨汤",
+      "file": "winter-melon-ribs.webp",
+      "subject": "Clear Chinese winter melon and pork rib soup: translucent pale green winter melon chunks and pork rib pieces in clear light broth, a little scallion, deep ivory soup bowl."
     },
     {
       "name": "红烧肉",
@@ -54,14 +58,178 @@
       "subject": "Chinese braised chicken leg pieces with golden potato chunks, bone-in chicken clearly visible, rich brown sauce, a little scallion."
     },
     {
-      "name": "冬瓜排骨汤",
-      "file": "winter-melon-ribs.webp",
-      "subject": "Clear Chinese winter melon and pork rib soup: translucent pale green winter melon chunks and pork rib pieces in clear light broth, a little scallion, deep ivory soup bowl."
+      "name": "清蒸鲈鱼",
+      "file": "steamed-bass.webp",
+      "subject": "A whole Chinese steamed sea bass on an oval ivory plate, topped with fine ginger and green scallion shreds, light soy broth, intact realistic fish."
     },
     {
-      "name": "番茄蛋汤",
-      "file": "tomato-egg-soup.webp",
-      "subject": "Chinese tomato egg drop soup: red tomato pieces and delicate pale yellow egg ribbons in clear light broth, a few scallion rings, deep ivory soup bowl."
+      "name": "宫保鸡丁",
+      "file": "kung-pao-chicken.webp",
+      "subject": "Authentic kung pao chicken: diced chicken, roasted peanuts, dried red chilies, scallion sections in glossy reddish-brown sauce."
+    },
+    {
+      "name": "木耳炒肉片",
+      "file": "wood-ear-pork.webp",
+      "subject": "Tender sliced pork stir-fried with dark ruffled wood ear mushrooms and a few green pepper slices; unmistakable Chinese wood ear mushroom and pork stir-fry."
+    },
+    {
+      "name": "麻婆豆腐",
+      "file": "mapo-tofu.webp",
+      "subject": "Authentic mapo tofu: small tender ivory tofu cubes in red chili bean sauce, fine minced pork and chopped green scallions; no exaggerated oil."
+    },
+    {
+      "name": "青椒炒肉丝",
+      "file": "pepper-pork.webp",
+      "subject": "Chinese stir-fried slender green bell pepper strips with slender pork strips, authentic qingjiao rousi."
+    },
+    {
+      "name": "胡萝卜炒鸡蛋",
+      "file": "carrot-eggs.webp",
+      "subject": "Chinese stir-fried thin julienne orange carrots and fluffy golden scrambled eggs, a tiny garnish of scallion."
+    },
+    {
+      "name": "蒜蓉油菜",
+      "file": "garlic_bok_choy.webp",
+      "seed_key": "garlic_bok_choy",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
+    },
+    {
+      "name": "醋溜白菜",
+      "file": "vinegar_cabbage.webp",
+      "seed_key": "vinegar_cabbage",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
+    },
+    {
+      "name": "凉拌黄瓜",
+      "file": "cucumber_salad.webp",
+      "seed_key": "cucumber_salad",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
+    },
+    {
+      "name": "干煸豆角",
+      "file": "dry_fried_beans.webp",
+      "seed_key": "dry_fried_beans",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
+    },
+    {
+      "name": "冬瓜蛋花汤",
+      "file": "winter_melon_egg_soup.webp",
+      "seed_key": "winter_melon_egg_soup",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
+    },
+    {
+      "name": "番茄豆腐汤",
+      "file": "tomato_tofu_soup.webp",
+      "seed_key": "tomato_tofu_soup",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
+    },
+    {
+      "name": "紫菜豆腐汤",
+      "file": "nori_tofu_soup.webp",
+      "seed_key": "nori_tofu_soup",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
+    },
+    {
+      "name": "蒜蓉西兰花",
+      "file": "garlic_broccoli.webp",
+      "seed_key": "garlic_broccoli",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
+    },
+    {
+      "name": "青椒土豆丝",
+      "file": "pepper_potato.webp",
+      "seed_key": "pepper_potato",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
+    },
+    {
+      "name": "洋葱木耳",
+      "file": "onion_wood_ear.webp",
+      "seed_key": "onion_wood_ear",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
+    },
+    {
+      "name": "清炒胡萝卜",
+      "file": "carrot_stir.webp",
+      "seed_key": "carrot_stir",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
+    },
+    {
+      "name": "番茄炖牛肉",
+      "file": "tomato_beef.webp",
+      "seed_key": "tomato_beef",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
+    },
+    {
+      "name": "鸡丁炒黄瓜",
+      "file": "chicken_cucumber.webp",
+      "seed_key": "chicken_cucumber",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
+    },
+    {
+      "name": "虾仁豆腐",
+      "file": "prawn_tofu.webp",
+      "seed_key": "prawn_tofu",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
+    },
+    {
+      "name": "白粥",
+      "file": "congee.webp",
+      "seed_key": "congee",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
+    },
+    {
+      "name": "花卷",
+      "file": "steamed_roll.webp",
+      "seed_key": "steamed_roll",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
+    },
+    {
+      "name": "煮鸡蛋",
+      "file": "boiled_egg.webp",
+      "seed_key": "boiled_egg",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
+    },
+    {
+      "name": "鸡蛋饼",
+      "file": "egg_pancake.webp",
+      "seed_key": "egg_pancake",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
+    },
+    {
+      "name": "热牛奶",
+      "file": "hot_milk.webp",
+      "seed_key": "hot_milk",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
+    },
+    {
+      "name": "晨光番茄蛋",
+      "file": "breakfast_tomato_egg.webp",
+      "seed_key": "breakfast_tomato_egg",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
+    },
+    {
+      "name": "清炒小油菜",
+      "file": "breakfast_bok_choy.webp",
+      "seed_key": "breakfast_bok_choy",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
+    },
+    {
+      "name": "豆腐蛋花汤",
+      "file": "breakfast_tofu_soup.webp",
+      "seed_key": "breakfast_tofu_soup",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
+    },
+    {
+      "name": "胡萝卜鸡蛋饼",
+      "file": "breakfast_carrot_pancake.webp",
+      "seed_key": "breakfast_carrot_pancake",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
+    },
+    {
+      "name": "醋香白菜",
+      "file": "breakfast_cabbage.webp",
+      "seed_key": "breakfast_cabbage",
+      "subject": "AI 生成菜品示意图；以初始化菜名及配方食材为拍摄对象，米白餐具、自然光、横向构图。"
     }
   ]
 }

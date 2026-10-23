@@ -11,14 +11,9 @@ import {
   syncMenuPlan,
   syncMenuPlanBatch,
 } from '../api/menuPlanApi';
-import type { DailyMenuPlanResponse, MealType } from '../types';
-
-export interface DailySyncOutcome {
-  meal_type: MealType;
-  meal_type_label: string;
-  ok: boolean;
-  message: string;
-}
+import type { MealType } from '../types';
+import { syncDailyPlan } from '../lib/syncDailyPlan';
+export type { DailySyncOutcome } from '../lib/syncDailyPlan';
 
 /**
  * 生成明天的菜单与采购建议。
@@ -105,28 +100,7 @@ export function useSyncDailyMenuPlan() {
   const { message } = App.useApp();
 
   return useMutation({
-    mutationFn: async (plan: DailyMenuPlanResponse) => {
-      const outcomes: DailySyncOutcome[] = [];
-      for (const meal of plan.meals) {
-        try {
-          const result = await syncMenuPlan(plan.date, meal.meal_type, meal.suggestion_id);
-          outcomes.push({
-            meal_type: meal.meal_type,
-            meal_type_label: meal.meal_type_label,
-            ok: true,
-            message: result.message,
-          });
-        } catch (error) {
-          outcomes.push({
-            meal_type: meal.meal_type,
-            meal_type_label: meal.meal_type_label,
-            ok: false,
-            message: error instanceof ApiError ? error.message : '同步失败，请稍后重试',
-          });
-        }
-      }
-      return outcomes;
-    },
+    mutationFn: syncDailyPlan,
     onSuccess: async (outcomes) => {
       await queryClient.invalidateQueries({ queryKey: recommendationKeys.all });
       await queryClient.invalidateQueries({ queryKey: ['menu-plan'] });

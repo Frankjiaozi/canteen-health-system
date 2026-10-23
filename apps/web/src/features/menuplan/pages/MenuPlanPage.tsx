@@ -14,6 +14,7 @@ import { PlanEvidence } from '../components/PlanEvidence';
 import { PurchaseList } from '../components/PurchaseList';
 import { RecommendedDishes } from '../components/RecommendedDishes';
 import { BatchPlanner } from '../components/BatchPlanner';
+import { PlanReadinessPanel } from '../components/PlanReadinessPanel';
 import {
   useGenerateDailyMenuPlan,
   useGenerateMenuPlan,
@@ -82,7 +83,10 @@ export function MenuPlanPage() {
 
   const handleSyncDaily = () => {
     if (!dailyPlan) return;
-    dailySync.mutate(dailyPlan, { onSuccess: (outcomes) => setSyncOutcomes(outcomes) });
+    dailySync.mutate(
+      { plan: dailyPlan, previous: syncOutcomes ?? [] },
+      { onSuccess: (outcomes) => setSyncOutcomes(outcomes) },
+    );
   };
 
   const daily = mode === 'daily';
@@ -97,7 +101,6 @@ export function MenuPlanPage() {
             value={mode}
             onChange={(value) => {
               setMode(value);
-              setSyncOutcomes(null);
             }}
             options={[
               { value: 'daily', label: '一天三餐' },
@@ -166,6 +169,9 @@ export function MenuPlanPage() {
       }
       bodyClassName="is-padded"
     >
+      {daily || single ? (
+        <PlanReadinessPanel onDate={onDate} mealType={single ? mealType : undefined} />
+      ) : null}
       {mode === 'history' ? (
         <MenuPlanHistory onDate={onDate} />
       ) : daily ? (

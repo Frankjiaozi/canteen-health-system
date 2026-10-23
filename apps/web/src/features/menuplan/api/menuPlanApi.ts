@@ -6,7 +6,21 @@ import type {
   MenuPlanBatchResult,
   MenuPlanResponse,
   MenuPlanSyncResult,
+  PlanReadiness,
 } from '../types';
+
+export async function fetchPlanReadiness(
+  onDate: string,
+  mealType: MealType,
+  signal?: AbortSignal,
+): Promise<PlanReadiness> {
+  return unwrap(
+    await api.GET('/api/v1/menu-plan/readiness', {
+      params: { query: { on_date: onDate, meal_type: mealType } },
+      signal,
+    }),
+  );
+}
 
 /** 生成「明日菜单与采购」：一次调用把推荐、预测、采购三件事都算完。 */
 export async function generateMenuPlan(

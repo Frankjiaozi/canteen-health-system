@@ -19,13 +19,19 @@ export function DailyPlanView({
   onSync: () => void;
 }) {
   const fallbackDishes = plan.fallback_dishes ?? [];
-  const syncedCount = outcomes?.filter((outcome) => outcome.ok).length ?? 0;
-  const decision =
-    syncedCount === plan.meals.length
-      ? { text: '已同步', color: 'green' as const }
-      : syncedCount > 0
-        ? { text: '部分同步', color: 'orange' as const }
-        : { text: '待确认', color: 'default' as const };
+  const currentOutcomes = outcomes?.filter((row) =>
+    plan.meals.some(
+      (meal) => meal.suggestion_id === row.suggestion_id && meal.meal_type === row.meal_type,
+    ),
+  );
+  const syncedCount = currentOutcomes?.filter((outcome) => outcome.ok).length ?? 0;
+  const allSynced = plan.meals.length > 0 && syncedCount === plan.meals.length;
+  const retrying = !!currentOutcomes?.length && !allSynced;
+  const decision = allSynced
+    ? { text: '已同步', color: 'green' as const }
+    : syncedCount > 0
+      ? { text: '部分同步', color: 'orange' as const }
+      : { text: '待确认', color: 'default' as const };
   return (
     <Space orientation="vertical" size={16} style={{ width: '100%' }}>
       <Card
@@ -105,23 +111,31 @@ export function DailyPlanView({
             }}
           >
             <Popconfirm
-              title={`确认同步 ${plan.date} 的三餐菜单？`}
-              description="会写入正式供餐菜单。三餐分别校验，未成功的餐次将单独提示。"
+              title={
+                retrying
+                  ? `重试 ${plan.date} 未同步的 ${plan.meals.length - syncedCount} 餐？`
+                  : `确认同步 ${plan.date} 的三餐菜单？`
+              }
+              description={
+                retrying
+                  ? '仅提交尚未成功的餐次，已成功的餐次保留。'
+                  : '会写入正式供餐菜单。三餐分别校验，未成功的餐次将单独提示。'
+              }
               okText="确认同步"
               cancelText="继续核对"
               onConfirm={onSync}
-              disabled={syncing}
+              disabled={syncing || allSynced}
             >
-              <Button type="primary" loading={syncing}>
-                {syncedCount === plan.meals.length ? '重新同步三餐' : '同步三餐至当日数据'}
+              <Button type="primary" loading={syncing} disabled={allSynced}>
+                {allSynced ? '三餐已同步' : retrying ? '重试未同步餐次' : '同步三餐至当日数据'}
               </Button>
             </Popconfirm>
           </Space>
         ) : null}
 
-        {outcomes?.length ? (
+        {currentOutcomes?.length ? (
           <Space orientation="vertical" size={8} style={{ width: '100%', marginTop: 12 }}>
-            {outcomes.map((outcome) => (
+            {currentOutcomes.map((outcome) => (
               <Alert
                 key={outcome.meal_type}
                 type={outcome.ok ? 'success' : 'error'}

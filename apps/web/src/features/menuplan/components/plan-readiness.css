@@ -1,0 +1,46 @@
+.zw-plan-readiness {
+  margin-bottom: 24px;
+}
+.zw-plan-readiness-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.zw-plan-readiness-heading h5 {
+  margin: 0 0 6px;
+}
+.zw-plan-readiness-heading > button {
+  flex-shrink: 0;
+}
+.zw-plan-readiness-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 14px;
+}
+.zw-plan-readiness-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin: 18px 0 12px;
+}
+.zw-plan-readiness-facts dt {
+  color: #5f7166;
+  font-size: 12px;
+}
+.zw-plan-readiness-facts dd {
+  margin: 4px 0 0;
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+  color: #354c38;
+}
+.zw-plan-readiness-facts small {
+  font-size: 12px;
+}
+@media (max-width: 600px) {
+  .zw-plan-readiness-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
