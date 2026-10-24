@@ -1,0 +1,7 @@
+.DS_Store
+ios/TrayCore/.build/
+ios/ZhiweiTray/build/
+ios/ZhiweiTray/build-device/
+ios/ZhiweiTray/ZhiweiTray.xcodeproj/
+ios/ZhiweiTray/Info.plist
+*.xcuserstate

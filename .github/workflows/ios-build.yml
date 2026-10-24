@@ -1,0 +1,139 @@
+name: iOS build
+
+on:
+  push:
+    branches: [ios-tray]
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-tray-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain info
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Core logic tests
+        run: |
+          cd ios/TrayCore
+          swift test
+
+      - name: Generate Xcode project
+        run: |
+          cd ios/ZhiweiTray
+          xcodegen generate --spec project.yml
+
+      - name: Pick simulator
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.name | test("iPhone 1[6-9] Pro"))][0].udid // empty')
+          if [ -z "$UDID" ]; then
+            UDID=$(xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.name | test("iPhone"))][0].udid // empty')
+          fi
+          if [ -z "$UDID" ]; then
+            echo "No iPhone simulator found" >&2
+            exit 1
+          fi
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          xcrun simctl list devices available | head -20
+
+      - name: Build for simulator
+        run: |
+          set -o pipefail
+          mkdir -p "$GITHUB_WORKSPACE/artifacts"
+          cd ios/ZhiweiTray
+          xcodebuild \
+            -project ZhiweiTray.xcodeproj \
+            -scheme ZhiweiTray \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build \
+            build | tee "$GITHUB_WORKSPACE/artifacts/xcodebuild-simulator.log"
+
+      - name: Capture simulator screenshots
+        run: |
+          set -e
+          UDID="${{ steps.sim.outputs.udid }}"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override \
+            --time "9:41" \
+            --batteryState charged --batteryLevel 100 \
+            --wifiBars 3 --cellularBars 4 || true
+          xcrun simctl install "$UDID" ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/ZhiweiTray.app
+          xcrun simctl ui "$UDID" appearance light || true
+          for screen in today menu tray log profile; do
+            xcrun simctl terminate "$UDID" com.zhiwei.tray >/dev/null 2>&1 || true
+            xcrun simctl launch "$UDID" com.zhiwei.tray "-screen-$screen" -demo-tray >/dev/null
+            sleep 3
+            xcrun simctl io "$UDID" screenshot "$GITHUB_WORKSPACE/artifacts/$screen.png"
+          done
+          ls -lh "$GITHUB_WORKSPACE/artifacts"
+
+      - name: Build unsigned device app
+        run: |
+          set -o pipefail
+          cd ios/ZhiweiTray
+          xcodebuild \
+            -project ZhiweiTray.xcodeproj \
+            -scheme ZhiweiTray \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath build-device \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build | tee "$GITHUB_WORKSPACE/artifacts/xcodebuild-device.log"
+
+      - name: Package unsigned IPA
+        if: success()
+        run: |
+          set -e
+          cd "$GITHUB_WORKSPACE"
+          rm -rf artifacts/Payload
+          mkdir -p artifacts/Payload
+          cp -R ios/ZhiweiTray/build-device/Build/Products/Release-iphoneos/ZhiweiTray.app artifacts/Payload/
+          cd artifacts
+          zip -qry ZhiweiTray-unsigned.ipa Payload
+          rm -rf Payload
+          shasum -a 256 ZhiweiTray-unsigned.ipa > ZhiweiTray-unsigned.ipa.sha256
+          ls -lh
+
+      - name: Record status
+        if: always()
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/artifacts"
+          echo "${{ job.status }}" > "$GITHUB_WORKSPACE/artifacts/status.txt"
+          date -u > "$GITHUB_WORKSPACE/artifacts/built-at.txt"
+
+      - name: Commit artifacts to branch
+        if: always()
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          git config user.name "zhiwei-tray-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add artifacts
+          if git diff --cached --quiet; then
+            echo "No artifact changes"
+          else
+            git commit -m "chore(ios): build artifacts [skip ci]"
+            git push origin HEAD:ios-tray
+          fi

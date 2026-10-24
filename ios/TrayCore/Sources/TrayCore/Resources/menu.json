@@ -1,0 +1,1574 @@
+{
+  "canteen": {
+    "name": "知味 · 第一食堂",
+    "school": "示例大学",
+    "updated": "每日 06:30 同步"
+  },
+  "dishes": {
+    "tomato-eggs": {
+      "id": "tomato-eggs",
+      "name": "番茄炒蛋",
+      "category": "protein",
+      "price": 6.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "tomato-eggs",
+      "nutrition": {
+        "calories": 168,
+        "protein": 8.5,
+        "fat": 12.0,
+        "carbs": 6.0,
+        "fiber": 1.2,
+        "sodium": 480
+      },
+      "allergens": [
+        "鸡蛋"
+      ],
+      "tags": [
+        "下饭",
+        "招牌"
+      ],
+      "ingredients": [
+        "番茄",
+        "鸡蛋",
+        "食用油",
+        "盐"
+      ],
+      "vegetarian": false,
+      "spicy": 0,
+      "popularity": 96,
+      "note": "番茄酸甜，鸡蛋滑嫩，食堂常青款。"
+    },
+    "stir_broccoli": {
+      "id": "stir_broccoli",
+      "name": "清炒西兰花",
+      "category": "vegetable",
+      "price": 5.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "stir_broccoli",
+      "nutrition": {
+        "calories": 70,
+        "protein": 4.5,
+        "fat": 4.0,
+        "carbs": 5.0,
+        "fiber": 3.2,
+        "sodium": 320
+      },
+      "allergens": [],
+      "tags": [
+        "低脂",
+        "高纤维"
+      ],
+      "ingredients": [
+        "西兰花",
+        "蒜",
+        "食用油",
+        "盐"
+      ],
+      "vegetarian": true,
+      "spicy": 0,
+      "popularity": 78,
+      "note": "大火快炒，保留脆嫩口感。"
+    },
+    "potato-beef": {
+      "id": "potato-beef",
+      "name": "土豆炖牛肉",
+      "category": "protein",
+      "price": 12.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "potato-beef",
+      "nutrition": {
+        "calories": 260,
+        "protein": 16.0,
+        "fat": 12.0,
+        "carbs": 16.0,
+        "fiber": 2.0,
+        "sodium": 620
+      },
+      "allergens": [],
+      "tags": [
+        "高蛋白",
+        "下饭"
+      ],
+      "ingredients": [
+        "牛肉",
+        "土豆",
+        "胡萝卜",
+        "酱油"
+      ],
+      "vegetarian": false,
+      "spicy": 0,
+      "popularity": 91,
+      "note": "牛肉炖至软烂，土豆吸满汤汁。"
+    },
+    "nori_egg_soup": {
+      "id": "nori_egg_soup",
+      "name": "紫菜蛋花汤",
+      "category": "soup",
+      "price": 2.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "nori_egg_soup",
+      "nutrition": {
+        "calories": 45,
+        "protein": 3.5,
+        "fat": 2.0,
+        "carbs": 2.0,
+        "fiber": 0.4,
+        "sodium": 500
+      },
+      "allergens": [
+        "鸡蛋"
+      ],
+      "tags": [
+        "清淡"
+      ],
+      "ingredients": [
+        "紫菜",
+        "鸡蛋",
+        "香油",
+        "盐"
+      ],
+      "vegetarian": false,
+      "spicy": 0,
+      "popularity": 84,
+      "note": "清口解腻，配饭刚好。"
+    },
+    "steamed_rice": {
+      "id": "steamed_rice",
+      "name": "米饭",
+      "category": "staple",
+      "price": 1.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "steamed_rice",
+      "nutrition": {
+        "calories": 232,
+        "protein": 5.2,
+        "fat": 0.6,
+        "carbs": 51.6,
+        "fiber": 0.6,
+        "sodium": 2
+      },
+      "allergens": [],
+      "tags": [
+        "主食"
+      ],
+      "ingredients": [
+        "大米"
+      ],
+      "vegetarian": true,
+      "spicy": 0,
+      "popularity": 99,
+      "note": "东北大米，现蒸现卖。"
+    },
+    "steamed_bun": {
+      "id": "steamed_bun",
+      "name": "馒头",
+      "category": "staple",
+      "price": 1.0,
+      "stall": "二食堂 · 面点",
+      "image": "steamed_bun",
+      "nutrition": {
+        "calories": 223,
+        "protein": 7.0,
+        "fat": 1.1,
+        "carbs": 47.0,
+        "fiber": 1.3,
+        "sodium": 165
+      },
+      "allergens": [
+        "小麦"
+      ],
+      "tags": [
+        "主食"
+      ],
+      "ingredients": [
+        "小麦粉",
+        "酵母"
+      ],
+      "vegetarian": true,
+      "spicy": 0,
+      "popularity": 82,
+      "note": "老面发酵，麦香扎实。"
+    },
+    "tomato-egg-soup": {
+      "id": "tomato-egg-soup",
+      "name": "番茄蛋汤",
+      "category": "soup",
+      "price": 2.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "tomato-egg-soup",
+      "nutrition": {
+        "calories": 50,
+        "protein": 3.0,
+        "fat": 2.5,
+        "carbs": 3.0,
+        "fiber": 0.5,
+        "sodium": 480
+      },
+      "allergens": [
+        "鸡蛋"
+      ],
+      "tags": [
+        "清淡"
+      ],
+      "ingredients": [
+        "番茄",
+        "鸡蛋",
+        "葱花"
+      ],
+      "vegetarian": false,
+      "spicy": 0,
+      "popularity": 80,
+      "note": "番茄熬出沙，酸香开胃。"
+    },
+    "winter-melon-ribs": {
+      "id": "winter-melon-ribs",
+      "name": "冬瓜排骨汤",
+      "category": "soup",
+      "price": 6.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "winter-melon-ribs",
+      "nutrition": {
+        "calories": 110,
+        "protein": 8.0,
+        "fat": 7.0,
+        "carbs": 3.0,
+        "fiber": 0.5,
+        "sodium": 520
+      },
+      "allergens": [],
+      "tags": [
+        "清淡"
+      ],
+      "ingredients": [
+        "冬瓜",
+        "排骨",
+        "姜片"
+      ],
+      "vegetarian": false,
+      "spicy": 0,
+      "popularity": 86,
+      "note": "慢炖两小时，汤色清亮。"
+    },
+    "braised-pork": {
+      "id": "braised-pork",
+      "name": "红烧肉",
+      "category": "protein",
+      "price": 12.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "braised-pork",
+      "nutrition": {
+        "calories": 380,
+        "protein": 12.0,
+        "fat": 34.0,
+        "carbs": 6.0,
+        "fiber": 0.2,
+        "sodium": 640
+      },
+      "allergens": [],
+      "tags": [
+        "高脂",
+        "下饭"
+      ],
+      "ingredients": [
+        "五花肉",
+        "冰糖",
+        "酱油",
+        "八角"
+      ],
+      "vegetarian": false,
+      "spicy": 0,
+      "popularity": 88,
+      "note": "肥瘦相间，浓油赤酱。"
+    },
+    "chicken-potatoes": {
+      "id": "chicken-potatoes",
+      "name": "鸡腿烧土豆",
+      "category": "protein",
+      "price": 11.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "chicken-potatoes",
+      "nutrition": {
+        "calories": 300,
+        "protein": 20.0,
+        "fat": 15.0,
+        "carbs": 19.0,
+        "fiber": 1.8,
+        "sodium": 700
+      },
+      "allergens": [],
+      "tags": [
+        "高蛋白",
+        "下饭"
+      ],
+      "ingredients": [
+        "鸡腿",
+        "土豆",
+        "酱油",
+        "姜"
+      ],
+      "vegetarian": false,
+      "spicy": 0,
+      "popularity": 90,
+      "note": "带骨鸡腿，肉汁拌饭一绝。"
+    },
+    "steamed-bass": {
+      "id": "steamed-bass",
+      "name": "清蒸鲈鱼",
+      "category": "protein",
+      "price": 15.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "steamed-bass",
+      "nutrition": {
+        "calories": 180,
+        "protein": 28.0,
+        "fat": 6.0,
+        "carbs": 1.0,
+        "fiber": 0.0,
+        "sodium": 420
+      },
+      "allergens": [
+        "鱼类"
+      ],
+      "tags": [
+        "高蛋白",
+        "低脂",
+        "清淡"
+      ],
+      "ingredients": [
+        "鲈鱼",
+        "姜丝",
+        "葱丝",
+        "蒸鱼豉油"
+      ],
+      "vegetarian": false,
+      "spicy": 0,
+      "popularity": 85,
+      "note": "当日鲜鱼，清蒸锁鲜。"
+    },
+    "kung-pao-chicken": {
+      "id": "kung-pao-chicken",
+      "name": "宫保鸡丁",
+      "category": "protein",
+      "price": 10.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "kung-pao-chicken",
+      "nutrition": {
+        "calories": 280,
+        "protein": 18.0,
+        "fat": 18.0,
+        "carbs": 12.0,
+        "fiber": 1.0,
+        "sodium": 720
+      },
+      "allergens": [
+        "花生",
+        "大豆"
+      ],
+      "tags": [
+        "微辣",
+        "下饭"
+      ],
+      "ingredients": [
+        "鸡胸肉",
+        "花生",
+        "干辣椒",
+        "黄瓜"
+      ],
+      "vegetarian": false,
+      "spicy": 1,
+      "popularity": 89,
+      "note": "糊辣荔枝口，花生酥脆。"
+    },
+    "wood-ear-pork": {
+      "id": "wood-ear-pork",
+      "name": "木耳炒肉片",
+      "category": "protein",
+      "price": 9.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "wood-ear-pork",
+      "nutrition": {
+        "calories": 210,
+        "protein": 14.0,
+        "fat": 14.0,
+        "carbs": 6.0,
+        "fiber": 1.6,
+        "sodium": 560
+      },
+      "allergens": [],
+      "tags": [
+        "下饭"
+      ],
+      "ingredients": [
+        "猪里脊",
+        "木耳",
+        "青椒"
+      ],
+      "vegetarian": false,
+      "spicy": 0,
+      "popularity": 76,
+      "note": "木耳爽脆，肉片嫩滑。"
+    },
+    "mapo-tofu": {
+      "id": "mapo-tofu",
+      "name": "麻婆豆腐",
+      "category": "protein",
+      "price": 7.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "mapo-tofu",
+      "nutrition": {
+        "calories": 220,
+        "protein": 12.0,
+        "fat": 15.0,
+        "carbs": 8.0,
+        "fiber": 1.2,
+        "sodium": 760
+      },
+      "allergens": [
+        "大豆"
+      ],
+      "tags": [
+        "微辣",
+        "下饭"
+      ],
+      "ingredients": [
+        "嫩豆腐",
+        "肉末",
+        "豆瓣酱",
+        "花椒"
+      ],
+      "vegetarian": false,
+      "spicy": 1,
+      "popularity": 87,
+      "note": "麻辣鲜香，豆腐嫩而不碎。"
+    },
+    "pepper-pork": {
+      "id": "pepper-pork",
+      "name": "青椒炒肉丝",
+      "category": "protein",
+      "price": 9.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "pepper-pork",
+      "nutrition": {
+        "calories": 200,
+        "protein": 13.0,
+        "fat": 13.0,
+        "carbs": 6.0,
+        "fiber": 1.4,
+        "sodium": 540
+      },
+      "allergens": [],
+      "tags": [
+        "下饭"
+      ],
+      "ingredients": [
+        "青椒",
+        "猪里脊",
+        "蒜"
+      ],
+      "vegetarian": false,
+      "spicy": 0,
+      "popularity": 79,
+      "note": "青椒清香，肉丝滑嫩。"
+    },
+    "carrot-eggs": {
+      "id": "carrot-eggs",
+      "name": "胡萝卜炒鸡蛋",
+      "category": "protein",
+      "price": 6.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "carrot-eggs",
+      "nutrition": {
+        "calories": 170,
+        "protein": 8.0,
+        "fat": 12.0,
+        "carbs": 7.0,
+        "fiber": 2.0,
+        "sodium": 460
+      },
+      "allergens": [
+        "鸡蛋"
+      ],
+      "tags": [
+        "下饭"
+      ],
+      "ingredients": [
+        "胡萝卜",
+        "鸡蛋",
+        "葱花"
+      ],
+      "vegetarian": false,
+      "spicy": 0,
+      "popularity": 74,
+      "note": "颜色明亮，甜咸适口。"
+    },
+    "garlic_bok_choy": {
+      "id": "garlic_bok_choy",
+      "name": "蒜蓉油菜",
+      "category": "vegetable",
+      "price": 4.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "garlic_bok_choy",
+      "nutrition": {
+        "calories": 65,
+        "protein": 3.0,
+        "fat": 4.0,
+        "carbs": 4.0,
+        "fiber": 2.5,
+        "sodium": 300
+      },
+      "allergens": [],
+      "tags": [
+        "低脂",
+        "高纤维"
+      ],
+      "ingredients": [
+        "小油菜",
+        "蒜蓉"
+      ],
+      "vegetarian": true,
+      "spicy": 0,
+      "popularity": 83,
+      "note": "蒜香浓郁，青菜碧绿。"
+    },
+    "vinegar_cabbage": {
+      "id": "vinegar_cabbage",
+      "name": "醋溜白菜",
+      "category": "vegetable",
+      "price": 4.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "vinegar_cabbage",
+      "nutrition": {
+        "calories": 80,
+        "protein": 2.0,
+        "fat": 5.0,
+        "carbs": 7.0,
+        "fiber": 2.0,
+        "sodium": 430
+      },
+      "allergens": [],
+      "tags": [
+        "酸香",
+        "低脂"
+      ],
+      "ingredients": [
+        "白菜",
+        "醋",
+        "干辣椒"
+      ],
+      "vegetarian": true,
+      "spicy": 0,
+      "popularity": 77,
+      "note": "锅气足，酸香解腻。"
+    },
+    "cucumber_salad": {
+      "id": "cucumber_salad",
+      "name": "凉拌黄瓜",
+      "category": "vegetable",
+      "price": 4.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "cucumber_salad",
+      "nutrition": {
+        "calories": 45,
+        "protein": 1.5,
+        "fat": 2.0,
+        "carbs": 5.0,
+        "fiber": 1.5,
+        "sodium": 380
+      },
+      "allergens": [],
+      "tags": [
+        "清爽",
+        "低脂"
+      ],
+      "ingredients": [
+        "黄瓜",
+        "蒜",
+        "香醋",
+        "香油"
+      ],
+      "vegetarian": true,
+      "spicy": 0,
+      "popularity": 81,
+      "note": "现拍现拌，脆爽开胃。"
+    },
+    "dry_fried_beans": {
+      "id": "dry_fried_beans",
+      "name": "干煸豆角",
+      "category": "vegetable",
+      "price": 6.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "dry_fried_beans",
+      "nutrition": {
+        "calories": 150,
+        "protein": 4.0,
+        "fat": 10.0,
+        "carbs": 11.0,
+        "fiber": 3.0,
+        "sodium": 480
+      },
+      "allergens": [],
+      "tags": [
+        "微辣",
+        "下饭"
+      ],
+      "ingredients": [
+        "豆角",
+        "干辣椒",
+        "蒜"
+      ],
+      "vegetarian": true,
+      "spicy": 1,
+      "popularity": 78,
+      "note": "豆角起皱，干香微辣。"
+    },
+    "winter_melon_egg_soup": {
+      "id": "winter_melon_egg_soup",
+      "name": "冬瓜蛋花汤",
+      "category": "soup",
+      "price": 2.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "winter_melon_egg_soup",
+      "nutrition": {
+        "calories": 40,
+        "protein": 2.5,
+        "fat": 2.0,
+        "carbs": 2.0,
+        "fiber": 0.3,
+        "sodium": 460
+      },
+      "allergens": [
+        "鸡蛋"
+      ],
+      "tags": [
+        "清淡"
+      ],
+      "ingredients": [
+        "冬瓜",
+        "鸡蛋",
+        "葱花"
+      ],
+      "vegetarian": false,
+      "spicy": 0,
+      "popularity": 75,
+      "note": "清淡利口，夏日常备。"
+    },
+    "tomato_tofu_soup": {
+      "id": "tomato_tofu_soup",
+      "name": "番茄豆腐汤",
+      "category": "soup",
+      "price": 3.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "tomato_tofu_soup",
+      "nutrition": {
+        "calories": 55,
+        "protein": 4.0,
+        "fat": 2.5,
+        "carbs": 4.0,
+        "fiber": 0.6,
+        "sodium": 480
+      },
+      "allergens": [
+        "大豆"
+      ],
+      "tags": [
+        "清淡"
+      ],
+      "ingredients": [
+        "番茄",
+        "嫩豆腐",
+        "葱花"
+      ],
+      "vegetarian": true,
+      "spicy": 0,
+      "popularity": 73,
+      "note": "番茄微酸，豆腐滑嫩。"
+    },
+    "nori_tofu_soup": {
+      "id": "nori_tofu_soup",
+      "name": "紫菜豆腐汤",
+      "category": "soup",
+      "price": 3.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "nori_tofu_soup",
+      "nutrition": {
+        "calories": 50,
+        "protein": 4.5,
+        "fat": 2.0,
+        "carbs": 3.0,
+        "fiber": 0.5,
+        "sodium": 500
+      },
+      "allergens": [
+        "大豆"
+      ],
+      "tags": [
+        "清淡"
+      ],
+      "ingredients": [
+        "紫菜",
+        "嫩豆腐",
+        "虾皮"
+      ],
+      "vegetarian": false,
+      "spicy": 0,
+      "popularity": 72,
+      "note": "海味清鲜，暖胃。"
+    },
+    "garlic_broccoli": {
+      "id": "garlic_broccoli",
+      "name": "蒜蓉西兰花",
+      "category": "vegetable",
+      "price": 5.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "garlic_broccoli",
+      "nutrition": {
+        "calories": 75,
+        "protein": 4.0,
+        "fat": 4.5,
+        "carbs": 5.0,
+        "fiber": 3.0,
+        "sodium": 330
+      },
+      "allergens": [],
+      "tags": [
+        "低脂",
+        "高纤维"
+      ],
+      "ingredients": [
+        "西兰花",
+        "蒜蓉"
+      ],
+      "vegetarian": true,
+      "spicy": 0,
+      "popularity": 80,
+      "note": "蒜蓉提香，少油快炒。"
+    },
+    "pepper_potato": {
+      "id": "pepper_potato",
+      "name": "青椒土豆丝",
+      "category": "vegetable",
+      "price": 4.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "pepper_potato",
+      "nutrition": {
+        "calories": 140,
+        "protein": 3.0,
+        "fat": 7.0,
+        "carbs": 17.0,
+        "fiber": 2.0,
+        "sodium": 420
+      },
+      "allergens": [],
+      "tags": [
+        "下饭"
+      ],
+      "ingredients": [
+        "土豆",
+        "青椒",
+        "醋"
+      ],
+      "vegetarian": true,
+      "spicy": 0,
+      "popularity": 86,
+      "note": "切丝均匀，爽脆带酸。"
+    },
+    "onion_wood_ear": {
+      "id": "onion_wood_ear",
+      "name": "洋葱木耳",
+      "category": "vegetable",
+      "price": 5.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "onion_wood_ear",
+      "nutrition": {
+        "calories": 90,
+        "protein": 3.0,
+        "fat": 5.0,
+        "carbs": 8.0,
+        "fiber": 2.5,
+        "sodium": 390
+      },
+      "allergens": [],
+      "tags": [
+        "低脂",
+        "高纤维"
+      ],
+      "ingredients": [
+        "洋葱",
+        "木耳",
+        "青椒"
+      ],
+      "vegetarian": true,
+      "spicy": 0,
+      "popularity": 70,
+      "note": "洋葱微甜，木耳脆弹。"
+    },
+    "carrot_stir": {
+      "id": "carrot_stir",
+      "name": "清炒胡萝卜",
+      "category": "vegetable",
+      "price": 4.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "carrot_stir",
+      "nutrition": {
+        "calories": 85,
+        "protein": 2.0,
+        "fat": 5.5,
+        "carbs": 8.0,
+        "fiber": 2.8,
+        "sodium": 340
+      },
+      "allergens": [],
+      "tags": [
+        "低脂"
+      ],
+      "ingredients": [
+        "胡萝卜",
+        "蒜",
+        "食用油"
+      ],
+      "vegetarian": true,
+      "spicy": 0,
+      "popularity": 69,
+      "note": "胡萝卜素丰富，清甜。"
+    },
+    "tomato_beef": {
+      "id": "tomato_beef",
+      "name": "番茄炖牛肉",
+      "category": "protein",
+      "price": 13.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "tomato_beef",
+      "nutrition": {
+        "calories": 240,
+        "protein": 18.0,
+        "fat": 11.0,
+        "carbs": 12.0,
+        "fiber": 2.0,
+        "sodium": 580
+      },
+      "allergens": [],
+      "tags": [
+        "高蛋白",
+        "下饭"
+      ],
+      "ingredients": [
+        "牛肉",
+        "番茄",
+        "洋葱"
+      ],
+      "vegetarian": false,
+      "spicy": 0,
+      "popularity": 88,
+      "note": "番茄炖化，牛肉入味。"
+    },
+    "chicken_cucumber": {
+      "id": "chicken_cucumber",
+      "name": "鸡丁炒黄瓜",
+      "category": "protein",
+      "price": 9.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "chicken_cucumber",
+      "nutrition": {
+        "calories": 190,
+        "protein": 16.0,
+        "fat": 10.0,
+        "carbs": 6.0,
+        "fiber": 1.2,
+        "sodium": 520
+      },
+      "allergens": [],
+      "tags": [
+        "高蛋白",
+        "低脂"
+      ],
+      "ingredients": [
+        "鸡胸肉",
+        "黄瓜",
+        "胡萝卜"
+      ],
+      "vegetarian": false,
+      "spicy": 0,
+      "popularity": 75,
+      "note": "清爽不腻，健身党常点。"
+    },
+    "prawn_tofu": {
+      "id": "prawn_tofu",
+      "name": "虾仁豆腐",
+      "category": "protein",
+      "price": 12.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "prawn_tofu",
+      "nutrition": {
+        "calories": 160,
+        "protein": 15.0,
+        "fat": 7.0,
+        "carbs": 6.0,
+        "fiber": 0.8,
+        "sodium": 560
+      },
+      "allergens": [
+        "虾",
+        "大豆"
+      ],
+      "tags": [
+        "高蛋白",
+        "低脂"
+      ],
+      "ingredients": [
+        "虾仁",
+        "嫩豆腐",
+        "青豆"
+      ],
+      "vegetarian": false,
+      "spicy": 0,
+      "popularity": 84,
+      "note": "虾仁弹牙，豆腐吸汁。"
+    },
+    "congee": {
+      "id": "congee",
+      "name": "白粥",
+      "category": "staple",
+      "price": 1.0,
+      "stall": "二食堂 · 面点",
+      "image": "congee",
+      "nutrition": {
+        "calories": 90,
+        "protein": 2.0,
+        "fat": 0.3,
+        "carbs": 20.0,
+        "fiber": 0.3,
+        "sodium": 5
+      },
+      "allergens": [],
+      "tags": [
+        "清淡"
+      ],
+      "ingredients": [
+        "大米",
+        "水"
+      ],
+      "vegetarian": true,
+      "spicy": 0,
+      "popularity": 88,
+      "note": "熬到米花开，暖胃。"
+    },
+    "steamed_roll": {
+      "id": "steamed_roll",
+      "name": "花卷",
+      "category": "staple",
+      "price": 1.0,
+      "stall": "二食堂 · 面点",
+      "image": "steamed_roll",
+      "nutrition": {
+        "calories": 214,
+        "protein": 6.0,
+        "fat": 1.0,
+        "carbs": 45.0,
+        "fiber": 1.1,
+        "sodium": 150
+      },
+      "allergens": [
+        "小麦"
+      ],
+      "tags": [
+        "主食"
+      ],
+      "ingredients": [
+        "小麦粉",
+        "葱花",
+        "酵母"
+      ],
+      "vegetarian": true,
+      "spicy": 0,
+      "popularity": 79,
+      "note": "层层葱香，松软。"
+    },
+    "boiled_egg": {
+      "id": "boiled_egg",
+      "name": "煮鸡蛋",
+      "category": "protein",
+      "price": 1.5,
+      "stall": "一食堂 · 家常菜",
+      "image": "boiled_egg",
+      "nutrition": {
+        "calories": 72,
+        "protein": 6.5,
+        "fat": 5.0,
+        "carbs": 0.5,
+        "fiber": 0.0,
+        "sodium": 65
+      },
+      "allergens": [
+        "鸡蛋"
+      ],
+      "tags": [
+        "高蛋白"
+      ],
+      "ingredients": [
+        "鸡蛋"
+      ],
+      "vegetarian": false,
+      "spicy": 0,
+      "popularity": 90,
+      "note": "每天现煮，剥壳即食。"
+    },
+    "egg_pancake": {
+      "id": "egg_pancake",
+      "name": "鸡蛋饼",
+      "category": "staple",
+      "price": 4.0,
+      "stall": "二食堂 · 面点",
+      "image": "egg_pancake",
+      "nutrition": {
+        "calories": 260,
+        "protein": 9.0,
+        "fat": 12.0,
+        "carbs": 29.0,
+        "fiber": 1.0,
+        "sodium": 380
+      },
+      "allergens": [
+        "鸡蛋",
+        "小麦"
+      ],
+      "tags": [
+        "招牌"
+      ],
+      "ingredients": [
+        "面粉",
+        "鸡蛋",
+        "葱花"
+      ],
+      "vegetarian": false,
+      "spicy": 0,
+      "popularity": 87,
+      "note": "现摊现卖，边缘焦脆。"
+    },
+    "hot_milk": {
+      "id": "hot_milk",
+      "name": "热牛奶",
+      "category": "protein",
+      "price": 3.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "hot_milk",
+      "nutrition": {
+        "calories": 160,
+        "protein": 8.0,
+        "fat": 9.0,
+        "carbs": 12.0,
+        "fiber": 0.0,
+        "sodium": 110
+      },
+      "allergens": [
+        "牛奶"
+      ],
+      "tags": [
+        "高蛋白"
+      ],
+      "ingredients": [
+        "牛奶"
+      ],
+      "vegetarian": false,
+      "spicy": 0,
+      "popularity": 85,
+      "note": "温热适口，早餐搭档。"
+    },
+    "breakfast_tomato_egg": {
+      "id": "breakfast_tomato_egg",
+      "name": "晨光番茄蛋",
+      "category": "protein",
+      "price": 5.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "breakfast_tomato_egg",
+      "nutrition": {
+        "calories": 150,
+        "protein": 7.0,
+        "fat": 10.0,
+        "carbs": 6.0,
+        "fiber": 1.0,
+        "sodium": 420
+      },
+      "allergens": [
+        "鸡蛋"
+      ],
+      "tags": [
+        "下饭"
+      ],
+      "ingredients": [
+        "番茄",
+        "鸡蛋",
+        "葱花"
+      ],
+      "vegetarian": false,
+      "spicy": 0,
+      "popularity": 72,
+      "note": "早餐限定的番茄炒蛋。"
+    },
+    "breakfast_bok_choy": {
+      "id": "breakfast_bok_choy",
+      "name": "清炒小油菜",
+      "category": "vegetable",
+      "price": 4.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "breakfast_bok_choy",
+      "nutrition": {
+        "calories": 60,
+        "protein": 3.0,
+        "fat": 3.5,
+        "carbs": 4.0,
+        "fiber": 2.2,
+        "sodium": 300
+      },
+      "allergens": [],
+      "tags": [
+        "低脂",
+        "高纤维"
+      ],
+      "ingredients": [
+        "小油菜",
+        "蒜"
+      ],
+      "vegetarian": true,
+      "spicy": 0,
+      "popularity": 71,
+      "note": "清晨第一口绿叶菜。"
+    },
+    "breakfast_tofu_soup": {
+      "id": "breakfast_tofu_soup",
+      "name": "豆腐蛋花汤",
+      "category": "soup",
+      "price": 3.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "breakfast_tofu_soup",
+      "nutrition": {
+        "calories": 60,
+        "protein": 5.0,
+        "fat": 3.0,
+        "carbs": 3.0,
+        "fiber": 0.5,
+        "sodium": 490
+      },
+      "allergens": [
+        "鸡蛋",
+        "大豆"
+      ],
+      "tags": [
+        "清淡"
+      ],
+      "ingredients": [
+        "嫩豆腐",
+        "鸡蛋",
+        "紫菜"
+      ],
+      "vegetarian": false,
+      "spicy": 0,
+      "popularity": 68,
+      "note": "清淡暖胃，配饼刚好。"
+    },
+    "breakfast_carrot_pancake": {
+      "id": "breakfast_carrot_pancake",
+      "name": "胡萝卜鸡蛋饼",
+      "category": "staple",
+      "price": 4.0,
+      "stall": "二食堂 · 面点",
+      "image": "breakfast_carrot_pancake",
+      "nutrition": {
+        "calories": 240,
+        "protein": 8.0,
+        "fat": 11.0,
+        "carbs": 28.0,
+        "fiber": 1.5,
+        "sodium": 400
+      },
+      "allergens": [
+        "鸡蛋",
+        "小麦"
+      ],
+      "tags": [
+        "招牌"
+      ],
+      "ingredients": [
+        "面粉",
+        "鸡蛋",
+        "胡萝卜"
+      ],
+      "vegetarian": false,
+      "spicy": 0,
+      "popularity": 76,
+      "note": "胡萝卜丝藏在饼里，甜香。"
+    },
+    "breakfast_cabbage": {
+      "id": "breakfast_cabbage",
+      "name": "醋香白菜",
+      "category": "vegetable",
+      "price": 4.0,
+      "stall": "一食堂 · 家常菜",
+      "image": "breakfast_cabbage",
+      "nutrition": {
+        "calories": 75,
+        "protein": 2.0,
+        "fat": 4.5,
+        "carbs": 7.0,
+        "fiber": 2.0,
+        "sodium": 410
+      },
+      "allergens": [],
+      "tags": [
+        "酸香"
+      ],
+      "ingredients": [
+        "白菜",
+        "醋",
+        "蒜"
+      ],
+      "vegetarian": true,
+      "spicy": 0,
+      "popularity": 66,
+      "note": "酸香开胃，早餐解腻。"
+    }
+  },
+  "week": [
+    {
+      "weekday": 1,
+      "label": "周一",
+      "meals": [
+        {
+          "type": "breakfast",
+          "time": "07:00 – 09:00",
+          "dishIDs": [
+            "congee",
+            "boiled_egg",
+            "breakfast_bok_choy",
+            "breakfast_tofu_soup"
+          ]
+        },
+        {
+          "type": "lunch",
+          "time": "11:30 – 13:00",
+          "dishIDs": [
+            "steamed_rice",
+            "steamed_bun",
+            "potato-beef",
+            "braised-pork",
+            "chicken-potatoes",
+            "stir_broccoli",
+            "garlic_bok_choy",
+            "vinegar_cabbage",
+            "nori_egg_soup",
+            "tomato-egg-soup"
+          ]
+        },
+        {
+          "type": "dinner",
+          "time": "17:30 – 19:00",
+          "dishIDs": [
+            "steamed_bun",
+            "steamed_rice",
+            "tomato-eggs",
+            "potato-beef",
+            "braised-pork",
+            "pepper_potato",
+            "onion_wood_ear",
+            "carrot_stir",
+            "winter_melon_egg_soup",
+            "tomato_tofu_soup"
+          ]
+        }
+      ]
+    },
+    {
+      "weekday": 2,
+      "label": "周二",
+      "meals": [
+        {
+          "type": "breakfast",
+          "time": "07:00 – 09:00",
+          "dishIDs": [
+            "congee",
+            "breakfast_tomato_egg",
+            "breakfast_cabbage",
+            "breakfast_bok_choy"
+          ]
+        },
+        {
+          "type": "lunch",
+          "time": "11:30 – 13:00",
+          "dishIDs": [
+            "steamed_bun",
+            "steamed_rice",
+            "steamed-bass",
+            "kung-pao-chicken",
+            "wood-ear-pork",
+            "cucumber_salad",
+            "dry_fried_beans",
+            "garlic_broccoli",
+            "winter_melon_egg_soup",
+            "tomato_tofu_soup"
+          ]
+        },
+        {
+          "type": "dinner",
+          "time": "17:30 – 19:00",
+          "dishIDs": [
+            "steamed_rice",
+            "steamed_bun",
+            "chicken-potatoes",
+            "steamed-bass",
+            "kung-pao-chicken",
+            "stir_broccoli",
+            "garlic_bok_choy",
+            "vinegar_cabbage",
+            "nori_egg_soup",
+            "tomato-egg-soup"
+          ]
+        }
+      ]
+    },
+    {
+      "weekday": 3,
+      "label": "周三",
+      "meals": [
+        {
+          "type": "breakfast",
+          "time": "07:00 – 09:00",
+          "dishIDs": [
+            "congee",
+            "hot_milk",
+            "breakfast_carrot_pancake",
+            "breakfast_cabbage"
+          ]
+        },
+        {
+          "type": "lunch",
+          "time": "11:30 – 13:00",
+          "dishIDs": [
+            "steamed_rice",
+            "steamed_bun",
+            "mapo-tofu",
+            "pepper-pork",
+            "carrot-eggs",
+            "pepper_potato",
+            "onion_wood_ear",
+            "carrot_stir",
+            "nori_egg_soup",
+            "tomato-egg-soup"
+          ]
+        },
+        {
+          "type": "dinner",
+          "time": "17:30 – 19:00",
+          "dishIDs": [
+            "steamed_bun",
+            "steamed_rice",
+            "wood-ear-pork",
+            "mapo-tofu",
+            "pepper-pork",
+            "cucumber_salad",
+            "dry_fried_beans",
+            "garlic_broccoli",
+            "winter_melon_egg_soup",
+            "tomato_tofu_soup"
+          ]
+        }
+      ]
+    },
+    {
+      "weekday": 4,
+      "label": "周四",
+      "meals": [
+        {
+          "type": "breakfast",
+          "time": "07:00 – 09:00",
+          "dishIDs": [
+            "congee",
+            "egg_pancake",
+            "breakfast_tofu_soup",
+            "breakfast_carrot_pancake"
+          ]
+        },
+        {
+          "type": "lunch",
+          "time": "11:30 – 13:00",
+          "dishIDs": [
+            "steamed_bun",
+            "steamed_rice",
+            "tomato_beef",
+            "chicken_cucumber",
+            "prawn_tofu",
+            "stir_broccoli",
+            "garlic_bok_choy",
+            "vinegar_cabbage",
+            "winter_melon_egg_soup",
+            "tomato_tofu_soup"
+          ]
+        },
+        {
+          "type": "dinner",
+          "time": "17:30 – 19:00",
+          "dishIDs": [
+            "steamed_rice",
+            "steamed_bun",
+            "carrot-eggs",
+            "tomato_beef",
+            "chicken_cucumber",
+            "pepper_potato",
+            "onion_wood_ear",
+            "carrot_stir",
+            "nori_egg_soup",
+            "tomato-egg-soup"
+          ]
+        }
+      ]
+    },
+    {
+      "weekday": 5,
+      "label": "周五",
+      "meals": [
+        {
+          "type": "breakfast",
+          "time": "07:00 – 09:00",
+          "dishIDs": [
+            "congee",
+            "boiled_egg",
+            "breakfast_bok_choy",
+            "breakfast_tofu_soup"
+          ]
+        },
+        {
+          "type": "lunch",
+          "time": "11:30 – 13:00",
+          "dishIDs": [
+            "steamed_rice",
+            "steamed_bun",
+            "tomato-eggs",
+            "potato-beef",
+            "braised-pork",
+            "cucumber_salad",
+            "dry_fried_beans",
+            "garlic_broccoli",
+            "nori_egg_soup",
+            "tomato-egg-soup"
+          ]
+        },
+        {
+          "type": "dinner",
+          "time": "17:30 – 19:00",
+          "dishIDs": [
+            "steamed_bun",
+            "steamed_rice",
+            "prawn_tofu",
+            "tomato-eggs",
+            "potato-beef",
+            "stir_broccoli",
+            "garlic_bok_choy",
+            "vinegar_cabbage",
+            "winter_melon_egg_soup",
+            "tomato_tofu_soup"
+          ]
+        }
+      ]
+    },
+    {
+      "weekday": 6,
+      "label": "周六",
+      "meals": [
+        {
+          "type": "breakfast",
+          "time": "07:00 – 09:00",
+          "dishIDs": [
+            "congee",
+            "breakfast_tomato_egg",
+            "breakfast_cabbage",
+            "breakfast_bok_choy"
+          ]
+        },
+        {
+          "type": "lunch",
+          "time": "11:30 – 13:00",
+          "dishIDs": [
+            "steamed_bun",
+            "steamed_rice",
+            "chicken-potatoes",
+            "steamed-bass",
+            "kung-pao-chicken",
+            "pepper_potato",
+            "onion_wood_ear",
+            "carrot_stir",
+            "winter_melon_egg_soup",
+            "tomato_tofu_soup"
+          ]
+        },
+        {
+          "type": "dinner",
+          "time": "17:30 – 19:00",
+          "dishIDs": [
+            "steamed_rice",
+            "steamed_bun",
+            "braised-pork",
+            "chicken-potatoes",
+            "steamed-bass",
+            "cucumber_salad",
+            "dry_fried_beans",
+            "garlic_broccoli",
+            "nori_egg_soup",
+            "tomato-egg-soup"
+          ]
+        }
+      ]
+    },
+    {
+      "weekday": 7,
+      "label": "周日",
+      "meals": [
+        {
+          "type": "breakfast",
+          "time": "07:00 – 09:00",
+          "dishIDs": [
+            "congee",
+            "hot_milk",
+            "breakfast_carrot_pancake",
+            "breakfast_cabbage"
+          ]
+        },
+        {
+          "type": "lunch",
+          "time": "11:30 – 13:00",
+          "dishIDs": [
+            "steamed_rice",
+            "steamed_bun",
+            "wood-ear-pork",
+            "mapo-tofu",
+            "pepper-pork",
+            "stir_broccoli",
+            "garlic_bok_choy",
+            "vinegar_cabbage",
+            "nori_egg_soup",
+            "tomato-egg-soup"
+          ]
+        },
+        {
+          "type": "dinner",
+          "time": "17:30 – 19:00",
+          "dishIDs": [
+            "steamed_bun",
+            "steamed_rice",
+            "kung-pao-chicken",
+            "wood-ear-pork",
+            "mapo-tofu",
+            "pepper_potato",
+            "onion_wood_ear",
+            "carrot_stir",
+            "winter_melon_egg_soup",
+            "tomato_tofu_soup"
+          ]
+        }
+      ]
+    }
+  ],
+  "meta": {
+    "note": "演示数据：菜品营养值按标准份量估算，用于产品体验，正式版由食堂配方核算后下发。",
+    "oilPerPerson": 28,
+    "saltPerPerson": 4.2,
+    "traceBatches": 12
+  }
+}
