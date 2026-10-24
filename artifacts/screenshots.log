@@ -1,0 +1,64 @@
+Monitoring boot status for iPhone 16 Pro (DC4CD8B3-4457-4153-9087-A0D7A2F9BFD9).
+[2026-10-24 17:29:26 +0000] Status=2, isTerminal=NO, Elapsed=00:47.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.securityd.KeychainMigrator (KeychainMigrator.migrator, user-agnostic)
+		Migration Elapsed:00:36 seconds
+
+[2026-10-24 17:29:28 +0000] Status=2, isTerminal=NO, Elapsed=00:49.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.managedconfiguration.migrator (MCProfile.migrator, user-agnostic)
+		Migration Elapsed:00:39 seconds
+
+[2026-10-24 17:29:29 +0000] Status=2, isTerminal=NO, Elapsed=00:50.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.MobileSafari.migrator (MobileSafari.migrator)
+		Migration Elapsed:00:41 seconds
+
+[2026-10-24 17:29:32 +0000] Status=2, isTerminal=NO, Elapsed=00:53.
+	Waiting on Data Migration
+		Reason:Running plugin com.apple.PreferencesMigrator (PreferencesMigrator.migrator)
+		Migration Elapsed:00:43 seconds
+
+[2026-10-24 17:29:35 +0000] Status=4, isTerminal=NO, Elapsed=00:55.
+	Waiting on System App
+
+[2026-10-24 17:29:36 +0000] Status=4, isTerminal=NO, Elapsed=00:57.
+	Waiting on System App
+
+[2026-10-24 17:29:37 +0000] Status=4, isTerminal=NO, Elapsed=00:58.
+	Waiting on System App
+
+[2026-10-24 17:29:37 +0000] Status=4, isTerminal=NO, Elapsed=00:58.
+	Waiting on System App
+
+[2026-10-24 17:29:38 +0000] Status=4, isTerminal=NO, Elapsed=00:59.
+	Waiting on System App
+
+[2026-10-24 17:29:42 +0000] Status=4294967295, isTerminal=YES, Elapsed=01:03.
+	Finished
+
+Detected file type 'PNG' from extension
+Wrote screenshot to: /Users/runner/work/canteen-health-system/canteen-health-system/artifacts/today.png
+Detected file type 'PNG' from extension
+Wrote screenshot to: /Users/runner/work/canteen-health-system/canteen-health-system/artifacts/menu.png
+Detected file type 'PNG' from extension
+Wrote screenshot to: /Users/runner/work/canteen-health-system/canteen-health-system/artifacts/tray.png
+Detected file type 'PNG' from extension
+Wrote screenshot to: /Users/runner/work/canteen-health-system/canteen-health-system/artifacts/log.png
+Detected file type 'PNG' from extension
+Wrote screenshot to: /Users/runner/work/canteen-health-system/canteen-health-system/artifacts/profile.png
+total 16088
+-rw-r--r--  1 runner  staff    29B Oct 24 17:26 built-at.txt
+-rw-r--r--@ 1 runner  staff   1.4M Oct 24 17:38 log.png
+-rw-r--r--@ 1 runner  staff   1.6M Oct 24 17:37 menu.png
+-rw-r--r--@ 1 runner  staff   1.2M Oct 24 17:38 profile.png
+-rw-r--r--  1 runner  staff   2.2K Oct 24 17:38 screenshots.log
+-rw-r--r--  1 runner  staff    46B Oct 24 17:27 simulator.log
+-rw-r--r--  1 runner  staff     8B Oct 24 17:26 status.txt
+-rw-r--r--  1 runner  staff   3.4K Oct 24 17:27 swift-test.log
+-rw-r--r--@ 1 runner  staff   1.9M Oct 24 17:37 today.png
+-rw-r--r--  1 runner  staff   2.1K Oct 24 17:27 toolchain.log
+-rw-r--r--@ 1 runner  staff   1.5M Oct 24 17:37 tray.png
+-rw-r--r--  1 runner  staff   145K Oct 24 17:28 xcodebuild-simulator.log
+-rw-r--r--  1 runner  staff   378B Oct 24 17:27 xcodegen-install.log
+-rw-r--r--  1 runner  staff   204B Oct 24 17:27 xcodegen.log
