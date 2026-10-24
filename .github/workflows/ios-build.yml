@@ -15,49 +15,65 @@ concurrency:
   group: ios-tray-build
   cancel-in-progress: true
 
+env:
+  NSUnbufferedIO: "1"
+
 jobs:
   build:
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
+      - name: Prepare artifact folder
+        run: mkdir -p "$GITHUB_WORKSPACE/artifacts"
+
       - name: Toolchain info
         run: |
-          xcodebuild -version
-          swift --version
+          set -o pipefail
+          {
+            xcodebuild -version
+            echo "---"
+            swift --version
+            echo "---"
+            xcrun simctl list devices available | head -30
+          } 2>&1 | tee "$GITHUB_WORKSPACE/artifacts/toolchain.log"
 
       - name: Install XcodeGen
-        run: brew install xcodegen
+        run: |
+          set -o pipefail
+          brew install xcodegen 2>&1 | tee "$GITHUB_WORKSPACE/artifacts/xcodegen-install.log"
 
       - name: Core logic tests
         run: |
+          set -o pipefail
           cd ios/TrayCore
-          swift test
+          swift test 2>&1 | tee "$GITHUB_WORKSPACE/artifacts/swift-test.log"
 
       - name: Generate Xcode project
         run: |
+          set -o pipefail
           cd ios/ZhiweiTray
-          xcodegen generate --spec project.yml
+          xcodegen generate --spec project.yml 2>&1 | tee "$GITHUB_WORKSPACE/artifacts/xcodegen.log"
 
       - name: Pick simulator
         id: sim
         run: |
+          set -o pipefail
           UDID=$(xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.name | test("iPhone 1[6-9] Pro"))][0].udid // empty')
           if [ -z "$UDID" ]; then
             UDID=$(xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.name | test("iPhone"))][0].udid // empty')
           fi
           if [ -z "$UDID" ]; then
-            echo "No iPhone simulator found" >&2
+            echo "No iPhone simulator found" | tee "$GITHUB_WORKSPACE/artifacts/simulator.log"
             exit 1
           fi
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
-          xcrun simctl list devices available | head -20
+          echo "Selected $UDID" | tee "$GITHUB_WORKSPACE/artifacts/simulator.log"
 
       - name: Build for simulator
         run: |
           set -o pipefail
-          mkdir -p "$GITHUB_WORKSPACE/artifacts"
           cd ios/ZhiweiTray
           xcodebuild \
             -project ZhiweiTray.xcodeproj \
@@ -66,27 +82,29 @@ jobs:
             -sdk iphonesimulator \
             -destination "id=${{ steps.sim.outputs.udid }}" \
             -derivedDataPath build \
-            build | tee "$GITHUB_WORKSPACE/artifacts/xcodebuild-simulator.log"
+            build 2>&1 | tee "$GITHUB_WORKSPACE/artifacts/xcodebuild-simulator.log"
 
       - name: Capture simulator screenshots
         run: |
-          set -e
+          set -o pipefail
           UDID="${{ steps.sim.outputs.udid }}"
-          xcrun simctl boot "$UDID" || true
-          xcrun simctl bootstatus "$UDID" -b
-          xcrun simctl status_bar "$UDID" override \
-            --time "9:41" \
-            --batteryState charged --batteryLevel 100 \
-            --wifiBars 3 --cellularBars 4 || true
-          xcrun simctl install "$UDID" ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/ZhiweiTray.app
-          xcrun simctl ui "$UDID" appearance light || true
-          for screen in today menu tray log profile; do
-            xcrun simctl terminate "$UDID" com.zhiwei.tray >/dev/null 2>&1 || true
-            xcrun simctl launch "$UDID" com.zhiwei.tray "-screen-$screen" -demo-tray >/dev/null
-            sleep 3
-            xcrun simctl io "$UDID" screenshot "$GITHUB_WORKSPACE/artifacts/$screen.png"
-          done
-          ls -lh "$GITHUB_WORKSPACE/artifacts"
+          {
+            xcrun simctl boot "$UDID" || true
+            xcrun simctl bootstatus "$UDID" -b
+            xcrun simctl status_bar "$UDID" override \
+              --time "9:41" \
+              --batteryState charged --batteryLevel 100 \
+              --wifiBars 3 --cellularBars 4 || true
+            xcrun simctl install "$UDID" ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/ZhiweiTray.app
+            xcrun simctl ui "$UDID" appearance light || true
+            for screen in today menu tray log profile; do
+              xcrun simctl terminate "$UDID" com.zhiwei.tray >/dev/null 2>&1 || true
+              xcrun simctl launch "$UDID" com.zhiwei.tray "-screen-$screen" -demo-tray >/dev/null
+              sleep 3
+              xcrun simctl io "$UDID" screenshot "$GITHUB_WORKSPACE/artifacts/$screen.png"
+            done
+            ls -lh "$GITHUB_WORKSPACE/artifacts"
+          } 2>&1 | tee "$GITHUB_WORKSPACE/artifacts/screenshots.log"
 
       - name: Build unsigned device app
         run: |
@@ -101,7 +119,7 @@ jobs:
             -derivedDataPath build-device \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            build | tee "$GITHUB_WORKSPACE/artifacts/xcodebuild-device.log"
+            build 2>&1 | tee "$GITHUB_WORKSPACE/artifacts/xcodebuild-device.log"
 
       - name: Package unsigned IPA
         if: success()
