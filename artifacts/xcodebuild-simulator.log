@@ -1,0 +1,377 @@
+Command line invocation:
+    /Applications/Xcode_16.4.app/Contents/Developer/usr/bin/xcodebuild -project ZhiweiTray.xcodeproj -scheme ZhiweiTray -configuration Debug -sdk iphonesimulator -destination id=DC4CD8B3-4457-4153-9087-A0D7A2F9BFD9 -derivedDataPath build build
+
+Build settings from command line:
+    SDKROOT = iphonesimulator18.5
+
+Resolve Package Graph
+
+
+Resolved source packages:
+  TrayCore: /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:iOS Simulator, arch:arm64, id:DC4CD8B3-4457-4153-9087-A0D7A2F9BFD9, OS:18.5, name:iPhone 16 Pro }
+{ platform:iOS Simulator, arch:x86_64, id:DC4CD8B3-4457-4153-9087-A0D7A2F9BFD9, OS:18.5, name:iPhone 16 Pro }
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (4 targets)
+    Target 'ZhiweiTray' in project 'ZhiweiTray'
+        ➜ Explicit dependency on target 'TrayCore' in project 'TrayCore'
+    Target 'TrayCore' in project 'TrayCore'
+        ➜ Explicit dependency on target 'TrayCore' in project 'TrayCore'
+        ➜ Explicit dependency on target 'TrayCore_TrayCore' in project 'TrayCore'
+    Target 'TrayCore' in project 'TrayCore'
+        ➜ Explicit dependency on target 'TrayCore_TrayCore' in project 'TrayCore'
+    Target 'TrayCore_TrayCore' in project 'TrayCore' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ExecuteExternalTool /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc --version
+
+ExecuteExternalTool /Applications/Xcode_16.4.app/Contents/Developer/usr/bin/actool --print-asset-tag-combinations --output-format xml1 /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Resources/Assets.xcassets
+
+ExecuteExternalTool /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -isysroot /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld -version_details
+
+ExecuteExternalTool /Applications/Xcode_16.4.app/Contents/Developer/usr/bin/actool --version --output-format xml1
+
+Build description signature: 979507cc12535278d0413d0b14ab31f8
+Build description path: /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/XCBuildData/979507cc12535278d0413d0b14ab31f8.xcbuilddata
+ClangStatCache /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/SDKStatCaches.noindex/iphonesimulator18.5-22F76-96ae0914227b19deccb34b33ba7b5dea.sdkstatcache
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/ZhiweiTray.xcodeproj
+    /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -o /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/SDKStatCaches.noindex/iphonesimulator18.5-22F76-96ae0914227b19deccb34b33ba7b5dea.sdkstatcache
+
+CreateBuildDirectory /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/ZhiweiTray.xcodeproj
+    builtin-create-build-directory /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products
+
+CreateBuildDirectory /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/ZhiweiTray.xcodeproj
+    builtin-create-build-directory /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray-7d1bc7a814a52ae35d505726482540d4-VFS-iphonesimulator/all-product-headers.yaml
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/ZhiweiTray.xcodeproj
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray-7d1bc7a814a52ae35d505726482540d4-VFS-iphonesimulator/all-product-headers.yaml
+
+CreateBuildDirectory /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/ZhiweiTray.xcodeproj
+    builtin-create-build-directory /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator
+
+CreateBuildDirectory /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/ZhiweiTray.xcodeproj
+    builtin-create-build-directory /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator
+
+CreateBuildDirectory /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/PackageFrameworks
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/ZhiweiTray.xcodeproj
+    builtin-create-build-directory /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/PackageFrameworks
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray.DependencyStaticMetadataFileList (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray.DependencyStaticMetadataFileList
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray.hmap (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray.hmap
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray.DependencyMetadataFileList (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray.DependencyMetadataFileList
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray-project-headers.hmap (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray-project-headers.hmap
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray-own-target-headers.hmap (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray-own-target-headers.hmap
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray-generated-files.hmap (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray-generated-files.hmap
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray-all-target-headers.hmap (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray-all-target-headers.hmap
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray-all-non-framework-target-headers.hmap (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray-all-non-framework-target-headers.hmap
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray-DebugDylibPath-normal-arm64.txt (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray-DebugDylibPath-normal-arm64.txt
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray-DebugDylibInstallName-normal-arm64.txt (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray-DebugDylibInstallName-normal-arm64.txt
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/Objects-normal/arm64/ZhiweiTray_const_extract_protocols.json (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/Objects-normal/arm64/ZhiweiTray_const_extract_protocols.json
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/Objects-normal/arm64/ZhiweiTray.SwiftFileList (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/Objects-normal/arm64/ZhiweiTray.SwiftFileList
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/Objects-normal/arm64/ZhiweiTray.SwiftConstValuesFileList (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/Objects-normal/arm64/ZhiweiTray.SwiftConstValuesFileList
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/Objects-normal/arm64/ZhiweiTray.LinkFileList (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/Objects-normal/arm64/ZhiweiTray.LinkFileList
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/Objects-normal/arm64/ZhiweiTray-OutputFileMap.json (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/Objects-normal/arm64/ZhiweiTray-OutputFileMap.json
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/DerivedSources/Entitlements-Simulated.plist (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/DerivedSources/Entitlements-Simulated.plist
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore_TrayCore.build/empty-TrayCore_TrayCore.plist (in target 'TrayCore_TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore_TrayCore.build/empty-TrayCore_TrayCore.plist
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore_TrayCore.build/TrayCore_TrayCore.DependencyStaticMetadataFileList (in target 'TrayCore_TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore_TrayCore.build/TrayCore_TrayCore.DependencyStaticMetadataFileList
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore_TrayCore.build/TrayCore_TrayCore.DependencyMetadataFileList (in target 'TrayCore_TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore_TrayCore.build/TrayCore_TrayCore.DependencyMetadataFileList
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/TrayCore.modulemap (in target 'TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/TrayCore.modulemap
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/TrayCore.DependencyStaticMetadataFileList (in target 'TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/TrayCore.DependencyStaticMetadataFileList
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/TrayCore.DependencyMetadataFileList (in target 'TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/TrayCore.DependencyMetadataFileList
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore_const_extract_protocols.json (in target 'TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore_const_extract_protocols.json
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore.SwiftFileList (in target 'TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore.SwiftFileList
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore.SwiftConstValuesFileList (in target 'TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore.SwiftConstValuesFileList
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore.LinkFileList (in target 'TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore.LinkFileList
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore-OutputFileMap.json (in target 'TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore-OutputFileMap.json
+
+WriteAuxiliaryFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/DerivedSources/resource_bundle_accessor.swift (in target 'TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore
+    write-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/DerivedSources/resource_bundle_accessor.swift
+
+Copy /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/TrayCore.modulemap /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/TrayCore.modulemap (in target 'TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/TrayCore.modulemap /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator
+
+MkDir /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/ZhiweiTray.app (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    /bin/mkdir -p /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/ZhiweiTray.app
+
+MkDir /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/TrayCore_TrayCore.bundle (in target 'TrayCore_TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore
+    /bin/mkdir -p /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/TrayCore_TrayCore.bundle
+
+ProcessInfoPlistFile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/TrayCore_TrayCore.bundle/Info.plist /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore_TrayCore.build/empty-TrayCore_TrayCore.plist (in target 'TrayCore_TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore
+    builtin-infoPlistUtility /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore_TrayCore.build/empty-TrayCore_TrayCore.plist -producttype com.apple.product-type.bundle -expandbuildsettings -format binary -platform iphonesimulator -o /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/TrayCore_TrayCore.bundle/Info.plist
+
+CpResource /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/TrayCore_TrayCore.bundle/menu.json /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore/Sources/TrayCore/Resources/menu.json (in target 'TrayCore_TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore/Sources/TrayCore/Resources/menu.json /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/TrayCore_TrayCore.bundle
+
+CodeSign /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/TrayCore_TrayCore.bundle (in target 'TrayCore_TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore
+    
+    Signing Identity:     "Sign to Run Locally"
+    
+    /usr/bin/codesign --force --sign - --timestamp\=none --generate-entitlement-der /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/TrayCore_TrayCore.bundle
+
+RegisterExecutionPolicyException /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/TrayCore_TrayCore.bundle (in target 'TrayCore_TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore
+    builtin-RegisterExecutionPolicyException /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/TrayCore_TrayCore.bundle
+
+Touch /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/TrayCore_TrayCore.bundle (in target 'TrayCore_TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore
+    /usr/bin/touch -c /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/TrayCore_TrayCore.bundle
+
+SwiftDriver TrayCore normal arm64 com.apple.xcode.tools.swift.compiler (in target 'TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/ZhiweiTray.xcodeproj
+    builtin-SwiftDriver -- /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name TrayCore -Onone -enforce-exclusivity\=checked @/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore.SwiftFileList -DSWIFT_PACKAGE -DDEBUG -DXcode -plugin-path /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -target arm64-apple-ios17.0-simulator -g -module-cache-path /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Index.noindex/DataStore -swift-version 5 -I /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator -I /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib -F /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator -F /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks -F /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk/Developer/Library/Frameworks -c -j3 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/SDKStatCaches.noindex/iphonesimulator18.5-22F76-96ae0914227b19deccb34b33ba7b5dea.sdkstatcache -output-file-map /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/ModuleCache.noindex/Session.modulevalidation -package-name traycore -Xcc -I/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore_const_extract_protocols.json -Xcc -I/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/DerivedSources/arm64 -Xcc -I/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/DerivedSources -Xcc -DSWIFT_PACKAGE -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore-Swift.h -working-directory /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/ZhiweiTray.xcodeproj -experimental-emit-module-separately -disable-cmo
+
+SwiftEmitModule normal arm64 Emitting\ module\ for\ TrayCore (in target 'TrayCore' from project 'TrayCore')
+
+EmitSwiftModule normal arm64 (in target 'TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/ZhiweiTray.xcodeproj
+    
+
+SwiftCompile normal arm64 Compiling\ Models.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore/Sources/TrayCore/Models.swift (in target 'TrayCore' from project 'TrayCore')
+SwiftCompile normal arm64 /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore/Sources/TrayCore/Models.swift (in target 'TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/ZhiweiTray.xcodeproj
+    
+
+SwiftCompile normal arm64 Compiling\ resource_bundle_accessor.swift,\ ComboEngine.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/DerivedSources/resource_bundle_accessor.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore/Sources/TrayCore/ComboEngine.swift (in target 'TrayCore' from project 'TrayCore')
+SwiftCompile normal arm64 /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/DerivedSources/resource_bundle_accessor.swift (in target 'TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/ZhiweiTray.xcodeproj
+    
+
+SwiftCompile normal arm64 /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore/Sources/TrayCore/ComboEngine.swift (in target 'TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/ZhiweiTray.xcodeproj
+    
+
+SwiftCompile normal arm64 Compiling\ MenuRepository.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore/Sources/TrayCore/MenuRepository.swift (in target 'TrayCore' from project 'TrayCore')
+
+SwiftCompile normal arm64 /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore/Sources/TrayCore/MenuRepository.swift (in target 'TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/ZhiweiTray.xcodeproj
+    
+
+SwiftDriverJobDiscovery normal arm64 Emitting module for TrayCore (in target 'TrayCore' from project 'TrayCore')
+
+SwiftDriver\ Compilation\ Requirements TrayCore normal arm64 com.apple.xcode.tools.swift.compiler (in target 'TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/ZhiweiTray.xcodeproj
+    builtin-Swift-Compilation-Requirements -- /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name TrayCore -Onone -enforce-exclusivity\=checked @/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore.SwiftFileList -DSWIFT_PACKAGE -DDEBUG -DXcode -plugin-path /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -target arm64-apple-ios17.0-simulator -g -module-cache-path /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Index.noindex/DataStore -swift-version 5 -I /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator -I /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib -F /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator -F /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks -F /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk/Developer/Library/Frameworks -c -j3 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/SDKStatCaches.noindex/iphonesimulator18.5-22F76-96ae0914227b19deccb34b33ba7b5dea.sdkstatcache -output-file-map /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/ModuleCache.noindex/Session.modulevalidation -package-name traycore -Xcc -I/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore_const_extract_protocols.json -Xcc -I/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/DerivedSources/arm64 -Xcc -I/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/DerivedSources -Xcc -DSWIFT_PACKAGE -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore-Swift.h -working-directory /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/ZhiweiTray.xcodeproj -experimental-emit-module-separately -disable-cmo
+
+SwiftDriverJobDiscovery normal arm64 Compiling MenuRepository.swift (in target 'TrayCore' from project 'TrayCore')
+
+SwiftMergeGeneratedHeaders /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/TrayCore-Swift.h /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore-Swift.h (in target 'TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore
+    builtin-swiftHeaderTool -arch arm64 /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore-Swift.h -o /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/TrayCore-Swift.h
+
+Copy /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/TrayCore.swiftmodule/arm64-apple-ios-simulator.swiftmodule /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore.swiftmodule (in target 'TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore.swiftmodule /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/TrayCore.swiftmodule/arm64-apple-ios-simulator.swiftmodule
+
+Copy /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/TrayCore.swiftmodule/arm64-apple-ios-simulator.swiftdoc /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore.swiftdoc (in target 'TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore.swiftdoc /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/TrayCore.swiftmodule/arm64-apple-ios-simulator.swiftdoc
+
+Copy /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/TrayCore.swiftmodule/arm64-apple-ios-simulator.abi.json /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore.abi.json (in target 'TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore.abi.json /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/TrayCore.swiftmodule/arm64-apple-ios-simulator.abi.json
+
+Copy /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/TrayCore.swiftmodule/Project/arm64-apple-ios-simulator.swiftsourceinfo /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore.swiftsourceinfo (in target 'TrayCore' from project 'TrayCore')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/TrayCore.build/Debug-iphonesimulator/TrayCore.build/Objects-normal/arm64/TrayCore.swiftsourceinfo /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/TrayCore.swiftmodule/Project/arm64-apple-ios-simulator.swiftsourceinfo
+
+ProcessProductPackaging "" /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray.app-Simulated.xcent (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    
+    Entitlements:
+    
+    {
+    "application-identifier" = "FAKETEAMID.com.zhiwei.tray";
+}
+    
+    builtin-productPackagingUtility -entitlements -format xml -o /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray.app-Simulated.xcent
+
+ProcessProductPackagingDER /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray.app-Simulated.xcent /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray.app-Simulated.xcent.der (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    /usr/bin/derq query -f xml -i /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray.app-Simulated.xcent -o /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray.app-Simulated.xcent.der --raw
+
+MkDir /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/assetcatalog_output/unthinned (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    /bin/mkdir -p /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/assetcatalog_output/unthinned
+
+MkDir /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/assetcatalog_output/thinned (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    /bin/mkdir -p /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/assetcatalog_output/thinned
+
+GenerateAssetSymbols /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Resources/Assets.xcassets (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    /Applications/Xcode_16.4.app/Contents/Developer/usr/bin/actool /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Resources/Assets.xcassets --compile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/ZhiweiTray.app --output-format human-readable-text --notices --warnings --export-dependency-info /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/assetcatalog_dependencies --output-partial-info-plist /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/assetcatalog_generated_info.plist --app-icon AppIcon --accent-color AccentColor --compress-pngs --enable-on-demand-resources YES --development-region en --target-device iphone --minimum-deployment-target 17.0 --platform iphonesimulator --bundle-identifier com.zhiwei.tray --generate-swift-asset-symbol-extensions NO --generate-swift-asset-symbols /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/DerivedSources/GeneratedAssetSymbols.swift --generate-objc-asset-symbols /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/DerivedSources/GeneratedAssetSymbols.h --generate-asset-symbol-index /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/DerivedSources/GeneratedAssetSymbols-Index.plist
+/* com.apple.actool.compilation-results */
+/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/DerivedSources/GeneratedAssetSymbols-Index.plist
+/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/DerivedSources/GeneratedAssetSymbols.h
+/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/DerivedSources/GeneratedAssetSymbols.swift
+
+
+CompileAssetCatalogVariant thinned /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/ZhiweiTray.app /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Resources/Assets.xcassets (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    /Applications/Xcode_16.4.app/Contents/Developer/usr/bin/actool /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Resources/Assets.xcassets --compile /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/assetcatalog_output/thinned --output-format human-readable-text --notices --warnings --export-dependency-info /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/assetcatalog_dependencies_thinned --output-partial-info-plist /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/assetcatalog_generated_info.plist_thinned --app-icon AppIcon --accent-color AccentColor --compress-pngs --enable-on-demand-resources YES --filter-for-thinning-device-configuration iPhone17,1 --filter-for-device-os-version 18.5 --development-region en --target-device iphone --minimum-deployment-target 17.0 --platform iphonesimulator
+
+SwiftDriverJobDiscovery normal arm64 Compiling Models.swift (in target 'TrayCore' from project 'TrayCore')
+
+SwiftDriver ZhiweiTray normal arm64 com.apple.xcode.tools.swift.compiler (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    builtin-SwiftDriver -- /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name ZhiweiTray -Onone -enforce-exclusivity\=checked @/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/Objects-normal/arm64/ZhiweiTray.SwiftFileList -DDEBUG -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -target arm64-apple-ios17.0-simulator -g -module-cache-path /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Index.noindex/DataStore -swift-version 5 -I /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator -F /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/PackageFrameworks -F /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator -c -j3 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/SDKStatCaches.noindex/iphonesimulator18.5-22F76-96ae0914227b19deccb34b33ba7b5dea.sdkstatcache -output-file-map /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/Objects-normal/arm64/ZhiweiTray-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/Objects-normal/arm64/ZhiweiTray.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/Objects-normal/arm64/ZhiweiTray_const_extract_protocols.json -Xcc -iquote -Xcc /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray-generated-files.hmap -Xcc -I/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray-own-target-headers.hmap -Xcc -I/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray-all-non-framework-target-headers.hmap -Xcc -ivfsoverlay -Xcc /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray-7d1bc7a814a52ae35d505726482540d4-VFS-iphonesimulator/all-product-headers.yaml -Xcc -iquote -Xcc /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray-project-headers.hmap -Xcc -I/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/DerivedSources/arm64 -Xcc -I/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/Objects-normal/arm64/ZhiweiTray-Swift.h -working-directory /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray -experimental-emit-module-separately -disable-cmo
+
+SwiftEmitModule normal arm64 Emitting\ module\ for\ ZhiweiTray (in target 'ZhiweiTray' from project 'ZhiweiTray')
+Failed frontend command:
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-frontend -frontend -emit-module -experimental-skip-non-inlinable-function-bodies-without-types /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/Components/Components.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/Features/Menu/DishDetailView.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/Features/Log/LogView.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/Features/Menu/MenuView.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/Features/Profile/ProfileView.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/App/RootView.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/App/Store.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/Theme/Theme.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/Features/Today/TodayView.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/Features/Tray/TrayView.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/App/ZhiweiTrayApp.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/DerivedSources/GeneratedAssetSymbols.swift -target arm64-apple-ios17.0-simulator -Xllvm -aarch64-use-tbi -enable-objc-interop -sdk /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -I /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator -F /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/PackageFrameworks -F /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator -no-color-diagnostics -enable-testing -g -debug-info-format\=dwarf -dwarf-version\=4 -module-cache-path /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/ModuleCache.noindex -swift-version 5 -enforce-exclusivity\=checked -Onone -D DEBUG -serialize-debugging-options -const-gather-protocols-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/Objects-normal/arm64/ZhiweiTray_const_extract_protocols.json -enable-experimental-feature DebugDescriptionMacro -enable-bare-slash-regex -empty-abi-descriptor -validate-clang-modules-once -clang-build-session-file /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/ModuleCache.noindex/Session.modulevalidation -Xcc -working-directory -Xcc /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray -resource-dir /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift -enable-anonymous-context-mangled-names -file-compilation-dir /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray -Xcc -ivfsstatcache -Xcc /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/SDKStatCaches.noindex/iphonesimulator18.5-22F76-96ae0914227b19deccb34b33ba7b5dea.sdkstatcache -Xcc -I/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/swift-overrides.hmap -Xcc -iquote -Xcc /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray-generated-files.hmap -Xcc -I/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray-own-target-headers.hmap -Xcc -I/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray-all-non-framework-target-headers.hmap -Xcc -ivfsoverlay -Xcc /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray-7d1bc7a814a52ae35d505726482540d4-VFS-iphonesimulator/all-product-headers.yaml -Xcc -iquote -Xcc /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/ZhiweiTray-project-headers.hmap -Xcc -I/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/DerivedSources/arm64 -Xcc -I/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/DerivedSources -Xcc -DDEBUG\=1 -module-name ZhiweiTray -frontend-parseable-output -disable-clang-spi -target-sdk-version 18.5 -target-sdk-name iphonesimulator18.5 -external-plugin-path /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins\#/Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server -external-plugin-path /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/local/lib/swift/host/plugins\#/Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server -in-process-plugin-server-path /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/libSwiftInProcPluginServer.dylib -plugin-path /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins -plugin-path /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/local/lib/swift/host/plugins -emit-module-doc-path /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/Objects-normal/arm64/ZhiweiTray.swiftdoc -emit-module-source-info-path /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/Objects-normal/arm64/ZhiweiTray.swiftsourceinfo -emit-objc-header-path /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/Objects-normal/arm64/ZhiweiTray-Swift.h -serialize-diagnostics-path /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/Objects-normal/arm64/ZhiweiTray-master-emit-module.dia -emit-dependencies-path /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/Objects-normal/arm64/ZhiweiTray-master-emit-module.d -o /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/Objects-normal/arm64/ZhiweiTray.swiftmodule -emit-abi-descriptor-path /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/Objects-normal/arm64/ZhiweiTray.abi.json
+
+EmitSwiftModule normal arm64 (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    
+/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/Components/Components.swift:160:29: error: cannot find type 'MealType' in scope
+    @Binding var selection: MealType
+                            ^~~~~~~~
+/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/Features/Tray/TrayView.swift:4:1: warning: extension declares a conformance of imported type 'DishCategory' to imported protocol 'Identifiable'; this will not behave correctly if the owners of 'TrayCore' introduce this conformance in the future
+extension DishCategory: Identifiable {
+^
+/Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/Features/Tray/TrayView.swift:4:1: note: add '@retroactive' to silence this warning
+extension DishCategory: Identifiable {
+^                       ~~~~~~~~~~~~
+                        @retroactive Identifiable
+
+SwiftCompile normal arm64 Compiling\ Components.swift,\ DishDetailView.swift,\ LogView.swift,\ MenuView.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/Components/Components.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/Features/Menu/DishDetailView.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/Features/Log/LogView.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/Features/Menu/MenuView.swift (in target 'ZhiweiTray' from project 'ZhiweiTray')
+SwiftCompile normal arm64 /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/Components/Components.swift (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    
+
+SwiftCompile normal arm64 /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/Features/Menu/DishDetailView.swift (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    
+
+SwiftCompile normal arm64 /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/Features/Log/LogView.swift (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    
+
+SwiftCompile normal arm64 /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/Features/Menu/MenuView.swift (in target 'ZhiweiTray' from project 'ZhiweiTray')
+    cd /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray
+    
+
+SwiftDriverJobDiscovery normal arm64 Compiling resource_bundle_accessor.swift, ComboEngine.swift (in target 'TrayCore' from project 'TrayCore')
+
+SwiftCompile normal arm64 Compiling\ TodayView.swift,\ TrayView.swift,\ ZhiweiTrayApp.swift,\ GeneratedAssetSymbols.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/Features/Today/TodayView.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/Features/Tray/TrayView.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/App/ZhiweiTrayApp.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/DerivedSources/GeneratedAssetSymbols.swift (in target 'ZhiweiTray' from project 'ZhiweiTray')
+Command SwiftCompile failed with a nonzero exit code
+
+** BUILD FAILED **
+
+
+The following build commands failed:
+	SwiftEmitModule normal arm64 Emitting\ module\ for\ ZhiweiTray (in target 'ZhiweiTray' from project 'ZhiweiTray')
+	EmitSwiftModule normal arm64 (in target 'ZhiweiTray' from project 'ZhiweiTray')
+	SwiftCompile normal arm64 Compiling\ TodayView.swift,\ TrayView.swift,\ ZhiweiTrayApp.swift,\ GeneratedAssetSymbols.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/Features/Today/TodayView.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/Features/Tray/TrayView.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/Sources/App/ZhiweiTrayApp.swift /Users/runner/work/canteen-health-system/canteen-health-system/ios/ZhiweiTray/build/Build/Intermediates.noindex/ZhiweiTray.build/Debug-iphonesimulator/ZhiweiTray.build/DerivedSources/GeneratedAssetSymbols.swift (in target 'ZhiweiTray' from project 'ZhiweiTray')
+	Building project ZhiweiTray with scheme ZhiweiTray and configuration Debug
+(4 failures)
