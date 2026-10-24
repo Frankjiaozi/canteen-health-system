@@ -426,5 +426,11 @@ public struct DaySummary: Equatable, Sendable {
     public var price: Double
     public var entries: Int
 
+    public init(nutrition: Nutrition, price: Double, entries: Int) {
+        self.nutrition = nutrition
+        self.price = price
+        self.entries = entries
+    }
+
     public static let empty = DaySummary(nutrition: .zero, price: 0, entries: 0)
 }
