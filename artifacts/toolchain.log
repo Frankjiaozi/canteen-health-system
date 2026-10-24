@@ -1,0 +1,36 @@
+Xcode 16.4
+Build version 16F6
+---
+swift-driver version: 1.120.5 Apple Swift version 6.1.2 (swiftlang-6.1.2.1.2 clang-1700.0.13.5)
+Target: arm64-apple-macosx15.0
+---
+== Devices ==
+-- iOS 18.5 --
+    iPhone 16 Pro (DC4CD8B3-4457-4153-9087-A0D7A2F9BFD9) (Shutdown) 
+    iPhone 16 Pro Max (F1218AE5-3D29-4CE5-9D0F-6F21CEAA502C) (Shutdown) 
+    iPhone 16e (51F5467F-16A9-4296-9C05-A74F91234967) (Shutdown) 
+    iPhone 16 (F0E646EF-4792-4F36-B48B-EC89B3A6B73B) (Shutdown) 
+    iPhone 16 Plus (183F93DA-9B72-40B1-AD0E-287526E4E9D5) (Shutdown) 
+    iPhone SE (3rd generation) (22A3039C-6A45-47F4-82D4-80C58CA94379) (Shutdown) 
+    iPad Pro 11-inch (M4) (2EDB2671-090C-4988-822E-421879ECE84C) (Shutdown) 
+    iPad Pro 13-inch (M4) (AFBB202F-0F39-4DD8-8C47-DAB97D7D9DF2) (Shutdown) 
+    iPad mini (A17 Pro) (773C1AA1-17A9-4EC1-8BE5-D4BB00DF3AC1) (Shutdown) 
+    iPad (A16) (7222C0FB-7BCD-457A-AD32-76C948D2602F) (Shutdown) 
+    iPad Air 13-inch (M3) (9747906A-4708-4563-B8B9-1FE571CEA8C5) (Shutdown) 
+    iPad Air 11-inch (M3) (238ABD15-A231-49EB-9A8E-2A18835D05E4) (Shutdown) 
+    iPad Air 11-inch (M2) (FB985C96-A632-42FC-A064-57F80EA1A0AF) (Shutdown) 
+    iPad Air 13-inch (M2) (DEC44A2A-1119-4A2D-89C9-0A7E48485C1E) (Shutdown) 
+    iPad (10th generation) (B7718686-AA2A-4157-8E04-7FA4AE6F7BD0) (Shutdown) 
+-- iOS 18.6 --
+    iPhone 16 Pro (7FF9581C-A82C-472C-B005-492B077D1038) (Shutdown) 
+    iPhone 16 Pro Max (BAE7F30B-6707-4BF4-8375-FE75C94DD2FA) (Shutdown) 
+    iPhone 16e (8CBC396B-9510-42FF-AC70-614F5BD0FC86) (Shutdown) 
+    iPhone 16 (02010C24-263D-445A-8934-74FE019F15CA) (Shutdown) 
+    iPhone 16 Plus (102FCD1A-4F6B-4B15-ABA9-774BC75ADB11) (Shutdown) 
+    iPhone SE (3rd generation) (8938AAA2-76B5-4D49-A228-383499B04C02) (Shutdown) 
+    iPad Pro 11-inch (M4) (41C766F4-A950-4049-81B8-1B578B5804D8) (Shutdown) 
+    iPad Pro 13-inch (M4) (DD335931-190E-4075-B666-91C698C0CDEC) (Shutdown) 
+    iPad (A16) (458323E3-9E85-4764-B868-F02CE9C4ADF0) (Shutdown) 
+    iPad Air 13-inch (M3) (24D6FA4F-CB44-41E0-B6E8-91374A95E4CA) (Shutdown) 
+    iPad Air 11-inch (M3) (A1F6F219-8660-4BC0-B7E9-17BEE98456F5) (Shutdown) 
+    iPad Air 11-inch (M2) (6CE4BAD1-E547-4D95-B130-FBCDCE49282B) (Shutdown) 

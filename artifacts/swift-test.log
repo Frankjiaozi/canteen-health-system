@@ -1,0 +1,52 @@
+Building for debugging...
+[0/8] /Users/runner/work/canteen-health-system/canteen-health-system/ios/TrayCore/.build/arm64-apple-macosx/debug/TrayCorePackageTests.derived/runner.swift
+[1/8] Write sources
+[4/8] Copying menu.json
+[5/8] Write swift-version--79AA4F9932D1E87A.txt
+[7/12] Compiling TrayCore Models.swift
+[8/12] Compiling TrayCore ComboEngine.swift
+[9/12] Compiling TrayCore MenuRepository.swift
+[10/12] Emitting module TrayCore
+[11/13] Compiling TrayCore resource_bundle_accessor.swift
+[12/15] Compiling TrayCoreTests TrayCoreTests.swift
+[13/15] Emitting module TrayCoreTests
+[14/17] Compiling TrayCorePackageTests runner.swift
+[15/17] Emitting module TrayCorePackageTests
+[15/17] Write Objects.LinkFileList
+[16/17] Linking TrayCorePackageTests
+Build complete! (24.97s)
+Test Suite 'All tests' started at 2026-10-24 17:13:50.789.
+Test Suite 'TrayCorePackageTests.xctest' started at 2026-10-24 17:13:50.793.
+Test Suite 'TrayCoreTests' started at 2026-10-24 17:13:50.793.
+Test Case '-[TrayCoreTests.TrayCoreTests testAllergensAreNeverRecommended]' started.
+Test Case '-[TrayCoreTests.TrayCoreTests testAllergensAreNeverRecommended]' passed (0.004 seconds).
+Test Case '-[TrayCoreTests.TrayCoreTests testAlternativesChangeOnlyOneSlot]' started.
+Test Case '-[TrayCoreTests.TrayCoreTests testAlternativesChangeOnlyOneSlot]' passed (0.001 seconds).
+Test Case '-[TrayCoreTests.TrayCoreTests testBreakfastHasThreeSlots]' started.
+Test Case '-[TrayCoreTests.TrayCoreTests testBreakfastHasThreeSlots]' passed (0.000 seconds).
+Test Case '-[TrayCoreTests.TrayCoreTests testCashBudgetIsRespectedWhenPossible]' started.
+Test Case '-[TrayCoreTests.TrayCoreTests testCashBudgetIsRespectedWhenPossible]' passed (0.020 seconds).
+Test Case '-[TrayCoreTests.TrayCoreTests testCutGoalStaysNearCalorieTarget]' started.
+Test Case '-[TrayCoreTests.TrayCoreTests testCutGoalStaysNearCalorieTarget]' passed (0.001 seconds).
+Test Case '-[TrayCoreTests.TrayCoreTests testEveryMenuDishExists]' started.
+Test Case '-[TrayCoreTests.TrayCoreTests testEveryMenuDishExists]' passed (0.008 seconds).
+Test Case '-[TrayCoreTests.TrayCoreTests testHealthScoreBounds]' started.
+Test Case '-[TrayCoreTests.TrayCoreTests testHealthScoreBounds]' passed (0.000 seconds).
+Test Case '-[TrayCoreTests.TrayCoreTests testJSONRoundTrip]' started.
+Test Case '-[TrayCoreTests.TrayCoreTests testJSONRoundTrip]' passed (0.000 seconds).
+Test Case '-[TrayCoreTests.TrayCoreTests testLunchComboCoversAllSlots]' started.
+Test Case '-[TrayCoreTests.TrayCoreTests testLunchComboCoversAllSlots]' passed (0.001 seconds).
+Test Case '-[TrayCoreTests.TrayCoreTests testMenuHasFullWeek]' started.
+Test Case '-[TrayCoreTests.TrayCoreTests testMenuHasFullWeek]' passed (0.000 seconds).
+Test Case '-[TrayCoreTests.TrayCoreTests testSuggestionsAreDeterministicAndRotate]' started.
+Test Case '-[TrayCoreTests.TrayCoreTests testSuggestionsAreDeterministicAndRotate]' passed (0.002 seconds).
+Test Suite 'TrayCoreTests' passed at 2026-10-24 17:13:50.831.
+	 Executed 11 tests, with 0 failures (0 unexpected) in 0.037 (0.037) seconds
+Test Suite 'TrayCorePackageTests.xctest' passed at 2026-10-24 17:13:50.831.
+	 Executed 11 tests, with 0 failures (0 unexpected) in 0.037 (0.038) seconds
+Test Suite 'All tests' passed at 2026-10-24 17:13:50.831.
+	 Executed 11 tests, with 0 failures (0 unexpected) in 0.037 (0.041) seconds
+◇ Test run started.
+↳ Testing Library Version: 124.4
+↳ Target Platform: arm64e-apple-macos14.0
+✔ Test run with 0 tests passed after 0.001 seconds.
