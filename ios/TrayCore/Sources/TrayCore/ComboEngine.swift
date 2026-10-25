@@ -72,14 +72,18 @@ public enum ComboEngine {
         walk(0, [])
         guard !combos.isEmpty else { return [] }
 
-        combos.sort {
+        // Budget is a hard constraint whenever at least one combo fits: a recommendation
+        // that breaks the student's budget is not a recommendation.
+        let affordable = combos.filter { $0.price <= profile.budgetPerMeal }
+        var ranked = affordable.isEmpty ? combos : affordable
+        ranked.sort {
             if abs($0.score - $1.score) > 0.001 { return $0.score > $1.score }
             return $0.id < $1.id
         }
 
         var seen = Set<String>()
         var unique: [Combo] = []
-        for combo in combos where !seen.contains(combo.id) {
+        for combo in ranked where !seen.contains(combo.id) {
             seen.insert(combo.id)
             unique.append(combo)
         }

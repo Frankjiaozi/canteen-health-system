@@ -3,7 +3,7 @@ import TrayCore
 
 struct LogView: View {
     @EnvironmentObject private var store: TrayStore
-    @State private var selectedDate: Date = Date()
+    @State private var selectedDate: Date = AppClock.now
 
     private var days: [(date: Date, summary: DaySummary)] {
         store.lastSevenDays()
@@ -35,7 +35,7 @@ struct LogView: View {
             .toolbar(.hidden, for: .navigationBar)
             .onAppear {
                 if !Calendar.current.isDateInToday(selectedDate) {
-                    selectedDate = Date()
+                    selectedDate = AppClock.now
                 }
             }
         }
@@ -69,7 +69,7 @@ struct LogView: View {
     private var streak: Int {
         let calendar = Calendar.current
         var count = 0
-        var day = calendar.startOfDay(for: Date())
+        var day = calendar.startOfDay(for: AppClock.now)
         if store.summary(for: day).entries == 0 {
             day = calendar.date(byAdding: .day, value: -1, to: day) ?? day
         }
@@ -96,57 +96,53 @@ struct LogView: View {
                     .foregroundStyle(Theme.muted)
             }
 
-            ZStack(alignment: .topLeading) {
-                VStack(spacing: 0) {
-                    Spacer()
-                    Rectangle()
-                        .fill(Theme.line)
-                        .frame(height: 1)
-                }
-                .padding(.bottom, 20)
-
-                HStack(alignment: .bottom, spacing: 8) {
-                    ForEach(days, id: \.date) { item in
-                        let height = CGFloat(item.summary.nutrition.calories / maxValue) * 108
-                        let isSelected = Calendar.current.isDate(item.date, inSameDayAs: selectedDate)
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                selectedDate = item.date
-                            }
-                        } label: {
-                            VStack(spacing: 6) {
-                                Text(item.summary.nutrition.calories > 0 ? "\(Int(item.summary.nutrition.calories.rounded()))" : "—")
-                                    .font(.system(size: 8, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(isSelected ? Theme.primary : Theme.muted)
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(
-                                        isSelected
-                                            ? LinearGradient(colors: [Theme.primary, Theme.sage], startPoint: .top, endPoint: .bottom)
-                                            : LinearGradient(colors: [Theme.primarySoft, Theme.primarySoft], startPoint: .top, endPoint: .bottom)
-                                    )
-                                    .frame(height: max(4, height))
-                                Text(weekdayLabel(item.date))
-                                    .font(.system(size: 9, weight: isSelected ? .semibold : .regular))
-                                    .foregroundStyle(isSelected ? Theme.ink : Theme.muted)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-            .frame(height: 148)
-            .overlay(alignment: .topLeading) {
-                GeometryReader { proxy in
-                    let y = 148 - 20 - CGFloat(target / maxValue) * 108
+            GeometryReader { proxy in
+                let barArea: CGFloat = 118
+                let baseY: CGFloat = 148
+                ZStack(alignment: .topLeading) {
                     Path { path in
+                        let y = baseY - CGFloat(target / maxValue) * barArea
                         path.move(to: CGPoint(x: 0, y: y))
                         path.addLine(to: CGPoint(x: proxy.size.width, y: y))
                     }
-                    .stroke(Theme.accent.opacity(0.45), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    .stroke(Theme.accent.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+
+                    HStack(alignment: .bottom, spacing: 8) {
+                        ForEach(days, id: \.date) { item in
+                            let ratio = min(item.summary.nutrition.calories / maxValue, 1.05)
+                            let isSelected = Calendar.current.isDate(item.date, inSameDayAs: selectedDate)
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    selectedDate = item.date
+                                }
+                            } label: {
+                                VStack(spacing: 6) {
+                                    Text(item.summary.nutrition.calories > 0 ? "\(Int(item.summary.nutrition.calories.rounded()))" : "—")
+                                        .font(.system(size: 8, weight: .semibold, design: .rounded))
+                                        .foregroundStyle(isSelected ? Theme.primary : Theme.muted)
+                                        .frame(height: 12)
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .fill(
+                                            isSelected
+                                                ? LinearGradient(colors: [Theme.primary, Theme.sage], startPoint: .top, endPoint: .bottom)
+                                                : LinearGradient(colors: [Theme.primarySoft, Theme.primarySoft], startPoint: .top, endPoint: .bottom)
+                                        )
+                                        .frame(height: max(4, CGFloat(ratio) * barArea))
+                                    Text(weekdayLabel(item.date))
+                                        .font(.system(size: 9, weight: isSelected ? .semibold : .regular))
+                                        .foregroundStyle(isSelected ? Theme.ink : Theme.muted)
+                                        .frame(height: 12)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .frame(maxHeight: .infinity, alignment: .bottom)
                 }
             }
+            .frame(height: 160)
         }
         .trayCard()
     }

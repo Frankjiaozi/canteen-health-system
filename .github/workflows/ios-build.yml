@@ -92,14 +92,16 @@ jobs:
             xcrun simctl boot "$UDID" || true
             xcrun simctl bootstatus "$UDID" -b
             xcrun simctl status_bar "$UDID" override \
-              --time "9:41" \
+              --time "12:10" \
               --batteryState charged --batteryLevel 100 \
               --wifiBars 3 --cellularBars 4 || true
             xcrun simctl install "$UDID" ios/ZhiweiTray/build/Build/Products/Debug-iphonesimulator/ZhiweiTray.app
             xcrun simctl ui "$UDID" appearance light || true
             for screen in today menu tray log profile; do
               xcrun simctl terminate "$UDID" com.zhiwei.tray >/dev/null 2>&1 || true
-              xcrun simctl launch "$UDID" com.zhiwei.tray "-screen-$screen" -demo-tray >/dev/null
+              SIMCTL_CHILD_TZ=Asia/Shanghai xcrun simctl launch "$UDID" com.zhiwei.tray \
+                "-screen-$screen" -demo-tray \
+                -demo-now "2026-10-25T12:10:00+08:00" >/dev/null
               sleep 3
               xcrun simctl io "$UDID" screenshot "$GITHUB_WORKSPACE/artifacts/$screen.png"
             done

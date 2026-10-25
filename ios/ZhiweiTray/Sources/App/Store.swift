@@ -10,13 +10,26 @@ enum AppTab: String, Hashable {
     case profile
 }
 
+/// Lets screenshot/demo builds pin "now" so every screen shows a coherent date and meal.
+enum AppClock {
+    static let fixedNow: Date? = {
+        let args = ProcessInfo.processInfo.arguments
+        guard let index = args.firstIndex(of: "-demo-now"), args.indices.contains(index + 1) else {
+            return nil
+        }
+        return ISO8601DateFormatter().date(from: args[index + 1])
+    }()
+
+    static var now: Date { fixedNow ?? Date() }
+}
+
 @MainActor
 final class TrayStore: ObservableObject {
     @Published var profile: UserProfile
     @Published var logs: [MealLogEntry]
     @Published var tray: [Dish] = []
     @Published var trayMeal: MealType = .lunch
-    @Published var selectedDate: Date = Date()
+    @Published var selectedDate: Date = AppClock.now
     @Published var selectedMeal: MealType = .lunch
     @Published var suggestionSeed: Int = 0
     @Published var selectedTab: AppTab
@@ -48,7 +61,7 @@ final class TrayStore: ObservableObject {
 
         if ProcessInfo.processInfo.arguments.contains("-demo-tray"),
            let combo = ComboEngine.best(
-               from: repository.menuPool(for: menu(for: Date()), meal: .lunch),
+               from: repository.menuPool(for: menu(for: AppClock.now), meal: .lunch),
                meal: .lunch,
                profile: profile
            ) {
@@ -83,7 +96,7 @@ final class TrayStore: ObservableObject {
         repository.menu(for: date)
     }
 
-    var todayMenu: MenuDay { menu(for: Date()) }
+    var todayMenu: MenuDay { menu(for: AppClock.now) }
 
     func pool(for meal: MealType) -> [Dish] {
         repository.pool(for: meal)
@@ -165,7 +178,7 @@ final class TrayStore: ObservableObject {
 
     func saveTray() -> Bool {
         guard !tray.isEmpty else { return false }
-        let entry = MealLogEntry(date: Calendar.current.startOfDay(for: Date()), meal: trayMeal, dishIDs: tray.map(\.id))
+        let entry = MealLogEntry(date: Calendar.current.startOfDay(for: AppClock.now), meal: trayMeal, dishIDs: tray.map(\.id))
         logs.removeAll { Calendar.current.isDate($0.date, inSameDayAs: entry.date) && $0.meal == entry.meal }
         logs.append(entry)
         logs.sort { $0.date > $1.date }
@@ -177,7 +190,7 @@ final class TrayStore: ObservableObject {
 
     // MARK: - Logs
 
-    func log(meal: MealType, dishIDs: [String], date: Date = Date()) {
+    func log(meal: MealType, dishIDs: [String], date: Date = AppClock.now) {
         let entry = MealLogEntry(date: Calendar.current.startOfDay(for: date), meal: meal, dishIDs: dishIDs)
         logs.removeAll { Calendar.current.isDate($0.date, inSameDayAs: entry.date) && $0.meal == meal }
         logs.append(entry)
@@ -211,7 +224,7 @@ final class TrayStore: ObservableObject {
         repository.dishes(entry.dishIDs)
     }
 
-    func lastSevenDays(endingAt date: Date = Date()) -> [(date: Date, summary: DaySummary)] {
+    func lastSevenDays(endingAt date: Date = AppClock.now) -> [(date: Date, summary: DaySummary)] {
         let calendar = Calendar.current
         let end = calendar.startOfDay(for: date)
         return (0..<7).reversed().compactMap { offset in
@@ -220,7 +233,7 @@ final class TrayStore: ObservableObject {
         }
     }
 
-    func proteinDaysMet(endingAt date: Date = Date()) -> Int {
+    func proteinDaysMet(endingAt date: Date = AppClock.now) -> Int {
         let target = NutritionMath.dailyTargets(for: profile).protein * 0.85
         return lastSevenDays(endingAt: date).filter { $0.summary.nutrition.protein >= target }.count
     }
@@ -251,7 +264,7 @@ final class TrayStore: ObservableObject {
         toast = "演示数据已重置"
     }
 
-    static func mealForNow(now: Date = Date()) -> MealType {
+    static func mealForNow(now: Date = AppClock.now) -> MealType {
         let hour = Calendar.current.component(.hour, from: now)
         if hour < 10 { return .breakfast }
         if hour < 15 { return .lunch }
@@ -271,17 +284,21 @@ final class TrayStore: ObservableObject {
     private static func demoLogs(repository: MenuRepository) -> [MealLogEntry] {
         var result: [MealLogEntry] = []
         let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
+        let today = calendar.startOfDay(for: AppClock.now)
         for offset in 1...4 {
             guard let day = calendar.date(byAdding: .day, value: -offset, to: today) else { continue }
             let menu = repository.menu(for: day)
-            for meal in [MealType.lunch, .dinner] {
+            for meal in [MealType.breakfast, .lunch, .dinner] {
                 if let combo = ComboEngine.best(
                     from: repository.menuPool(for: menu, meal: meal),
                     meal: meal,
                     profile: UserProfile()
                 ) {
-                    result.append(MealLogEntry(date: day, meal: meal, dishIDs: combo.dishes.map(\.id)))
+                    var ids = combo.dishes.map(\.id)
+                    if meal == .breakfast, !ids.contains("hot_milk") {
+                        ids.append("hot_milk")
+                    }
+                    result.append(MealLogEntry(date: day, meal: meal, dishIDs: ids))
                 }
             }
         }
@@ -290,7 +307,9 @@ final class TrayStore: ObservableObject {
             meal: .breakfast,
             profile: UserProfile()
         ) {
-            result.append(MealLogEntry(date: today, meal: .breakfast, dishIDs: breakfast.dishes.map(\.id)))
+            var ids = breakfast.dishes.map(\.id)
+            if !ids.contains("hot_milk") { ids.append("hot_milk") }
+            result.append(MealLogEntry(date: today, meal: .breakfast, dishIDs: ids))
         }
         return result
     }

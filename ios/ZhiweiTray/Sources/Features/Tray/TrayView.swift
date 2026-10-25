@@ -20,7 +20,6 @@ struct TrayView: View {
                         totalsCard
                         slotsCard
                         shuffleStrip
-                        saveButton
                     }
                 }
                 .padding(.horizontal, Theme.pagePadding)
@@ -29,6 +28,11 @@ struct TrayView: View {
             }
             .background(Theme.background.ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
+            .safeAreaInset(edge: .bottom) {
+                if !store.tray.isEmpty {
+                    saveBar
+                }
+            }
             .sheet(item: $swapCategory) { category in
                 SwapSheet(category: category)
                     .environmentObject(store)
@@ -224,6 +228,16 @@ struct TrayView: View {
                 MacroBar(title: "蛋白质", value: nutrition.protein, target: target.protein, unit: "g", tint: Theme.primary)
                 MacroBar(title: "钠", value: nutrition.sodium, target: target.sodium, unit: "mg", tint: Theme.sage)
             }
+
+            if nutrition.sodium > target.sodium {
+                HStack(spacing: 5) {
+                    Image(systemName: "drop.triangle")
+                        .font(.system(size: 10, weight: .medium))
+                    Text("钠偏高，下一餐优先清淡的汤和蔬菜")
+                        .font(.system(size: 10))
+                }
+                .foregroundStyle(Theme.accent)
+            }
         }
         .trayCard()
     }
@@ -391,21 +405,27 @@ struct TrayView: View {
         }
     }
 
-    private var saveButton: some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.25)) {
-                _ = store.saveTray()
+    private var saveBar: some View {
+        VStack(spacing: 0) {
+            Divider().overlay(Theme.line)
+            Button {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    _ = store.saveTray()
+                }
+            } label: {
+                HStack {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 13, weight: .bold))
+                    Text("记录这一餐 · ¥\(String(format: "%.1f", store.trayPrice))")
+                }
+                .frame(maxWidth: .infinity)
             }
-        } label: {
-            HStack {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 13, weight: .bold))
-                Text("记录这一餐")
-            }
-            .frame(maxWidth: .infinity)
+            .buttonStyle(PrimaryButtonStyle())
+            .padding(.horizontal, Theme.pagePadding)
+            .padding(.top, 10)
+            .padding(.bottom, 4)
         }
-        .buttonStyle(PrimaryButtonStyle())
-        .padding(.top, 4)
+        .background(.ultraThinMaterial)
     }
 }
 

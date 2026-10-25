@@ -95,9 +95,13 @@ final class TrayCoreTests: XCTestCase {
     func testCashBudgetIsRespectedWhenPossible() throws {
         let pool = repo.pool(for: .lunch)
         var profile = UserProfile()
-        profile.budgetPerMeal = 12
+        profile.budgetPerMeal = 15
         let combo = try XCTUnwrap(ComboEngine.best(from: pool, meal: .lunch, profile: profile))
-        XCTAssertLessThanOrEqual(combo.price, 18, "should not blow far past a 12 CNY budget")
+        XCTAssertLessThanOrEqual(combo.price, 15, "the best combo must fit the student's budget")
+
+        profile.budgetPerMeal = 8
+        let fallback = try XCTUnwrap(ComboEngine.best(from: pool, meal: .lunch, profile: profile))
+        XCTAssertNotNil(fallback, "an impossible budget should still return the closest option")
     }
 
     func testAlternativesChangeOnlyOneSlot() throws {

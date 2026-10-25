@@ -9,7 +9,7 @@ struct MenuView: View {
     @State private var detailDish: Dish?
 
     private var days: [MenuDay] {
-        store.repository.weekMenus(containing: Date())
+        store.repository.weekMenus(containing: AppClock.now)
     }
 
     private var menu: MenuDay {
@@ -48,8 +48,8 @@ struct MenuView: View {
                     .environmentObject(store)
             }
             .onChange(of: store.selectedTab) { _, tab in
-                if tab == .menu, Calendar.current.startOfDay(for: store.selectedDate) < Calendar.current.startOfDay(for: Date()) {
-                    store.selectedDate = Date()
+                if tab == .menu, Calendar.current.startOfDay(for: store.selectedDate) < Calendar.current.startOfDay(for: AppClock.now) {
+                    store.selectedDate = AppClock.now
                 }
             }
         }
@@ -66,18 +66,14 @@ struct MenuView: View {
                     .foregroundStyle(Theme.muted)
             }
             Spacer()
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    avoidAllergens.toggle()
-                }
-            } label: {
-                Image(systemName: avoidAllergens ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
-                    .font(.system(size: 22, weight: .regular))
-                    .foregroundStyle(avoidAllergens ? Theme.accent : Theme.primary)
-                    .frame(width: 42, height: 42)
-                    .background(Theme.card, in: Circle())
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("\(dishes.count)")
+                    .font(.trayNumber(18))
+                    .foregroundStyle(Theme.primary)
+                Text("道在售")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Theme.muted)
             }
-            .buttonStyle(PressableButtonStyle())
         }
         .padding(.horizontal, Theme.pagePadding)
         .padding(.top, 10)

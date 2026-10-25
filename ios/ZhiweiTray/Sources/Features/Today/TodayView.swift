@@ -67,11 +67,11 @@ struct TodayView: View {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_Hans_CN")
         formatter.dateFormat = "M月d日 EEEE"
-        return formatter.string(from: Date())
+        return formatter.string(from: AppClock.now)
     }
 
     private var greeting: String {
-        let hour = Calendar.current.component(.hour, from: Date())
+        let hour = Calendar.current.component(.hour, from: AppClock.now)
         switch hour {
         case 5..<11: return "早上好"
         case 11..<14: return "中午好"
@@ -83,7 +83,7 @@ struct TodayView: View {
     // MARK: - Nutrition
 
     private var nutritionCard: some View {
-        let summary = store.summary(for: Date())
+        let summary = store.summary(for: AppClock.now)
         let target = NutritionMath.dailyTargets(for: store.profile)
         return VStack(spacing: 16) {
             HStack {
@@ -146,13 +146,13 @@ struct TodayView: View {
                         .foregroundStyle(.white.opacity(0.75))
                 }
 
-                HStack(spacing: 9) {
-                    ForEach(combo.dishes.prefix(3)) { dish in
+                HStack(spacing: 8) {
+                    ForEach(combo.dishes.prefix(4)) { dish in
                         DishImageView(name: dish.image, symbol: dish.category.symbol)
-                            .frame(width: 66, height: 66)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .frame(width: 58, height: 58)
+                            .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                RoundedRectangle(cornerRadius: 15, style: .continuous)
                                     .stroke(.white.opacity(0.26), lineWidth: 1)
                             )
                     }
@@ -246,11 +246,11 @@ struct TodayView: View {
     }
 
     private func mealRow(_ meal: MealType) -> some View {
-        let menu = store.menu(for: Date())
+        let menu = store.menu(for: AppClock.now)
         let entry = menu.meal(meal)
         let dishes = store.repository.dishes(entry?.dishIDs ?? [])
         return Button {
-            store.selectedDate = Date()
+            store.selectedDate = AppClock.now
             store.selectedMeal = meal
             store.selectedTab = .menu
         } label: {

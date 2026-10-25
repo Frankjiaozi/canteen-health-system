@@ -1,0 +1,132 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>知味 · 餐盘 — 第一版界面</title>
+<style>
+  :root {
+    --bg: #f7f3ec;
+    --ink: #1f2a26;
+    --muted: #6e7b75;
+    --green: #24574a;
+    --orange: #e4693b;
+    --line: #e8e0d4;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: radial-gradient(1200px 600px at 20% -10%, #ffffff 0%, var(--bg) 55%, #efe7da 100%);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    padding: 40px 32px 60px;
+  }
+  header { max-width: 1180px; margin: 0 auto 28px; }
+  .eyebrow { color: var(--green); font-size: 13px; letter-spacing: .18em; text-transform: uppercase; font-weight: 600; }
+  h1 { font-family: "Songti SC", "SimSun", Georgia, serif; font-size: 42px; margin: 8px 0 10px; letter-spacing: -.02em; }
+  .lede { color: var(--muted); font-size: 15px; line-height: 1.7; max-width: 760px; }
+  .meta { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+  .pill { font-size: 12px; padding: 6px 11px; border-radius: 999px; background: #fff; border: 1px solid var(--line); color: var(--muted); }
+  .pill strong { color: var(--green); }
+  .rail { display: flex; gap: 26px; overflow-x: auto; padding: 10px 4px 28px; max-width: 100%; scroll-snap-type: x mandatory; }
+  .rail::-webkit-scrollbar { height: 8px; }
+  .rail::-webkit-scrollbar-thumb { background: #d8cfc0; border-radius: 999px; }
+  .phone-wrap { flex: 0 0 auto; width: 330px; scroll-snap-align: start; }
+  .phone {
+    position: relative;
+    border-radius: 46px;
+    padding: 10px;
+    background: linear-gradient(160deg, #2a2a2a, #0d0d0d);
+    box-shadow: 0 30px 60px rgba(31,42,38,.22), 0 6px 16px rgba(31,42,38,.12);
+  }
+  .phone img { width: 100%; display: block; border-radius: 38px; }
+  .caption { margin: 16px 6px 0; }
+  .caption h2 { font-size: 18px; margin: 0 0 6px; }
+  .caption p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+  .caption .tag { display: inline-block; margin-bottom: 8px; font-size: 10px; letter-spacing: .14em; color: var(--orange); font-weight: 700; }
+  .notes { max-width: 1180px; margin: 14px auto 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .note { background: rgba(255,255,255,.72); border: 1px solid var(--line); border-radius: 18px; padding: 18px 20px; }
+  .note h3 { margin: 0 0 8px; font-size: 14px; }
+  .note p { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.7; }
+  .note code { background: #efe9de; padding: 1px 5px; border-radius: 5px; font-size: 11.5px; }
+  footer { max-width: 1180px; margin: 30px auto 0; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="eyebrow">ZHIWEI TRAY · v1.0</div>
+    <h1>知味 · 餐盘</h1>
+    <p class="lede">把食堂后厨的营养账本，变成学生看得懂的一餐。第一版已能在 iOS 模拟器完整跑通：看今日推荐、翻菜单、换搭配、记录，再回看一周趋势。</p>
+    <div class="meta">
+      <span class="pill"><strong>SwiftUI</strong> · iOS 17+</span>
+      <span class="pill"><strong>5</strong> 个 Tab</span>
+      <span class="pill"><strong>40</strong> 道示例菜品</span>
+      <span class="pill"><strong>11</strong> 个逻辑测试通过</span>
+      <span class="pill">离线优先 · 无账号</span>
+    </div>
+  </header>
+
+  <div class="rail">
+    <div class="phone-wrap">
+      <div class="phone"><img src="../artifacts/today.png" alt="今天"></div>
+      <div class="caption">
+        <span class="tag">TODAY</span>
+        <h2>今天：先给答案</h2>
+        <p>今日营养环 + 当前餐次的最优组合，点「就吃这套」直接进入餐盘；底部是食堂公示的人均油盐与溯源批次。</p>
+      </div>
+    </div>
+
+    <div class="phone-wrap">
+      <div class="phone"><img src="../artifacts/menu.png" alt="菜单"></div>
+      <div class="caption">
+        <span class="tag">MENU</span>
+        <h2>菜单：官方数据</h2>
+        <p>7 天日期条、早/午/晚切换、搜索、分类和「避敏」开关；每道菜都带标准份量营养与过敏原。</p>
+      </div>
+    </div>
+
+    <div class="phone-wrap">
+      <div class="phone"><img src="../artifacts/tray.png" alt="餐盘"></div>
+      <div class="caption">
+        <span class="tag">TRAY</span>
+        <h2>餐盘：实时算账</h2>
+        <p>主食/荤菜/素菜/汤四个槽位，实时显示评分、总价对预算、热量/蛋白/钠进度；可逐道换，也可整套换。</p>
+      </div>
+    </div>
+
+    <div class="phone-wrap">
+      <div class="phone"><img src="../artifacts/log.png" alt="记录"></div>
+      <div class="caption">
+        <span class="tag">LOG</span>
+        <h2>记录：一周趋势</h2>
+        <p>近 7 天能量柱状图 + 目标线，当日营养汇总、餐次明细，以及蛋白质达标天数、日均热量与餐费小结。</p>
+      </div>
+    </div>
+
+    <div class="phone-wrap">
+      <div class="phone"><img src="../artifacts/profile.png" alt="我的"></div>
+      <div class="caption">
+        <span class="tag">PROFILE</span>
+        <h2>我的：目标与边界</h2>
+        <p>均衡/减脂/增肌、能量目标、每餐预算、过敏原与收藏。所有设置只影响本机推荐，不上传。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note">
+      <h3>这是第一版截图</h3>
+      <p>已经发现并正在修：推荐组合曾出现「¥18 超 ¥15 预算」、截图日期/餐次不一致、记录页目标线位置、餐盘页底部主按钮不够显眼。下一轮构建会更新这组图。</p>
+    </div>
+    <div class="note">
+      <h3>推荐不是黑箱</h3>
+      <p>对「主食 × 荤菜 × 素菜 × 汤」做组合评分：热量贴合、蛋白质达成、纤维、钠、预算、人气；过敏原在组合前直接排除，不会先推荐再警告。</p>
+    </div>
+    <div class="note">
+      <h3>怎么安装</h3>
+      <p>已产出未签名 <code>ZhiweiTray-unsigned.ipa</code>。用 Sideloadly / AltStore 配免费 Apple ID 自签即可，7 天有效、可续签。</p>
+    </div>
+  </div>
+
+  <footer>数据为演示用示例菜品；正式版由食堂配方核算后下发。截图来自 iPhone 16 Pro 模拟器。</footer>
+</body>
+</html>
