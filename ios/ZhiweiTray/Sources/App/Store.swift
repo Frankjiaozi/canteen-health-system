@@ -298,6 +298,9 @@ final class TrayStore: ObservableObject {
                     if meal == .breakfast, !ids.contains("hot_milk") {
                         ids.append("hot_milk")
                     }
+                    if (meal == .lunch || meal == .dinner), !ids.contains("boiled_egg") {
+                        ids.append("boiled_egg")
+                    }
                     result.append(MealLogEntry(date: day, meal: meal, dishIDs: ids))
                 }
             }
