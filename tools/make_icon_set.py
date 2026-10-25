@@ -3,7 +3,7 @@
 import pathlib
 from PIL import Image, ImageDraw, ImageFont
 
-ICONSET = pathlib.Path("/mnt/c/Users/M/Desktop/zhiwei-tray/ios/ZhiweiTray/Resources/Assets.xcassets/AppIcon.appiconset")
+ICONSET = pathlib.Path(__file__).resolve().parents[1] / "ios/ZhiweiTray/Resources/Assets.xcassets/AppIcon.appiconset"
 GREEN = "#24574A"
 CREAM = "#F7F3EC"
 ORANGE = "#E4693B"

@@ -3,7 +3,7 @@
 import json, pathlib, shutil
 from PIL import Image, ImageDraw, ImageFont
 
-ROOT = pathlib.Path("/mnt/c/Users/M/Desktop/zhiwei-tray")
+ROOT = pathlib.Path(__file__).resolve().parents[1]
 SRC_IMG = pathlib.Path("/mnt/c/Users/M/Desktop/canteen_project/apps/web/dist/design/dishes")
 CORE = ROOT / "ios/TrayCore/Sources/TrayCore/Resources"
 APP = ROOT / "ios/ZhiweiTray/Resources"

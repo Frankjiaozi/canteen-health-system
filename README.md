@@ -28,7 +28,7 @@ xtool 需要 Apple 的 iOS SDK，按官方文档准备 Swift 6.4 与 `Xcode.xip`
 cd ios
 xtool auth login
 xtool sdk install /path/to/Xcode.xip --slim
-xtool build          # 产出未签名 .ipa
+xtool dev build --ipa   # 产出 .ipa
 ```
 
 ### 方式二：Xcode / macOS（本仓库 CI 使用）
